@@ -1,0 +1,82 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: homework_ai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:RELEASE.2023-12-23T07-19-11Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  ocr-service:
+    build:
+      context: ../services/ocr-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+
+  backend-api:
+    build:
+      context: ..
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../apps/backend/.env.example
+    environment:
+      DATABASE_URL: mysql://root:root@mysql:3306/homework_ai
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      OCR_SERVICE_URL: http://ocr-service:8000
+      PORT: 3000
+    depends_on:
+      - mysql
+      - redis
+      - minio
+      - ocr-service
+    ports:
+      - "3000:3000"
+
+  backend-worker:
+    build:
+      context: ..
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    command: node apps/backend/dist/worker/main.js
+    env_file:
+      - ../apps/backend/.env.example
+    environment:
+      DATABASE_URL: mysql://root:root@mysql:3306/homework_ai
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      OCR_SERVICE_URL: http://ocr-service:8000
+    depends_on:
+      - mysql
+      - redis
+      - minio
+      - ocr-service
+
+volumes:
+  mysql-data:
+  minio-data:

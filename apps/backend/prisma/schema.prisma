@@ -1,0 +1,87 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "mysql" url = env("DATABASE_URL") }
+
+enum Role { STUDENT TEACHER ADMIN }
+enum SubmissionStatus { QUEUED PROCESSING DONE FAILED }
+
+model User {
+  id           String   @id @default(cuid())
+  role         Role
+  name         String
+  account      String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacherClasses Class[]     @relation("TeacherClasses")
+  studentEnrolls Enrollment[]
+  submissions    Submission[]
+}
+
+model Class {
+  id        String   @id @default(cuid())
+  name      String
+  grade     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teachers  User[]   @relation("TeacherClasses")
+  enrolls   Enrollment[]
+  homeworks Homework[]
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  classId   String
+  studentId String
+  createdAt DateTime @default(now())
+
+  class     Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student   User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+}
+
+model Homework {
+  id        String   @id @default(cuid())
+  classId   String
+  title     String
+  desc      String?
+  dueAt     DateTime?
+  createdAt DateTime @default(now())
+
+  class       Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+}
+
+model Submission {
+  id          String           @id @default(cuid())
+  homeworkId  String
+  studentId   String
+  status      SubmissionStatus @default(QUEUED)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  images      SubmissionImage[]
+  ocrText     String?          @db.Text
+  gradingJson Json?
+  totalScore  Float?
+  errorCode   String?
+  errorMsg    String?
+
+  homework    Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([homeworkId])
+  @@index([studentId])
+  @@index([status])
+}
+
+model SubmissionImage {
+  id           String   @id @default(cuid())
+  submissionId String
+  objectKey    String
+  createdAt    DateTime @default(now())
+
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}

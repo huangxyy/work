@@ -1,0 +1,13 @@
+{
+  "name": "repo",
+  "private": true,
+  "version": "0.0.1",
+  "packageManager": "pnpm@8",
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend start:dev",
+    "dev:worker": "pnpm --filter backend start:worker",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  }
+}
