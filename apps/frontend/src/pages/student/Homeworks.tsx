@@ -1,24 +1,44 @@
-import { Card, List, Typography } from 'antd';
+import { Button, Card, Empty, List, Spin, Typography } from 'antd';
+import { useQuery } from '@tanstack/react-query';
+import { fetchStudentHomeworks } from '../../api';
+import { useNavigate } from 'react-router-dom';
 
 export const StudentHomeworksPage = () => {
-  const items = [
-    { title: 'Homework A', due: '2024-02-01' },
-    { title: 'Homework B', due: '2024-02-05' },
-  ];
+  const navigate = useNavigate();
+  const { data, isLoading } = useQuery({
+    queryKey: ['student-homeworks'],
+    queryFn: fetchStudentHomeworks,
+  });
 
   return (
     <Card title="My Homeworks">
-      <List
-        dataSource={items}
-        renderItem={(item) => (
-          <List.Item>
-            <List.Item.Meta title={item.title} description={`Due: ${item.due}`} />
-          </List.Item>
-        )}
-      />
-      <Typography.Paragraph type="secondary">
-        Data will load from API once connected.
-      </Typography.Paragraph>
+      {isLoading ? (
+        <Spin />
+      ) : data && data.length ? (
+        <List
+          dataSource={data}
+          renderItem={(item) => (
+            <List.Item>
+              <List.Item.Meta
+                title={item.title}
+                description={`Class: ${item.class.name}${
+                  item.dueAt ? ` | Due: ${new Date(item.dueAt).toLocaleDateString()}` : ''
+                }`}
+              />
+              <Button type="link" onClick={() => navigate(`/student/submit/${item.id}`)}>
+                Submit
+              </Button>
+            </List.Item>
+          )}
+        />
+      ) : (
+        <>
+          <Empty description="No homework yet" />
+          <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
+            Submitters will appear here once your teacher publishes assignments.
+          </Typography.Paragraph>
+        </>
+      )}
     </Card>
   );
 };

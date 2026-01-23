@@ -1,16 +1,33 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Typography } from 'antd';
+import { Button, Card, Form, Input, Typography, message } from 'antd';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { authStore, login } from '../api';
 
 export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const onFinish = async (values: { account: string; password: string }) => {
     setLoading(true);
-    // TODO: integrate real login API
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setLoading(false);
-    // navigation will be added once auth is wired
+    try {
+      const result = await login(values.account, values.password);
+      authStore.setToken(result.token);
+      authStore.setUser(result.user);
+      message.success('Login successful');
+
+      if (result.user.role === 'TEACHER') {
+        navigate('/teacher/classes');
+      } else if (result.user.role === 'ADMIN') {
+        navigate('/admin/config');
+      } else {
+        navigate('/student/homeworks');
+      }
+    } catch (error) {
+      message.error('Login failed. Check your account or password.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
