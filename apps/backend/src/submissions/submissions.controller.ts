@@ -19,6 +19,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
+import { RegradeSubmissionDto } from './dto/regrade-submission.dto';
 import { SubmissionsService } from './submissions.service';
 
 @Controller('submissions')
@@ -60,5 +61,15 @@ export class SubmissionsController {
       errorCode: submission.errorCode,
       errorMsg: submission.errorMsg,
     };
+  }
+
+  @Post(':id/regrade')
+  @Roles(Role.STUDENT, Role.TEACHER, Role.ADMIN)
+  async regrade(
+    @Param('id') id: string,
+    @Body() body: RegradeSubmissionDto,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.submissionsService.requestRegrade(id, body, req.user);
   }
 }

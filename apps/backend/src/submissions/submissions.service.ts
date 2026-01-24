@@ -110,4 +110,27 @@ export class SubmissionsService {
 
     throw new ForbiddenException('No access');
   }
+
+  async requestRegrade(
+    id: string,
+    options: { mode?: 'cheap' | 'quality'; needRewrite?: boolean },
+    user: AuthUser,
+  ) {
+    const submission = await this.getSubmission(id, user);
+    if (!submission) {
+      throw new NotFoundException('Submission not found');
+    }
+
+    await this.prisma.submission.update({
+      where: { id },
+      data: {
+        status: SubmissionStatus.QUEUED,
+        errorCode: null,
+        errorMsg: null,
+      },
+    });
+
+    await this.queueService.enqueueRegrade(id, options);
+    return { submissionId: id, status: SubmissionStatus.QUEUED };
+  }
 }

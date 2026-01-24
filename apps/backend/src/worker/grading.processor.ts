@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, WorkerOptions } from 'bullmq';
 import { SubmissionStatus } from '@prisma/client';
+import { GradingError } from '../grading/grading.errors';
+import { GradingService } from '../grading/grading.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -20,6 +22,12 @@ class OcrError extends Error {
   }
 }
 
+type GradingJobData = {
+  submissionId: string;
+  mode?: 'cheap' | 'quality';
+  needRewrite?: boolean;
+};
+
 @Processor('grading')
 export class GradingProcessor extends WorkerHost {
   private readonly logger = new Logger(GradingProcessor.name);
@@ -30,6 +38,7 @@ export class GradingProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly gradingService: GradingService,
     configService: ConfigService,
   ) {
     super();
@@ -46,8 +55,8 @@ export class GradingProcessor extends WorkerHost {
       return this.handleDemo(job);
     }
 
-    if (job.name === 'grading' && job.data.submissionId) {
-      return this.handleGrading(job as Job<{ submissionId: string }>);
+    if ((job.name === 'grading' || job.name === 'regrade') && job.data.submissionId) {
+      return this.handleGrading(job as Job<GradingJobData>);
     }
 
     this.logger.warn(`Unhandled job ${job.id} (${job.name})`);
@@ -63,14 +72,18 @@ export class GradingProcessor extends WorkerHost {
     return { durationMs: duration };
   }
 
-  private async handleGrading(job: Job<{ submissionId: string }>) {
+  private async handleGrading(job: Job<GradingJobData>) {
     const startedAt = Date.now();
-    const { submissionId } = job.data;
+    const { submissionId, mode, needRewrite } = job.data;
+    const jobLabel = `${job.name}:${job.id}`;
+    let ocrDurationMs = 0;
+    let llmDurationMs = 0;
+    let llmStartedAt: number | null = null;
 
     try {
       await this.prisma.submission.update({
         where: { id: submissionId },
-        data: { status: SubmissionStatus.PROCESSING },
+        data: { status: SubmissionStatus.PROCESSING, errorCode: null, errorMsg: null },
       });
 
       const submission = await this.prisma.submission.findUnique({
@@ -82,61 +95,77 @@ export class GradingProcessor extends WorkerHost {
         throw new OcrError('SUBMISSION_NOT_FOUND', 'Submission not found');
       }
 
-      const texts: string[] = [];
-
-      for (const image of submission.images) {
-        const imageBuffer = await this.storage.getObject(image.objectKey);
-        const base64 = imageBuffer.toString('base64');
-        const ocrResult = await this.callOcrWithRetry({
-          image_base64: base64,
-          preprocess: false,
-        });
-        if (ocrResult.text?.trim()) {
-          texts.push(ocrResult.text.trim());
-        }
-      }
-
-      const mergedText = texts.join('\n\n').trim();
+      let mergedText = submission.ocrText?.trim() || '';
       if (!mergedText) {
-        throw new OcrError('OCR_EMPTY', 'OCR returned empty text');
+        const ocrStart = Date.now();
+        const texts: string[] = [];
+
+        for (const image of submission.images) {
+          const imageBuffer = await this.storage.getObject(image.objectKey);
+          const base64 = imageBuffer.toString('base64');
+          const ocrResult = await this.callOcrWithRetry({
+            image_base64: base64,
+            preprocess: false,
+          });
+          if (ocrResult.text?.trim()) {
+            texts.push(ocrResult.text.trim());
+          }
+        }
+
+        mergedText = texts.join('\n\n').trim();
+        ocrDurationMs = Date.now() - ocrStart;
+        if (!mergedText) {
+          throw new OcrError('OCR_EMPTY', 'OCR returned empty text');
+        }
+
+        await this.prisma.submission.update({
+          where: { id: submissionId },
+          data: { ocrText: mergedText },
+        });
       }
 
-      const mockResult = {
-        totalScore: 85,
-        dimensionScores: {
-          grammar: 17,
-          vocabulary: 17,
-          structure: 17,
-          content: 17,
-          coherence: 17,
-        },
-        errors: [],
-        suggestions: {
-          low: ['Check subject-verb agreement', 'Avoid repeated words'],
-          mid: ['Add more supporting examples'],
-          high: ['Improve paragraph transitions'],
-        },
-        summary: 'Mock grading summary.',
-        nextSteps: ['Rewrite introduction', 'Add one more example'],
-      };
+      llmStartedAt = Date.now();
+      const gradingResponse = await this.gradingService.grade(mergedText, {
+        mode: mode || 'cheap',
+        needRewrite: Boolean(needRewrite),
+      });
+      llmDurationMs = Date.now() - llmStartedAt;
 
       await this.prisma.submission.update({
         where: { id: submissionId },
         data: {
           status: SubmissionStatus.DONE,
           ocrText: mergedText,
-          gradingJson: mockResult,
-          totalScore: mockResult.totalScore,
+          gradingJson: gradingResponse.result,
+          totalScore: gradingResponse.result.totalScore,
+          errorCode: null,
+          errorMsg: null,
         },
       });
 
       const duration = Date.now() - startedAt;
-      this.logger.log(`Grading job ${job.id} done in ${duration}ms`);
-      return { durationMs: duration };
+      this.logger.log(
+        `Grading job ${jobLabel} done in ${duration}ms (ocr=${ocrDurationMs}ms, llm=${llmDurationMs}ms, provider=${gradingResponse.meta.providerName}, model=${gradingResponse.meta.model}, degraded=${gradingResponse.meta.degraded}, reason=${gradingResponse.meta.degradeReason || 'none'})`,
+      );
+      return {
+        durationMs: duration,
+        ocrDurationMs,
+        llmDurationMs,
+        degraded: gradingResponse.meta.degraded,
+      };
     } catch (error) {
+      if (llmStartedAt && llmDurationMs === 0) {
+        llmDurationMs = Date.now() - llmStartedAt;
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
       const code =
-        error instanceof OcrError ? error.code : error instanceof Error ? 'OCR_ERROR' : 'UNKNOWN';
+        error instanceof OcrError
+          ? error.code
+          : error instanceof GradingError
+            ? error.code
+            : error instanceof Error
+              ? 'LLM_API_ERROR'
+              : 'UNKNOWN';
       try {
         await this.prisma.submission.update({
           where: { id: submissionId },
@@ -151,7 +180,9 @@ export class GradingProcessor extends WorkerHost {
           updateError instanceof Error ? updateError.message : 'Unknown update error';
         this.logger.error(`Failed to update submission ${submissionId}: ${updateMessage}`);
       }
-      this.logger.error(`Grading job ${job.id} failed: ${message}`);
+      this.logger.error(
+        `Grading job ${jobLabel} failed (ocr=${ocrDurationMs}ms, llm=${llmDurationMs}ms): ${message}`,
+      );
       throw error;
     }
   }
