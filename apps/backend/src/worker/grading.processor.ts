@@ -42,7 +42,7 @@ export class GradingProcessor extends WorkerHost {
     configService: ConfigService,
   ) {
     super();
-    this.ocrServiceUrl = configService.get<string>('OCR_SERVICE_URL') || 'http://localhost:8000';
+    this.ocrServiceUrl = configService.get<string>('OCR_BASE_URL') || 'http://localhost:8000';
     this.ocrTimeoutMs = Number(configService.get<string>('OCR_TIMEOUT_MS') || '10000');
   }
 

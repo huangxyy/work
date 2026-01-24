@@ -54,7 +54,7 @@ docker compose up --build
 - OCR：`POST /ocr` 接收 `image_url` 或 `image_base64`，返回 mock 文本与置信度
 
 ## 环境变量
-- 后端示例：`apps/backend/.env.example`（包含 `DATABASE_URL`、`REDIS_URL`、`MINIO_*`、`OCR_SERVICE_URL`、`LLM_*`、`WORKER_CONCURRENCY` 等）
+- 后端示例：`apps/backend/.env.example`（包含 `DATABASE_URL`、`REDIS_URL`、`MINIO_*`、`OCR_BASE_URL`、`LLM_*`、`WORKER_CONCURRENCY` 等）
 - 前端示例：`apps/frontend/.env.example`（`VITE_API_BASE_URL`）
 
 ## 后续扩展指引（按 Phase 路线）

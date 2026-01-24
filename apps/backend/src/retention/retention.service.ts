@@ -13,7 +13,6 @@ export class RetentionService {
   private readonly retentionDays: number;
   private readonly dryRunDefault: boolean;
   private readonly batchSizeDefault: number;
-  private readonly runRetention: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -23,13 +22,12 @@ export class RetentionService {
     this.retentionDays = Number(configService.get<string>('RETENTION_DAYS') || '7');
     this.dryRunDefault = (configService.get<string>('RETENTION_DRY_RUN') || 'false') === 'true';
     this.batchSizeDefault = Number(configService.get<string>('RETENTION_BATCH_SIZE') || '200');
-    this.runRetention = (configService.get<string>('RUN_RETENTION') || 'true') === 'true';
   }
 
   @Cron(DEFAULT_RETENTION_CRON)
   async handleCron() {
-    if (!this.runRetention) {
-      this.logger.log('Retention cron skipped (RUN_RETENTION=false)');
+    if (process.env.RUN_RETENTION !== 'true') {
+      this.logger.log('Retention cron skipped (RUN_RETENTION!=true)');
       return;
     }
 
@@ -66,7 +64,7 @@ export class RetentionService {
 
       for (const submission of submissions) {
         stats.scanned += 1;
-        if (stats.sampleSubmissionIds.length < 5) {
+        if (stats.sampleSubmissionIds.length < 10) {
           stats.sampleSubmissionIds.push(submission.id);
         }
 
@@ -76,9 +74,9 @@ export class RetentionService {
         });
         const objectKeys = images.map((image) => image.objectKey);
 
-        if (stats.sampleObjectKeys.length < 5) {
+        if (stats.sampleObjectKeys.length < 10) {
           for (const key of objectKeys) {
-            if (stats.sampleObjectKeys.length >= 5) {
+            if (stats.sampleObjectKeys.length >= 10) {
               break;
             }
             stats.sampleObjectKeys.push(key);

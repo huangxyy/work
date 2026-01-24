@@ -48,7 +48,7 @@ services:
       DATABASE_URL: mysql://root:root@mysql:3306/homework_ai
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: http://minio:9000
-      OCR_SERVICE_URL: http://ocr-service:8000
+      OCR_BASE_URL: http://ocr-service:8000
       RUN_RETENTION: "true"
       PORT: 3000
     depends_on:
@@ -71,7 +71,7 @@ services:
       DATABASE_URL: mysql://root:root@mysql:3306/homework_ai
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: http://minio:9000
-      OCR_SERVICE_URL: http://ocr-service:8000
+      OCR_BASE_URL: http://ocr-service:8000
       RUN_RETENTION: "false"
     depends_on:
       - mysql
