@@ -1,54 +1,48 @@
 import {
-  BarChartOutlined,
-  BookOutlined,
-  ClusterOutlined,
   DashboardOutlined,
+  HistoryOutlined,
   SettingOutlined,
-  SlidersOutlined,
+  TeamOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { ProLayout } from '@ant-design/pro-components';
 import type { ProLayoutProps } from '@ant-design/pro-components';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 const routeConfig: ProLayoutProps['route'] = {
-  path: '/teacher',
+  path: '/admin',
   routes: [
     {
-      path: '/teacher/dashboard',
+      path: '/admin/dashboard',
       name: 'Dashboard',
       icon: <DashboardOutlined />,
     },
     {
-      path: '/teacher/classes',
-      name: 'Classes',
-      icon: <ClusterOutlined />,
+      path: '/admin/users',
+      name: 'Users',
+      icon: <TeamOutlined />,
     },
     {
-      path: '/teacher/homeworks',
-      name: 'Homeworks',
-      icon: <BookOutlined />,
-    },
-    {
-      path: '/teacher/reports',
-      name: 'Reports',
-      icon: <BarChartOutlined />,
-    },
-    {
-      path: '/teacher/settings',
-      name: 'Settings',
+      path: '/admin/system',
+      name: 'System',
       icon: <SettingOutlined />,
       routes: [
         {
-          path: '/teacher/settings/grading',
-          name: 'Grading',
-          icon: <SlidersOutlined />,
+          path: '/admin/system/budget',
+          name: 'Budget',
+          icon: <WalletOutlined />,
+        },
+        {
+          path: '/admin/system/retention',
+          name: 'Retention',
+          icon: <HistoryOutlined />,
         },
       ],
     },
   ],
 };
 
-export const TeacherLayout = () => {
+export const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
 

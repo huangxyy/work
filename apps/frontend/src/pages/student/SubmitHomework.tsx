@@ -1,7 +1,16 @@
 import { InboxOutlined } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-components';
-import { Alert, Button, Card, Col, List, Row, Space, Typography, Upload, message } from 'antd';
-import type { UploadFile } from 'antd/es/upload/interface';
+import { PageContainer, ProCard } from '@ant-design/pro-components';
+import {
+  Alert,
+  Button,
+  List,
+  Progress,
+  Space,
+  Typography,
+  Upload,
+  message,
+} from 'antd';
+import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createSubmission } from '../../api';
@@ -15,6 +24,7 @@ const tips = [
 export const SubmitHomeworkPage = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
   const navigate = useNavigate();
   const { homeworkId } = useParams();
 
@@ -26,7 +36,7 @@ export const SubmitHomeworkPage = () => {
 
     const files = fileList
       .map((file) => file.originFileObj)
-      .filter((file): file is File => !!file);
+      .filter((file): file is RcFile => !!file);
 
     if (!files.length) {
       message.warning('Please upload at least one image');
@@ -39,12 +49,15 @@ export const SubmitHomeworkPage = () => {
     }
 
     setSubmitting(true);
+    setUploadPercent(20);
     try {
       const result = await createSubmission({ homeworkId, files });
+      setUploadPercent(100);
       message.success('Submission created');
       navigate(`/student/submission/${result.submissionId}`);
     } catch (error) {
       message.error('Failed to submit, please try again');
+      setUploadPercent(0);
     } finally {
       setSubmitting(false);
     }
@@ -71,54 +84,58 @@ export const SubmitHomeworkPage = () => {
           style={{ marginBottom: 16 }}
         />
       ) : null}
-      <Row gutter={[24, 24]}>
-        <Col xs={24} lg={16}>
-          <Card title="Upload Your Work">
-            <Upload.Dragger
-              multiple
-              beforeUpload={() => false}
-              fileList={fileList}
-              maxCount={3}
-              disabled={submitting}
-              onChange={({ fileList: newList }) => {
-                if (newList.length > 3) {
-                  message.warning('Only 3 images allowed');
-                }
-                setFileList(newList.slice(0, 3));
-              }}
-              accept="image/*"
-            >
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined />
-              </p>
-              <p className="ant-upload-text">Drag & drop images or click to upload</p>
-              <Typography.Text type="secondary">
-                JPG/PNG, up to 3 images in total.
-              </Typography.Text>
-            </Upload.Dragger>
-            <Space style={{ marginTop: 16 }}>
-              <Button type="primary" onClick={handleSubmit} loading={submitting} disabled={submitting}>
-                Submit
-              </Button>
-              <Button onClick={() => setFileList([])} disabled={submitting}>
-                Reset
-              </Button>
-            </Space>
-          </Card>
-        </Col>
-        <Col xs={24} lg={8}>
-          <Card title="Submission Tips">
-            <List
-              dataSource={tips}
-              renderItem={(item) => (
-                <List.Item>
-                  <Typography.Text>{item}</Typography.Text>
-                </List.Item>
-              )}
+      <ProCard gutter={16} wrap>
+        <ProCard bordered title="Upload Your Work" colSpan={{ xs: 24, lg: 16 }}>
+          <Upload.Dragger
+            multiple
+            beforeUpload={() => false}
+            fileList={fileList}
+            maxCount={3}
+            disabled={submitting}
+            onChange={({ fileList: newList }) => {
+              if (newList.length > 3) {
+                message.warning('Only 3 images allowed');
+              }
+              setFileList(newList.slice(0, 3));
+            }}
+            accept="image/*"
+          >
+            <p className="ant-upload-drag-icon">
+              <InboxOutlined />
+            </p>
+            <p className="ant-upload-text">Drag & drop images or click to upload</p>
+            <Typography.Text type="secondary">
+              JPG/PNG, upload 1 to 3 images. Clear handwriting improves OCR accuracy.
+            </Typography.Text>
+          </Upload.Dragger>
+          <Space style={{ marginTop: 16 }}>
+            <Button type="primary" onClick={handleSubmit} loading={submitting} disabled={submitting}>
+              Submit
+            </Button>
+            <Button onClick={() => setFileList([])} disabled={submitting}>
+              Reset
+            </Button>
+          </Space>
+          {submitting ? (
+            <Progress
+              style={{ marginTop: 16 }}
+              percent={uploadPercent}
+              status="active"
+              showInfo={false}
             />
-          </Card>
-        </Col>
-      </Row>
+          ) : null}
+        </ProCard>
+        <ProCard bordered title="Submission Tips" colSpan={{ xs: 24, lg: 8 }}>
+          <List
+            dataSource={tips}
+            renderItem={(item) => (
+              <List.Item>
+                <Typography.Text>{item}</Typography.Text>
+              </List.Item>
+            )}
+          />
+        </ProCard>
+      </ProCard>
     </PageContainer>
   );
 };

@@ -2,13 +2,13 @@ import type { ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
   PageContainer,
+  ProCard,
   ProFormDateTimePicker,
   ProFormText,
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
 import { Alert, Button, Empty, Select, Skeleton, Space, message } from 'antd';
-import type { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -83,6 +83,22 @@ export const TeacherHomeworksPage = () => {
       dataIndex: 'dueAt',
       renderText: (value) => (value ? new Date(value).toLocaleString() : 'No due date'),
     },
+    {
+      title: 'Action',
+      valueType: 'option',
+      render: (_, item) => [
+        <Button
+          key="view"
+          onClick={() =>
+            navigate(`/teacher/homeworks/${item.id}`, {
+              state: { homework: item, classId: selectedClassId },
+            })
+          }
+        >
+          View
+        </Button>,
+      ],
+    },
   ];
 
   const noClasses = !classesQuery.isLoading && (classesQuery.data || []).length === 0;
@@ -92,7 +108,7 @@ export const TeacherHomeworksPage = () => {
       title="Homeworks"
       breadcrumb={{
         items: [
-          { title: 'Teacher', path: '/teacher/classes' },
+          { title: 'Teacher', path: '/teacher/dashboard' },
           { title: 'Homeworks' },
         ],
       }}
@@ -140,7 +156,7 @@ export const TeacherHomeworksPage = () => {
           </Button>
         </Empty>
       ) : (
-        <>
+        <ProCard bordered>
           <Space style={{ marginBottom: 16 }} wrap>
             <Select
               style={{ minWidth: 220 }}
@@ -158,11 +174,12 @@ export const TeacherHomeworksPage = () => {
                   message.warning('Select a class first');
                   return false;
                 }
+                const dueAtValue = values.dueAt as { toISOString?: () => string } | undefined;
                 await createMutation.mutateAsync({
                   classId: selectedClassId,
                   title: values.title as string,
                   desc: values.desc as string | undefined,
-                  dueAt: (values.dueAt as Dayjs | undefined)?.toISOString(),
+                  dueAt: dueAtValue?.toISOString?.(),
                 });
                 return true;
               }}
@@ -198,7 +215,7 @@ export const TeacherHomeworksPage = () => {
               locale={{ emptyText: <Empty description="No homeworks yet" /> }}
             />
           )}
-        </>
+        </ProCard>
       )}
     </PageContainer>
   );

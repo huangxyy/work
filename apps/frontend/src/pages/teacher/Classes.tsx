@@ -1,7 +1,8 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { ModalForm, PageContainer, ProFormText, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Empty, Skeleton, message } from 'antd';
+import { ModalForm, PageContainer, ProCard, ProFormText, ProTable } from '@ant-design/pro-components';
+import { Alert, Button, Empty, Skeleton, Space, Tag, message } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { createClass, fetchClasses } from '../../api';
 
 type ClassItem = {
@@ -12,6 +13,7 @@ type ClassItem = {
 
 export const TeacherClassesPage = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const {
     data,
@@ -42,7 +44,16 @@ export const TeacherClassesPage = () => {
     {
       title: 'Grade',
       dataIndex: 'grade',
-      renderText: (value) => value || '-',
+      render: (_, item) => (item.grade ? <Tag>{item.grade}</Tag> : <Tag>Unassigned</Tag>),
+    },
+    {
+      title: 'Action',
+      valueType: 'option',
+      render: (_, item) => [
+        <Button key="detail" onClick={() => navigate(`/teacher/classes/${item.id}`)}>
+          View
+        </Button>,
+      ],
     },
   ];
 
@@ -51,7 +62,7 @@ export const TeacherClassesPage = () => {
       title="Classes"
       breadcrumb={{
         items: [
-          { title: 'Teacher', path: '/teacher/classes' },
+          { title: 'Teacher', path: '/teacher/dashboard' },
           { title: 'Classes' },
         ],
       }}
@@ -72,39 +83,42 @@ export const TeacherClassesPage = () => {
       {isLoading && !data ? (
         <Skeleton active paragraph={{ rows: 4 }} />
       ) : (
-        <ProTable<ClassItem>
-          rowKey="id"
-          columns={columns}
-          dataSource={data || []}
-          loading={isLoading}
-          search={false}
-          pagination={false}
-          options={false}
-          locale={{ emptyText: <Empty description="No classes yet" /> }}
-          toolBarRender={() => [
-            <ModalForm
-              key="create"
-              title="Create Class"
-              trigger={<Button type="primary">Create Class</Button>}
-              onFinish={async (values) => {
-                await createMutation.mutateAsync(values as { name: string; grade?: string });
-                return true;
-              }}
-              modalProps={{ destroyOnClose: true }}
-              submitter={{
-                submitButtonProps: { loading: createMutation.isPending },
-              }}
-            >
-              <ProFormText
-                name="name"
-                label="Class Name"
-                placeholder="Class 1A"
-                rules={[{ required: true, message: 'Please input class name' }]}
-              />
-              <ProFormText name="grade" label="Grade" placeholder="Grade 7" />
-            </ModalForm>,
-          ]}
-        />
+        <ProCard bordered>
+          <ProTable<ClassItem>
+            rowKey="id"
+            columns={columns}
+            dataSource={data || []}
+            loading={isLoading}
+            search={false}
+            pagination={false}
+            options={false}
+            locale={{ emptyText: <Empty description="No classes yet" /> }}
+            toolBarRender={() => [
+              <Space key="toolbar">
+                <ModalForm
+                  title="Create Class"
+                  trigger={<Button type="primary">Create Class</Button>}
+                  onFinish={async (values) => {
+                    await createMutation.mutateAsync(values as { name: string; grade?: string });
+                    return true;
+                  }}
+                  modalProps={{ destroyOnClose: true }}
+                  submitter={{
+                    submitButtonProps: { loading: createMutation.isPending },
+                  }}
+                >
+                  <ProFormText
+                    name="name"
+                    label="Class Name"
+                    placeholder="Class 1A"
+                    rules={[{ required: true, message: 'Please input class name' }]}
+                  />
+                  <ProFormText name="grade" label="Grade" placeholder="Grade 7" />
+                </ModalForm>
+              </Space>,
+            ]}
+          />
+        </ProCard>
       )}
     </PageContainer>
   );

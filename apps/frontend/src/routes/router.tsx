@@ -1,44 +1,81 @@
+import { PageContainer } from '@ant-design/pro-components';
+import { Result } from 'antd';
 import { Navigate, createBrowserRouter } from 'react-router-dom';
-import { AppLayout } from '../components/AppLayout';
+import { AdminLayout } from '../layouts/AdminLayout';
 import { TeacherLayout } from '../layouts/TeacherLayout';
+import { StudentLayout } from '../layouts/StudentLayout';
 import { LoginPage } from '../pages/Login';
-import { AdminConfigPage } from '../pages/admin/Config';
+import { AdminDashboardPage } from '../pages/admin/Dashboard';
+import { AdminSystemBudgetPage } from '../pages/admin/SystemBudget';
+import { AdminSystemRetentionPage } from '../pages/admin/SystemRetention';
+import { AdminUsersPage } from '../pages/admin/Users';
+import { StudentDashboardPage } from '../pages/student/Dashboard';
+import { StudentHomeworkDetailPage } from '../pages/student/HomeworkDetail';
 import { StudentHomeworksPage } from '../pages/student/Homeworks';
 import { StudentReportPage } from '../pages/student/Report';
 import { SubmissionResultPage } from '../pages/student/SubmissionResult';
+import { StudentSubmissionsPage } from '../pages/student/Submissions';
 import { SubmitHomeworkPage } from '../pages/student/SubmitHomework';
+import { TeacherClassDetailPage } from '../pages/teacher/ClassDetail';
 import { TeacherClassesPage } from '../pages/teacher/Classes';
+import { TeacherDashboardPage } from '../pages/teacher/Dashboard';
+import { TeacherHomeworkDetailPage } from '../pages/teacher/HomeworkDetail';
 import { TeacherHomeworksPage } from '../pages/teacher/Homeworks';
 import { TeacherReportPage } from '../pages/teacher/Report';
-import { TeacherSubmissionDetailPage } from '../pages/teacher/SubmissionDetail';
+import { TeacherSettingsGradingPage } from '../pages/teacher/SettingsGrading';
 
-const NotFound = () => <div style={{ padding: 24 }}>Page not found</div>;
+const NotFoundPage = () => (
+  <PageContainer title="Page Not Found" breadcrumb={{ items: [] }}>
+    <Result status="404" title="404" subTitle="The page you visited does not exist." />
+  </PageContainer>
+);
 
 export const router = createBrowserRouter([
+  { path: '/', element: <Navigate to="/login" replace /> },
   { path: '/login', element: <LoginPage /> },
+  {
+    path: '/student',
+    element: <StudentLayout />,
+    children: [
+      { index: true, element: <Navigate to="/student/dashboard" replace /> },
+      { path: 'dashboard', element: <StudentDashboardPage /> },
+      { path: 'homeworks', element: <StudentHomeworksPage /> },
+      { path: 'homeworks/:id', element: <StudentHomeworkDetailPage /> },
+      { path: 'submit/:homeworkId', element: <SubmitHomeworkPage /> },
+      { path: 'submissions', element: <StudentSubmissionsPage /> },
+      { path: 'submission/:id', element: <SubmissionResultPage /> },
+      { path: 'report', element: <StudentReportPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
   {
     path: '/teacher',
     element: <TeacherLayout />,
     children: [
+      { index: true, element: <Navigate to="/teacher/dashboard" replace /> },
+      { path: 'dashboard', element: <TeacherDashboardPage /> },
       { path: 'classes', element: <TeacherClassesPage /> },
+      { path: 'classes/:id', element: <TeacherClassDetailPage /> },
       { path: 'homeworks', element: <TeacherHomeworksPage /> },
-      { path: 'submissions/:id', element: <TeacherSubmissionDetailPage /> },
-      { path: 'report/:classId', element: <TeacherReportPage /> },
-      { path: '*', element: <NotFound /> },
+      { path: 'homeworks/:id', element: <TeacherHomeworkDetailPage /> },
+      { path: 'reports', element: <TeacherReportPage /> },
+      { path: 'settings', element: <Navigate to="/teacher/settings/grading" replace /> },
+      { path: 'settings/grading', element: <TeacherSettingsGradingPage /> },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
   {
-    path: '/',
-    element: <AppLayout />,
+    path: '/admin',
+    element: <AdminLayout />,
     children: [
-      { index: true, element: <Navigate to="/student/homeworks" replace /> },
-      { path: 'student/homeworks', element: <StudentHomeworksPage /> },
-      { path: 'student/submit/:homeworkId', element: <SubmitHomeworkPage /> },
-      { path: 'student/submission/:id', element: <SubmissionResultPage /> },
-      { path: 'student/report', element: <StudentReportPage /> },
-      { path: 'admin/config', element: <AdminConfigPage /> },
-      { path: '*', element: <NotFound /> },
+      { index: true, element: <Navigate to="/admin/dashboard" replace /> },
+      { path: 'dashboard', element: <AdminDashboardPage /> },
+      { path: 'users', element: <AdminUsersPage /> },
+      { path: 'system', element: <Navigate to="/admin/system/budget" replace /> },
+      { path: 'system/budget', element: <AdminSystemBudgetPage /> },
+      { path: 'system/retention', element: <AdminSystemRetentionPage /> },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
-  { path: '*', element: <NotFound /> },
+  { path: '*', element: <NotFoundPage /> },
 ]);

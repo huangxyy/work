@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosRequestHeaders } from 'axios';
 
 export type UserRole = 'STUDENT' | 'TEACHER' | 'ADMIN';
 
@@ -21,8 +21,9 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
   if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
+    const headers = (config.headers || {}) as AxiosRequestHeaders;
+    headers.Authorization = `Bearer ${token}`;
+    config.headers = headers;
   }
   return config;
 });
@@ -83,6 +84,35 @@ export const fetchHomeworksByClass = async (classId: string) => {
     desc?: string | null;
     dueAt?: string | null;
   }>;
+};
+
+export const fetchClassStudents = async (classId: string) => {
+  const response = await api.get(`/classes/${classId}/students`);
+  return response.data as Array<{
+    id: string;
+    account: string;
+    name: string;
+  }>;
+};
+
+export const fetchTeacherClassReportOverview = async (
+  classId: string,
+  days = 7,
+  topN = 5,
+) => {
+  const response = await api.get(`/teacher/reports/class/${classId}/overview`, {
+    params: { days, topN },
+  });
+  return response.data as {
+    classId: string;
+    className: string;
+    rangeDays: number;
+    summary: { avg: number; min: number; max: number; count: number };
+    distribution: Array<{ bucket: string; count: number }>;
+    topRank: Array<{ studentId: string; name: string; avgScore: number; count: number }>;
+    trend: Array<{ date: string; avg: number; count: number }>;
+    errorTypes: Array<{ type: string; count: number; ratio: number }>;
+  };
 };
 
 export const createHomework = async (payload: {
