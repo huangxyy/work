@@ -8,11 +8,11 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Alert, Button, Empty, Select, Skeleton, Space, message } from 'antd';
+import { Alert, Button, Empty, Select, Skeleton, Space, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createHomework, fetchClasses, fetchHomeworksByClass } from '../../api';
+import { createHomework, fetchClasses, fetchHomeworksSummaryByClass } from '../../api';
 import { useI18n } from '../../i18n';
 
 type HomeworkItem = {
@@ -20,6 +20,14 @@ type HomeworkItem = {
   title: string;
   desc?: string | null;
   dueAt?: string | null;
+  totalStudents: number;
+  submittedStudents: number;
+  pendingStudents: number;
+  submissionsTotal: number;
+  queuedCount: number;
+  processingCount: number;
+  doneCount: number;
+  failedCount: number;
 };
 
 type ClassOption = {
@@ -54,8 +62,8 @@ export const TeacherHomeworksPage = () => {
   }, [classesQuery.data, selectedClassId]);
 
   const homeworksQuery = useQuery({
-    queryKey: ['homeworks', selectedClassId],
-    queryFn: () => fetchHomeworksByClass(selectedClassId || ''),
+    queryKey: ['homeworks-summary', selectedClassId],
+    queryFn: () => fetchHomeworksSummaryByClass(selectedClassId || ''),
     enabled: !!selectedClassId,
   });
 
@@ -63,6 +71,7 @@ export const TeacherHomeworksPage = () => {
     mutationFn: createHomework,
     onSuccess: async () => {
       if (selectedClassId) {
+        await queryClient.invalidateQueries({ queryKey: ['homeworks-summary', selectedClassId] });
         await queryClient.invalidateQueries({ queryKey: ['homeworks', selectedClassId] });
       }
       message.success(t('teacher.homeworks.created'));
@@ -84,6 +93,50 @@ export const TeacherHomeworksPage = () => {
       title: t('common.due'),
       dataIndex: 'dueAt',
       renderText: (value) => (value ? new Date(value).toLocaleString() : t('status.noDue')),
+    },
+    {
+      title: t('teacher.homeworks.submissionRate'),
+      dataIndex: 'submittedStudents',
+      render: (_, item) => {
+        const total = item.totalStudents;
+        const submitted = item.submittedStudents;
+        const pending = item.pendingStudents;
+        if (!total) {
+          return '--';
+        }
+        return (
+          <Space size={6} wrap>
+            <Typography.Text strong>{`${submitted}/${total}`}</Typography.Text>
+            <Tag color={pending > 0 ? 'warning' : 'success'}>
+              {`${t('teacher.homeworks.pendingLabel')} ${pending}`}
+            </Tag>
+          </Space>
+        );
+      },
+      width: 200,
+    },
+    {
+      title: t('teacher.homeworks.submissionStatus'),
+      dataIndex: 'doneCount',
+      render: (_, item) => {
+        const tags = [
+          { label: t('status.done'), count: item.doneCount, color: 'success' },
+          { label: t('status.processing'), count: item.processingCount, color: 'processing' },
+          { label: t('status.queued'), count: item.queuedCount, color: 'default' },
+          { label: t('status.failed'), count: item.failedCount, color: 'error' },
+        ].filter((entry) => entry.count > 0);
+        if (!tags.length) {
+          return '--';
+        }
+        return (
+          <Space size={[4, 4]} wrap>
+            {tags.map((entry) => (
+              <Tag key={entry.label} color={entry.color}>{`${entry.label} ${entry.count}`}</Tag>
+            ))}
+          </Space>
+        );
+      },
+      width: 260,
     },
     {
       title: t('common.action'),

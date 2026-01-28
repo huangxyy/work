@@ -7,6 +7,7 @@ import { GradingError } from '../grading/grading.errors';
 import { GradingService } from '../grading/grading.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { SystemConfigService } from '../system-config/system-config.service';
 
 type OcrResponse = {
   text: string;
@@ -32,18 +33,20 @@ type GradingJobData = {
 export class GradingProcessor extends WorkerHost {
   private readonly logger = new Logger(GradingProcessor.name);
   private readonly concurrency = Number(process.env.WORKER_CONCURRENCY || '5');
-  private readonly ocrServiceUrl: string;
-  private readonly ocrTimeoutMs: number;
+  private readonly defaultOcrServiceUrl: string;
+  private readonly defaultOcrTimeoutMs: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly gradingService: GradingService,
+    private readonly systemConfigService: SystemConfigService,
     configService: ConfigService,
   ) {
     super();
-    this.ocrServiceUrl = configService.get<string>('OCR_BASE_URL') || 'http://localhost:8000';
-    this.ocrTimeoutMs = Number(configService.get<string>('OCR_TIMEOUT_MS') || '10000');
+    this.defaultOcrServiceUrl =
+      configService.get<string>('OCR_BASE_URL') || 'http://localhost:8000';
+    this.defaultOcrTimeoutMs = Number(configService.get<string>('OCR_TIMEOUT_MS') || '10000');
   }
 
   protected getWorkerOptions(): WorkerOptions {
@@ -206,14 +209,15 @@ export class GradingProcessor extends WorkerHost {
     image_base64: string;
     preprocess?: boolean;
   }): Promise<OcrResponse> {
+    const ocrConfig = await this.getOcrConfig();
     const response = await this.fetchWithTimeout(
-      `${this.ocrServiceUrl}/ocr`,
+      `${ocrConfig.baseUrl}/ocr`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       },
-      this.ocrTimeoutMs,
+      ocrConfig.timeoutMs,
     );
 
     if (!response.ok) {
@@ -246,5 +250,14 @@ export class GradingProcessor extends WorkerHost {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private async getOcrConfig(): Promise<{ baseUrl: string; timeoutMs: number }> {
+    const stored = await this.systemConfigService.getValue<{ baseUrl?: string; timeoutMs?: number }>(
+      'ocr',
+    );
+    const baseUrl = (stored?.baseUrl?.trim() || this.defaultOcrServiceUrl).replace(/\/$/, '');
+    const timeoutMs = stored?.timeoutMs ?? this.defaultOcrTimeoutMs;
+    return { baseUrl, timeoutMs };
   }
 }

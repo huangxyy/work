@@ -6,6 +6,7 @@ import { TeacherLayout } from '../layouts/TeacherLayout';
 import { StudentLayout } from '../layouts/StudentLayout';
 import { LoginPage } from '../pages/Login';
 import { AdminDashboardPage } from '../pages/admin/Dashboard';
+import { AdminConfigPage } from '../pages/admin/Config';
 import { AdminSystemBudgetPage } from '../pages/admin/SystemBudget';
 import { AdminSystemRetentionPage } from '../pages/admin/SystemRetention';
 import { AdminUsersPage } from '../pages/admin/Users';
@@ -23,6 +24,7 @@ import { TeacherHomeworkDetailPage } from '../pages/teacher/HomeworkDetail';
 import { TeacherHomeworksPage } from '../pages/teacher/Homeworks';
 import { TeacherReportPage } from '../pages/teacher/Report';
 import { TeacherSettingsGradingPage } from '../pages/teacher/SettingsGrading';
+import { TeacherSubmissionDetailPage } from '../pages/teacher/SubmissionDetail';
 import { useI18n } from '../i18n';
 
 const NotFoundPage = () => {
@@ -63,6 +65,7 @@ export const router = createBrowserRouter([
       { path: 'classes/:id', element: <TeacherClassDetailPage /> },
       { path: 'homeworks', element: <TeacherHomeworksPage /> },
       { path: 'homeworks/:id', element: <TeacherHomeworkDetailPage /> },
+      { path: 'submission/:id', element: <TeacherSubmissionDetailPage /> },
       { path: 'reports', element: <TeacherReportPage /> },
       { path: 'settings', element: <Navigate to="/teacher/settings/grading" replace /> },
       { path: 'settings/grading', element: <TeacherSettingsGradingPage /> },
@@ -77,6 +80,7 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <AdminDashboardPage /> },
       { path: 'users', element: <AdminUsersPage /> },
       { path: 'system', element: <Navigate to="/admin/system/budget" replace /> },
+      { path: 'system/config', element: <AdminConfigPage /> },
       { path: 'system/budget', element: <AdminSystemBudgetPage /> },
       { path: 'system/retention', element: <AdminSystemRetentionPage /> },
       { path: '*', element: <NotFoundPage /> },

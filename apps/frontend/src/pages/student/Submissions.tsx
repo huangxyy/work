@@ -4,6 +4,7 @@ import { Alert, Button, Empty, Input, Select, Space, Tag, Typography } from 'ant
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchStudentSubmissions } from '../../api';
 import { useI18n } from '../../i18n';
 
 type SubmissionRow = {
@@ -32,8 +33,7 @@ export const StudentSubmissionsPage = () => {
 
   const { data, isLoading, isError, error, refetch } = useQuery<SubmissionRow[]>({
     queryKey: ['student-submissions'],
-    // TODO: replace placeholder with submissions list API
-    queryFn: async () => [],
+    queryFn: fetchStudentSubmissions,
   });
 
   const filteredData = useMemo(() => {

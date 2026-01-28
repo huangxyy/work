@@ -18,8 +18,11 @@ export class QueueService {
     return job;
   }
 
-  async enqueueGrading(submissionId: string) {
-    const payload = { submissionId };
+  async enqueueGrading(
+    submissionId: string,
+    options: { mode?: 'cheap' | 'quality'; needRewrite?: boolean } = {},
+  ) {
+    const payload = { submissionId, ...options };
     const job = await this.gradingQueue.add('grading', payload);
     this.logger.log(`Enqueued grading job ${job.id} for submission ${submissionId}`);
     return job;

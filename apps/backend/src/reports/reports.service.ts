@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { ReportRangeQueryDto } from './dto/report-range-query.dto';
@@ -64,6 +65,18 @@ export class ReportsService {
     const topN = query.topN ?? 5;
     const cutoff = new Date(Date.now() - days * DAY_MS);
 
+    const totalStudents = await this.prisma.enrollment.count({ where: { classId } });
+    const submittedStudents = await this.prisma.submission.groupBy({
+      by: ['studentId'],
+      where: {
+        homework: { classId },
+        createdAt: { gte: cutoff },
+      },
+    });
+    const submittedCount = submittedStudents.length;
+    const pendingStudents = Math.max(0, totalStudents - submittedCount);
+    const submissionRate = totalStudents ? this.roundRatio(submittedCount / totalStudents) : 0;
+
     const submissions = await this.prisma.submission.findMany({
       where: {
         homework: { classId },
@@ -86,6 +99,10 @@ export class ReportsService {
       classId: klass.id,
       className: klass.name,
       rangeDays: days,
+      totalStudents,
+      submittedStudents: submittedCount,
+      pendingStudents,
+      submissionRate,
       summary: this.buildSummary(scores),
       distribution: this.buildDistribution(scores),
       topRank: this.buildTopRank(submissions, topN),
@@ -148,6 +165,79 @@ export class ReportsService {
     return rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
+  async exportClassPdf(classId: string, query: ReportRangeQueryDto, user: AuthUser) {
+    const report = await this.getClassOverview(classId, query, user);
+    return this.renderPdf((doc) => {
+      this.writeHeader(doc, 'Class Report', [
+        `Class: ${report.className}`,
+        `Class ID: ${report.classId}`,
+        `Range: last ${report.rangeDays} days`,
+        `Generated: ${this.formatDateTime(new Date())}`,
+      ]);
+
+      this.writeSection(doc, 'Summary', () => {
+        const baseRows: Array<[string, number | string]> = [
+          ['Total Students', report.totalStudents],
+          ['Submitted Students', report.submittedStudents],
+          ['Pending Students', report.pendingStudents],
+          ['Submission Rate', this.formatRatio(report.submissionRate)],
+        ];
+        if (!report.summary.count) {
+          this.writeKeyValues(doc, baseRows);
+          doc.text('No completed submissions.');
+          return;
+        }
+        this.writeKeyValues(doc, [
+          ...baseRows,
+          ['Average', report.summary.avg],
+          ['Highest', report.summary.max],
+          ['Lowest', report.summary.min],
+          ['Submissions', report.summary.count],
+        ]);
+      });
+
+      this.writeSection(doc, 'Score Distribution', () => {
+        if (!report.distribution.length) {
+          doc.text('No distribution data.');
+          return;
+        }
+        report.distribution.forEach((item) => {
+          doc.text(`${item.bucket}: ${item.count}`);
+        });
+      });
+
+      this.writeSection(doc, 'Top Students', () => {
+        if (!report.topRank.length) {
+          doc.text('No ranking data.');
+          return;
+        }
+        report.topRank.forEach((item, index) => {
+          doc.text(`${index + 1}. ${item.name} - avg ${item.avgScore} (${item.count} submissions)`);
+        });
+      });
+
+      this.writeSection(doc, 'Trend', () => {
+        if (!report.trend.length) {
+          doc.text('No trend data.');
+          return;
+        }
+        report.trend.forEach((item) => {
+          doc.text(`${item.date} - avg ${item.avg} (${item.count})`);
+        });
+      });
+
+      this.writeSection(doc, 'Top Error Types', () => {
+        if (!report.errorTypes.length) {
+          doc.text('No error stats.');
+          return;
+        }
+        report.errorTypes.forEach((item) => {
+          doc.text(`${item.type}: ${item.count} (${this.formatRatio(item.ratio)})`);
+        });
+      });
+    });
+  }
+
   async getStudentOverview(
     studentId: string,
     query: ReportRangeQueryDto,
@@ -184,6 +274,61 @@ export class ReportsService {
       errorTypes: this.buildErrorTypes(submissions),
       nextSteps: this.buildNextSteps(submissions),
     };
+  }
+
+  async exportStudentPdf(studentId: string, query: ReportRangeQueryDto, user: AuthUser) {
+    const report = await this.getStudentOverview(studentId, query, user);
+    return this.renderPdf((doc) => {
+      this.writeHeader(doc, 'Student Report', [
+        `Student: ${report.studentName}`,
+        `Student ID: ${report.studentId}`,
+        `Range: last ${report.rangeDays} days`,
+        `Generated: ${this.formatDateTime(new Date())}`,
+      ]);
+
+      this.writeSection(doc, 'Summary', () => {
+        if (!report.summary.count) {
+          doc.text('No completed submissions.');
+          return;
+        }
+        this.writeKeyValues(doc, [
+          ['Average', report.summary.avg],
+          ['Highest', report.summary.max],
+          ['Lowest', report.summary.min],
+          ['Submissions', report.summary.count],
+        ]);
+      });
+
+      this.writeSection(doc, 'Trend', () => {
+        if (!report.trend.length) {
+          doc.text('No trend data.');
+          return;
+        }
+        report.trend.forEach((item) => {
+          doc.text(`${item.date} - avg ${item.avg} (${item.count})`);
+        });
+      });
+
+      this.writeSection(doc, 'Top Error Types', () => {
+        if (!report.errorTypes.length) {
+          doc.text('No error stats.');
+          return;
+        }
+        report.errorTypes.forEach((item) => {
+          doc.text(`${item.type}: ${item.count} (${this.formatRatio(item.ratio)})`);
+        });
+      });
+
+      this.writeSection(doc, 'Next Steps', () => {
+        if (!report.nextSteps.length) {
+          doc.text('No next-step suggestions.');
+          return;
+        }
+        report.nextSteps.forEach((item) => {
+          doc.text(`- ${item.text} (${item.count})`);
+        });
+      });
+    });
   }
 
   private async ensureClassAccess(classId: string, user: AuthUser) {
@@ -458,5 +603,47 @@ export class ReportsService {
         return text;
       })
       .join(',');
+  }
+
+  private renderPdf(build: (doc: PDFDocument) => void): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 48 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (error) => reject(error));
+      build(doc);
+      doc.end();
+    });
+  }
+
+  private writeHeader(doc: PDFDocument, title: string, lines: string[]) {
+    doc.fontSize(18).text(title, { align: 'left' });
+    doc.moveDown(0.5);
+    doc.fontSize(11);
+    lines.forEach((line) => doc.text(line));
+    doc.moveDown(1.2);
+  }
+
+  private writeSection(doc: PDFDocument, title: string, body: () => void) {
+    doc.fontSize(14).text(title, { underline: true });
+    doc.moveDown(0.4);
+    doc.fontSize(11);
+    body();
+    doc.moveDown(0.8);
+  }
+
+  private writeKeyValues(doc: PDFDocument, rows: Array<[string, number | string]>) {
+    rows.forEach(([label, value]) => {
+      doc.text(`${label}: ${value}`);
+    });
+  }
+
+  private formatDateTime(date: Date): string {
+    return date.toISOString().replace('T', ' ').slice(0, 19);
+  }
+
+  private formatRatio(value: number): string {
+    return `${Number((value * 100).toFixed(1))}%`;
   }
 }

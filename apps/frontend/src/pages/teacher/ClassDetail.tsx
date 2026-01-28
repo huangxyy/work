@@ -5,6 +5,7 @@ import {
   Button,
   Descriptions,
   Empty,
+  message,
   Skeleton,
   Space,
   Tabs,
@@ -14,7 +15,12 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchClassStudents, fetchClasses, fetchHomeworksByClass } from '../../api';
+import {
+  downloadTeacherStudentReportPdf,
+  fetchClassStudents,
+  fetchClasses,
+  fetchHomeworksByClass,
+} from '../../api';
 import { useI18n } from '../../i18n';
 
 type StudentRow = {
@@ -57,6 +63,24 @@ export const TeacherClassDetailPage = () => {
     enabled: !!id,
   });
 
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadStudentReport = async (studentId: string) => {
+    try {
+      const blob = await downloadTeacherStudentReportPdf(studentId, 7);
+      downloadBlob(blob, `student-${studentId}-report.pdf`);
+    } catch {
+      message.error(t('teacher.classDetail.downloadFailed'));
+    }
+  };
+
   const studentColumns: ProColumns<StudentRow>[] = [
     {
       title: t('teacher.classDetail.studentName'),
@@ -66,6 +90,15 @@ export const TeacherClassDetailPage = () => {
     {
       title: t('common.account'),
       dataIndex: 'account',
+    },
+    {
+      title: t('common.action'),
+      valueType: 'option',
+      render: (_, item) => [
+        <Button key="pdf" onClick={() => handleDownloadStudentReport(item.id)}>
+          {t('teacher.classDetail.downloadReport')}
+        </Button>,
+      ],
     },
   ];
 

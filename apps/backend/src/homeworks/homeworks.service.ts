@@ -52,6 +52,92 @@ export class HomeworksService {
     });
   }
 
+  async listByClassSummary(classId: string, user: AuthUser) {
+    await this.ensureClassAccess(classId, user);
+
+    const homeworks = await this.prisma.homework.findMany({
+      where: { classId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!homeworks.length) {
+      return [];
+    }
+
+    const totalStudents = await this.prisma.enrollment.count({ where: { classId } });
+    const homeworkIds = homeworks.map((homework) => homework.id);
+
+    const statusGroups = await this.prisma.submission.groupBy({
+      by: ['homeworkId', 'status'],
+      where: { homeworkId: { in: homeworkIds } },
+      _count: { _all: true },
+    });
+
+    const studentGroups = await this.prisma.submission.groupBy({
+      by: ['homeworkId', 'studentId'],
+      where: { homeworkId: { in: homeworkIds } },
+    });
+
+    const statusMap = new Map<
+      string,
+      { total: number; queued: number; processing: number; done: number; failed: number }
+    >();
+
+    for (const group of statusGroups) {
+      const counts = statusMap.get(group.homeworkId) || {
+        total: 0,
+        queued: 0,
+        processing: 0,
+        done: 0,
+        failed: 0,
+      };
+      const count = group._count._all;
+      counts.total += count;
+      if (group.status === 'QUEUED') {
+        counts.queued += count;
+      } else if (group.status === 'PROCESSING') {
+        counts.processing += count;
+      } else if (group.status === 'DONE') {
+        counts.done += count;
+      } else if (group.status === 'FAILED') {
+        counts.failed += count;
+      }
+      statusMap.set(group.homeworkId, counts);
+    }
+
+    const submittedMap = new Map<string, number>();
+    for (const group of studentGroups) {
+      submittedMap.set(group.homeworkId, (submittedMap.get(group.homeworkId) || 0) + 1);
+    }
+
+    return homeworks.map((homework) => {
+      const counts = statusMap.get(homework.id) || {
+        total: 0,
+        queued: 0,
+        processing: 0,
+        done: 0,
+        failed: 0,
+      };
+      const submittedStudents = submittedMap.get(homework.id) || 0;
+      const pendingStudents = Math.max(0, totalStudents - submittedStudents);
+      return {
+        id: homework.id,
+        title: homework.title,
+        desc: homework.desc,
+        dueAt: homework.dueAt,
+        createdAt: homework.createdAt,
+        totalStudents,
+        submittedStudents,
+        pendingStudents,
+        submissionsTotal: counts.total,
+        queuedCount: counts.queued,
+        processingCount: counts.processing,
+        doneCount: counts.done,
+        failedCount: counts.failed,
+      };
+    });
+  }
+
   async listForStudent(user: AuthUser) {
     return this.prisma.homework.findMany({
       where: {

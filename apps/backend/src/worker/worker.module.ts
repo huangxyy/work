@@ -6,6 +6,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { GradingProcessor } from './grading.processor';
 import { StorageModule } from '../storage/storage.module';
 import { GradingModule } from '../grading/grading.module';
+import { SystemConfigModule } from '../system-config/system-config.module';
 
 const buildRedisConnection = (redisUrl: string) => {
   try {
@@ -38,6 +39,7 @@ const buildRedisConnection = (redisUrl: string) => {
     StorageModule,
     GradingModule,
     QueueModule,
+    SystemConfigModule,
   ],
   providers: [GradingProcessor],
 })

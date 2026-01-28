@@ -1,4 +1,6 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
+import type { EChartsOption } from 'echarts';
+import * as echarts from 'echarts';
 import {
   Alert,
   Button,
@@ -9,10 +11,16 @@ import {
   Space,
   Statistic,
   Typography,
+  message,
 } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { fetchClasses, fetchTeacherClassReportOverview } from '../../api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  downloadTeacherClassReportCsv,
+  downloadTeacherClassReportPdf,
+  fetchClasses,
+  fetchTeacherClassReportOverview,
+} from '../../api';
 import { useI18n } from '../../i18n';
 
 type ReportSummary = {
@@ -50,11 +58,44 @@ type ClassReport = {
   classId: string;
   className: string;
   rangeDays: number;
+  totalStudents: number;
+  submittedStudents: number;
+  pendingStudents: number;
+  submissionRate: number;
   summary: ReportSummary;
   distribution: DistributionBucket[];
   topRank: TopRankItem[];
   trend: TrendPoint[];
   errorTypes: ErrorTypeStat[];
+};
+
+const ChartPanel = ({ option, height = 260 }: { option: EChartsOption; height?: number }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const instanceRef = useRef<echarts.ECharts | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) {
+      return undefined;
+    }
+    const instance = echarts.init(containerRef.current);
+    instanceRef.current = instance;
+    const handleResize = () => instance.resize();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      instance.dispose();
+      instanceRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!instanceRef.current) {
+      return;
+    }
+    instanceRef.current.setOption(option, true);
+  }, [option]);
+
+  return <div ref={containerRef} style={{ width: '100%', height }} />;
 };
 
 export const TeacherReportPage = () => {
@@ -90,6 +131,118 @@ export const TeacherReportPage = () => {
 
   const report = reportQuery.data as ClassReport | undefined;
   const hasSummary = report?.summary?.count && report.summary.count > 0;
+  const submissionRate = report?.submissionRate ? Number((report.submissionRate * 100).toFixed(1)) : 0;
+  const distributionOption = useMemo<EChartsOption>(() => {
+    const data = report?.distribution || [];
+    return {
+      grid: { left: 24, right: 24, top: 30, bottom: 24, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      xAxis: {
+        type: 'category',
+        data: data.map((item) => item.bucket),
+        axisTick: { alignWithLabel: true },
+      },
+      yAxis: { type: 'value' },
+      series: [
+        {
+          type: 'bar',
+          data: data.map((item) => item.count),
+          itemStyle: { color: '#3b82f6' },
+        },
+      ],
+    };
+  }, [report?.distribution]);
+
+  const trendOption = useMemo<EChartsOption>(() => {
+    const data = report?.trend || [];
+    return {
+      grid: { left: 24, right: 36, top: 30, bottom: 24, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      legend: { data: [t('common.avgShort'), t('teacher.reports.submissions')] },
+      xAxis: {
+        type: 'category',
+        data: data.map((item) => item.date),
+        axisLabel: { rotate: 30 },
+      },
+      yAxis: [
+        { type: 'value', name: t('common.avgShort') },
+        { type: 'value', name: t('teacher.reports.submissions'), minInterval: 1 },
+      ],
+      series: [
+        {
+          name: t('common.avgShort'),
+          type: 'line',
+          data: data.map((item) => item.avg),
+          smooth: true,
+          lineStyle: { width: 2, color: '#22c55e' },
+          itemStyle: { color: '#22c55e' },
+        },
+        {
+          name: t('teacher.reports.submissions'),
+          type: 'bar',
+          yAxisIndex: 1,
+          data: data.map((item) => item.count),
+          itemStyle: { color: '#94a3b8' },
+        },
+      ],
+    };
+  }, [report?.trend, t]);
+
+  const errorOption = useMemo<EChartsOption>(() => {
+    const data = report?.errorTypes || [];
+    return {
+      grid: { left: 24, right: 24, top: 30, bottom: 24, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      xAxis: {
+        type: 'category',
+        data: data.map((item) => item.type),
+        axisLabel: { interval: 0, rotate: 20 },
+      },
+      yAxis: { type: 'value' },
+      series: [
+        {
+          type: 'bar',
+          data: data.map((item) => item.count),
+          itemStyle: { color: '#f97316' },
+        },
+      ],
+    };
+  }, [report?.errorTypes]);
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleExportPdf = async () => {
+    if (!selectedClassId) {
+      message.warning(t('teacher.reports.selectClassHint'));
+      return;
+    }
+    try {
+      const blob = await downloadTeacherClassReportPdf(selectedClassId, rangeDays);
+      downloadBlob(blob, `class-${selectedClassId}-report.pdf`);
+    } catch {
+      message.error(t('teacher.reports.exportFailed'));
+    }
+  };
+
+  const handleExportCsv = async () => {
+    if (!selectedClassId) {
+      message.warning(t('teacher.reports.selectClassHint'));
+      return;
+    }
+    try {
+      const blob = await downloadTeacherClassReportCsv(selectedClassId, rangeDays);
+      downloadBlob(blob, `class-${selectedClassId}-report.csv`);
+    } catch {
+      message.error(t('teacher.reports.exportFailed'));
+    }
+  };
 
   return (
     <PageContainer
@@ -129,6 +282,8 @@ export const TeacherReportPage = () => {
             <Typography.Text>{t('teacher.reports.rangeDays')}</Typography.Text>
             <InputNumber min={1} max={30} value={rangeDays} onChange={(value) => setRangeDays(value || 7)} />
           </Space>
+          <Button onClick={handleExportPdf}>{t('teacher.reports.exportPdf')}</Button>
+          <Button onClick={handleExportCsv}>{t('teacher.reports.exportCsv')}</Button>
         </Space>
       </ProCard>
 
@@ -140,6 +295,22 @@ export const TeacherReportPage = () => {
         <Empty description={t('teacher.reports.noData')} />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <ProCard bordered title={t('teacher.reports.insightsTitle')}>
+            <ProCard gutter={16} wrap>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <Statistic title={t('teacher.reports.totalStudents')} value={report.totalStudents} />
+              </ProCard>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <Statistic title={t('teacher.reports.submittedStudents')} value={report.submittedStudents} />
+              </ProCard>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <Statistic title={t('teacher.reports.pendingStudents')} value={report.pendingStudents} />
+              </ProCard>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <Statistic title={t('teacher.reports.submissionRate')} value={submissionRate} suffix="%" />
+              </ProCard>
+            </ProCard>
+          </ProCard>
           <ProCard bordered title={t('teacher.reports.summary')}>
             {hasSummary ? (
               <ProCard gutter={16} wrap>
@@ -163,39 +334,15 @@ export const TeacherReportPage = () => {
 
           <ProCard gutter={16} wrap>
             <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.reports.scoreDistribution')}>
-              {/* TODO: connect chart visualization */}
               {report.distribution?.length ? (
-                <List
-                  dataSource={report.distribution}
-                  renderItem={(item) => (
-                    <List.Item>
-                      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                        <Typography.Text>{item.bucket}</Typography.Text>
-                        <Typography.Text>{item.count}</Typography.Text>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
+                <ChartPanel option={distributionOption} />
               ) : (
                 <Empty description={t('teacher.reports.noDistribution')} />
               )}
             </ProCard>
             <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.reports.trend')}>
-              {/* TODO: connect chart visualization */}
               {report.trend?.length ? (
-                <List
-                  dataSource={report.trend}
-                  renderItem={(item) => (
-                    <List.Item>
-                      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                        <Typography.Text>{item.date}</Typography.Text>
-                        <Typography.Text>
-                          {t('common.avgShort')} {item.avg}
-                        </Typography.Text>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
+                <ChartPanel option={trendOption} height={280} />
               ) : (
                 <Empty description={t('teacher.reports.noTrend')} />
               )}
@@ -224,17 +371,7 @@ export const TeacherReportPage = () => {
             </ProCard>
             <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.reports.topErrorTypes')}>
               {report.errorTypes?.length ? (
-                <List
-                  dataSource={report.errorTypes}
-                  renderItem={(item) => (
-                    <List.Item>
-                      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                        <Typography.Text>{item.type}</Typography.Text>
-                        <Typography.Text>{item.count}</Typography.Text>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
+                <ChartPanel option={errorOption} />
               ) : (
                 <Empty description={t('teacher.reports.noErrorStats')} />
               )}

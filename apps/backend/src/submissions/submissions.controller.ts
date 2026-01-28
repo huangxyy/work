@@ -55,12 +55,30 @@ export class SubmissionsController {
       id: submission.id,
       status: submission.status,
       images: submission.images.map((image) => ({ id: image.id, objectKey: image.objectKey })),
+      student: submission.student
+        ? {
+            id: submission.student.id,
+            name: submission.student.name,
+            account: submission.student.account,
+          }
+        : null,
+      homework: submission.homework
+        ? { id: submission.homework.id, title: submission.homework.title }
+        : null,
+      createdAt: submission.createdAt,
+      updatedAt: submission.updatedAt,
       ocrText: submission.ocrText,
       gradingJson: submission.gradingJson,
       totalScore: submission.totalScore,
       errorCode: submission.errorCode,
       errorMsg: submission.errorMsg,
     };
+  }
+
+  @Get()
+  @Roles(Role.STUDENT)
+  async listForStudent(@Req() req: { user: AuthUser }) {
+    return this.submissionsService.listStudentSubmissions(req.user);
   }
 
   @Post(':id/regrade')

@@ -29,6 +29,10 @@ cp apps/frontend/.env.example apps/frontend/.env
 # 生成 Prisma 客户端
 cd apps/backend && pnpm prisma:generate && cd ../..
 
+# 可选：初始化测试账号（仅本地）
+# 在 apps/backend/.env 中设置 SEED_USERS=true 后执行
+pnpm --filter backend exec prisma db seed
+
 # 启动后台 API（需要本地 MySQL/Redis）
 pnpm --filter backend start:dev
 

@@ -5,34 +5,48 @@ import { GradingError } from '../grading.errors';
 import { buildUserPrompt } from '../prompts/grading.user.template';
 import { resolveGradingAssetPath } from '../utils/asset-path';
 import { GradeEssayParams, LlmProvider, ProviderInfo } from './provider.interface';
+import { SystemConfigService } from '../../system-config/system-config.service';
+
+type LlmConfig = {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  cheaperModel?: string;
+  qualityModel?: string;
+  providerName?: string;
+  maxTokens?: number;
+  temperature?: number;
+  timeoutMs?: number;
+};
 
 @Injectable()
 export class CheapProvider implements LlmProvider {
   private readonly logger = new Logger(CheapProvider.name);
-  private readonly baseUrl: string;
-  private readonly apiKey?: string;
-  private readonly model: string;
-  private readonly cheaperModel?: string;
-  private readonly qualityModel?: string;
-  private readonly providerName: string;
-  private readonly defaultMaxTokens: number;
-  private readonly defaultTemperature: number;
-  private readonly timeoutMs: number;
   private readonly systemPrompt: string;
+  private readonly defaults: LlmConfig;
+  private runtimeConfig: LlmConfig;
+  private lastConfigSync = 0;
+  private readonly configTtlMs = 15000;
 
-  constructor(configService: ConfigService) {
-    this.baseUrl = configService.get<string>('LLM_BASE_URL') || '';
-    this.apiKey = configService.get<string>('LLM_API_KEY') || undefined;
-    this.model = configService.get<string>('LLM_MODEL') || '';
-    this.cheaperModel = configService.get<string>('LLM_MODEL_CHEAPER') || undefined;
-    this.qualityModel = configService.get<string>('LLM_MODEL_QUALITY') || undefined;
-    this.providerName =
+  constructor(
+    configService: ConfigService,
+    private readonly systemConfigService: SystemConfigService,
+  ) {
+    this.defaults = {
+      baseUrl: configService.get<string>('LLM_BASE_URL') || '',
+      apiKey: configService.get<string>('LLM_API_KEY') || undefined,
+      model: configService.get<string>('LLM_MODEL') || '',
+      cheaperModel: configService.get<string>('LLM_MODEL_CHEAPER') || undefined,
+      qualityModel: configService.get<string>('LLM_MODEL_QUALITY') || undefined,
+      providerName:
       configService.get<string>('LLM_PROVIDER_NAME') ||
       configService.get<string>('LLM_PROVIDER') ||
-      'llm';
-    this.defaultMaxTokens = Number(configService.get<string>('LLM_MAX_TOKENS') || '800');
-    this.defaultTemperature = Number(configService.get<string>('LLM_TEMPERATURE') || '0.2');
-    this.timeoutMs = Number(configService.get<string>('LLM_TIMEOUT_MS') || '20000');
+      'llm',
+      maxTokens: Number(configService.get<string>('LLM_MAX_TOKENS') || '800'),
+      temperature: Number(configService.get<string>('LLM_TEMPERATURE') || '0.2'),
+      timeoutMs: Number(configService.get<string>('LLM_TIMEOUT_MS') || '20000'),
+    };
+    this.runtimeConfig = { ...this.defaults };
 
     const systemPromptPath = resolveGradingAssetPath('prompts/grading.system.txt');
     this.systemPrompt = readFileSync(systemPromptPath, 'utf-8').trim();
@@ -40,14 +54,15 @@ export class CheapProvider implements LlmProvider {
 
   getProviderInfo(params: GradeEssayParams): ProviderInfo {
     return {
-      providerName: this.providerName,
+      providerName: this.runtimeConfig.providerName || 'llm',
       model: this.resolveModel(params),
-      baseUrl: this.baseUrl,
+      baseUrl: this.runtimeConfig.baseUrl || '',
     };
   }
 
   async gradeEssay(params: GradeEssayParams): Promise<string> {
-    if (!this.baseUrl) {
+    await this.refreshConfig();
+    if (!this.runtimeConfig.baseUrl) {
       throw new GradingError('LLM_API_ERROR', 'LLM_BASE_URL is not configured');
     }
 
@@ -72,15 +87,17 @@ export class CheapProvider implements LlmProvider {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: params.maxTokens ?? this.defaultMaxTokens,
-      temperature: params.temperature ?? this.defaultTemperature,
+      max_tokens: params.maxTokens ?? this.runtimeConfig.maxTokens ?? 800,
+      temperature: params.temperature ?? this.runtimeConfig.temperature ?? 0.2,
     };
 
     const response = await this.fetchWithTimeout(this.resolveApiUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
+        ...(this.runtimeConfig.apiKey
+          ? { Authorization: `Bearer ${this.runtimeConfig.apiKey}` }
+          : {}),
       },
       body: JSON.stringify(payload),
     });
@@ -106,13 +123,13 @@ export class CheapProvider implements LlmProvider {
     if (params.model) {
       return params.model;
     }
-    if (params.mode === 'quality' && this.qualityModel) {
-      return this.qualityModel;
+    if (params.mode === 'quality' && this.runtimeConfig.qualityModel) {
+      return this.runtimeConfig.qualityModel;
     }
-    if (params.shortMode && this.cheaperModel) {
-      return this.cheaperModel;
+    if (params.shortMode && this.runtimeConfig.cheaperModel) {
+      return this.runtimeConfig.cheaperModel;
     }
-    return this.model || '';
+    return this.runtimeConfig.model || '';
   }
 
   private buildSystemPrompt(params: GradeEssayParams): string {
@@ -127,7 +144,7 @@ export class CheapProvider implements LlmProvider {
   }
 
   private resolveApiUrl(): string {
-    const base = this.baseUrl.replace(/\/$/, '');
+    const base = (this.runtimeConfig.baseUrl || '').replace(/\/$/, '');
     if (base.endsWith('/chat/completions') || base.endsWith('/v1/chat/completions')) {
       return base;
     }
@@ -135,9 +152,43 @@ export class CheapProvider implements LlmProvider {
     return `${base}/v1/chat/completions`;
   }
 
+  async refreshConfig() {
+    const now = Date.now();
+    if (now - this.lastConfigSync < this.configTtlMs) {
+      return;
+    }
+    const overrides = await this.systemConfigService.getValue<LlmConfig>('llm');
+    this.runtimeConfig = this.mergeConfig(overrides);
+    this.lastConfigSync = now;
+  }
+
+  private mergeConfig(overrides: LlmConfig | null): LlmConfig {
+    if (!overrides) {
+      return { ...this.defaults };
+    }
+    const merged: LlmConfig = { ...this.defaults, ...overrides };
+    merged.baseUrl = this.normalizeText(overrides.baseUrl) || this.defaults.baseUrl;
+    merged.model = this.normalizeText(overrides.model) || this.defaults.model;
+    merged.cheaperModel = this.normalizeText(overrides.cheaperModel) || this.defaults.cheaperModel;
+    merged.qualityModel = this.normalizeText(overrides.qualityModel) || this.defaults.qualityModel;
+    merged.providerName = this.normalizeText(overrides.providerName) || this.defaults.providerName;
+
+    if (overrides.apiKey !== undefined) {
+      merged.apiKey = this.normalizeText(overrides.apiKey) || undefined;
+    }
+
+    return merged;
+  }
+
+  private normalizeText(value?: string) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : '';
+  }
+
   private async fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeoutMs = this.runtimeConfig.timeoutMs ?? this.defaults.timeoutMs ?? 20000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       return await fetch(url, { ...options, signal: controller.signal });
     } catch (error) {

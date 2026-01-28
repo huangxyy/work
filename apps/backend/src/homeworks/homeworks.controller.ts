@@ -28,6 +28,15 @@ export class HomeworksController {
     return this.homeworksService.listByClass(query.classId, req.user);
   }
 
+  @Get('summary')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async listSummary(
+    @Query() query: ListHomeworksQueryDto,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.homeworksService.listByClassSummary(query.classId, req.user);
+  }
+
   @Get('student')
   @Roles(Role.STUDENT)
   async listForStudent(@Req() req: { user: AuthUser }) {

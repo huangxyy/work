@@ -37,10 +37,17 @@ export const buildUserPrompt = ({
   const jsonLine = strictJson
     ? 'Output MUST be valid JSON only. Do not add any extra text.'
     : 'Output JSON only.';
+  const scoreLine =
+    'Score ranges: grammar/vocabulary/structure/content/coherence (and handwritingClarity if present) must be 0-20.';
+  const totalLine = 'totalScore must equal the sum of dimensionScores (0-100).';
+  const jsonRulesLine = 'Use double quotes, no trailing commas, and numeric values (not strings).';
   return [
     jsonLine,
     modeLine,
     lowOnlyLine,
+    scoreLine,
+    totalLine,
+    jsonRulesLine,
     'You are grading an English essay from OCR. OCR text may contain noise.',
     'Scoring rubric:',
     rubric,

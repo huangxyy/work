@@ -20,7 +20,8 @@ type AttemptOutcome = {
 };
 
 const DEFAULT_RUBRIC = [
-  'Total score 0-100 based on grammar, vocabulary, structure, content, and coherence.',
+  'Score each dimension (grammar, vocabulary, structure, content, coherence) from 0-20.',
+  'totalScore must equal the sum of dimensionScores (0-100).',
   'Provide clear, actionable feedback with concise bullet points.',
   'Be tolerant of OCR noise but focus on English writing quality.',
 ].join('\n');
@@ -182,6 +183,7 @@ export class GradingService {
       );
     }
 
+    await this.provider.refreshConfig();
     const providerInfo = this.provider.getProviderInfo(adjustedParams);
     const raw = await this.provider.gradeEssay(adjustedParams);
     const parsed = this.parseJson(raw);

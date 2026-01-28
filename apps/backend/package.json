@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "start": "node dist/main.js",
-    "start:dev": "nest start --watch",
+    "start:dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/main.ts",
     "start:worker": "node dist/worker/main.js",
     "start:worker:dev": "ts-node -r tsconfig-paths/register src/worker/main.ts",
     "build": "nest build",
@@ -15,6 +15,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "test": "echo \"no tests yet\""
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^10.0.0",
@@ -27,6 +30,7 @@
     "@nestjs/schedule": "^3.0.0",
     "@prisma/client": "^5.9.0",
     "@aws-sdk/client-s3": "^3.515.0",
+    "adm-zip": "^0.5.12",
     "ajv": "^8.12.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^4.10.4",
@@ -34,6 +38,7 @@
     "class-validator": "^0.14.1",
     "ioredis": "^5.3.2",
     "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.17.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.1.13",
@@ -46,6 +51,8 @@
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/adm-zip": "^0.5.7",
+    "@types/pdfkit": "^0.13.9",
     "@types/express": "^4.17.21",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.11.19",

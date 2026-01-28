@@ -40,6 +40,23 @@ export class ReportsController {
     return csv;
   }
 
+  @Get('class/:classId/pdf')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async exportClassPdf(
+    @Param('classId') classId: string,
+    @Query() query: ReportRangeQueryDto,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const pdf = await this.reportsService.exportClassPdf(classId, query, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="class-${classId}-report.pdf"`,
+    );
+    return pdf;
+  }
+
   @Get('student/:studentId/overview')
   @Roles(Role.TEACHER, Role.ADMIN)
   async studentOverview(
@@ -48,5 +65,22 @@ export class ReportsController {
     @Req() req: { user: AuthUser },
   ) {
     return this.reportsService.getStudentOverview(studentId, query, req.user);
+  }
+
+  @Get('student/:studentId/pdf')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async exportStudentPdf(
+    @Param('studentId') studentId: string,
+    @Query() query: ReportRangeQueryDto,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const pdf = await this.reportsService.exportStudentPdf(studentId, query, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="student-${studentId}-report.pdf"`,
+    );
+    return pdf;
   }
 }
