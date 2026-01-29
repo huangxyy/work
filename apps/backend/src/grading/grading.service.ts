@@ -33,7 +33,6 @@ export class GradingService {
   private readonly defaultMaxTokens: number;
   private readonly retryMaxTokens: number;
   private readonly shortMaxTokens: number;
-  private readonly defaultTemperature: number;
 
   constructor(
     private readonly provider: CheapProvider,
@@ -44,7 +43,6 @@ export class GradingService {
     this.defaultMaxTokens = Number(configService.get<string>('LLM_MAX_TOKENS') || '800');
     this.retryMaxTokens = Math.max(200, Math.floor(this.defaultMaxTokens * 0.7));
     this.shortMaxTokens = Math.max(200, Math.floor(this.defaultMaxTokens * 0.5));
-    this.defaultTemperature = Number(configService.get<string>('LLM_TEMPERATURE') || '0.2');
   }
 
   async grade(text: string, options: GradeOptions = {}) {
@@ -72,7 +70,8 @@ export class GradingService {
       needRewrite,
       mode,
       rubric,
-      temperature: this.defaultTemperature,
+      strictJson: true,
+      temperature: 0,
     };
 
     let attemptCount = 0;

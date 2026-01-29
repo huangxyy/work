@@ -117,7 +117,8 @@
       "required": [
         "low",
         "mid",
-        "high"
+        "high",
+        "sampleEssay"
       ],
       "properties": {
         "low": {
@@ -145,6 +146,10 @@
           }
         },
         "rewrite": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "sampleEssay": {
           "type": "string",
           "maxLength": 1500
         }

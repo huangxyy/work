@@ -19,6 +19,7 @@ import { StudentSubmissionsPage } from '../pages/student/Submissions';
 import { SubmitHomeworkPage } from '../pages/student/SubmitHomework';
 import { TeacherClassDetailPage } from '../pages/teacher/ClassDetail';
 import { TeacherClassesPage } from '../pages/teacher/Classes';
+import { TeacherBatchUploadDetailPage } from '../pages/teacher/BatchUploadDetail';
 import { TeacherDashboardPage } from '../pages/teacher/Dashboard';
 import { TeacherHomeworkDetailPage } from '../pages/teacher/HomeworkDetail';
 import { TeacherHomeworksPage } from '../pages/teacher/Homeworks';
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <TeacherDashboardPage /> },
       { path: 'classes', element: <TeacherClassesPage /> },
       { path: 'classes/:id', element: <TeacherClassDetailPage /> },
+      { path: 'batches/:id', element: <TeacherBatchUploadDetailPage /> },
       { path: 'homeworks', element: <TeacherHomeworksPage /> },
       { path: 'homeworks/:id', element: <TeacherHomeworkDetailPage /> },
       { path: 'submission/:id', element: <TeacherSubmissionDetailPage /> },

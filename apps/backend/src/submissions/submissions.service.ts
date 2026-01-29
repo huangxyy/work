@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role, SubmissionStatus } from '@prisma/client';
+import { Prisma, Role, SubmissionStatus } from '@prisma/client';
 import AdmZip from 'adm-zip';
 import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
@@ -17,6 +17,7 @@ import { StorageService } from '../storage/storage.service';
 import { CreateBatchSubmissionsDto } from './dto/create-batch-submissions.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { RegradeHomeworkSubmissionsDto } from './dto/regrade-homework-submissions.dto';
+import { StudentSubmissionsQueryDto } from './dto/student-submissions-query.dto';
 
 type BatchImage = {
   fileKey: string;
@@ -149,20 +150,121 @@ export class SubmissionsService {
     if (user.role !== Role.STUDENT) {
       throw new ForbiddenException('Only students can list submissions');
     }
+    return this.listStudentSubmissionsWithQuery(user, {});
+  }
+
+  async listStudentSubmissionsWithQuery(user: AuthUser, query: StudentSubmissionsQueryDto) {
+    if (user.role !== Role.STUDENT) {
+      throw new ForbiddenException('Only students can list submissions');
+    }
+
+    const where: Prisma.SubmissionWhereInput = {
+      studentId: user.id,
+    };
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.homeworkId) {
+      where.homeworkId = query.homeworkId;
+    }
+
+    if (query.keyword) {
+      where.homework = { title: { contains: query.keyword.trim() } };
+    }
+
+    if (query.minScore !== undefined || query.maxScore !== undefined) {
+      where.totalScore = {
+        ...(query.minScore !== undefined ? { gte: query.minScore } : {}),
+        ...(query.maxScore !== undefined ? { lte: query.maxScore } : {}),
+      };
+    }
+
+    if (query.from || query.to) {
+      where.updatedAt = {
+        ...(query.from ? { gte: new Date(query.from) } : {}),
+        ...(query.to ? { lte: new Date(query.to) } : {}),
+      };
+    }
 
     const submissions = await this.prisma.submission.findMany({
-      where: { studentId: user.id },
-      include: { homework: { select: { title: true } } },
+      where,
+      include: { homework: { select: { id: true, title: true } } },
       orderBy: { updatedAt: 'desc' },
     });
 
     return submissions.map((submission) => ({
       id: submission.id,
+      homeworkId: submission.homework.id,
       homeworkTitle: submission.homework.title,
       status: submission.status,
       totalScore: submission.totalScore,
       updatedAt: submission.updatedAt.toISOString(),
     }));
+  }
+
+  async exportStudentSubmissionsCsv(user: AuthUser, query: StudentSubmissionsQueryDto) {
+    if (user.role !== Role.STUDENT) {
+      throw new ForbiddenException('Only students can export submissions');
+    }
+
+    const submissions = await this.prisma.submission.findMany({
+      where: {
+        studentId: user.id,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.keyword
+          ? { homework: { title: { contains: query.keyword.trim() } } }
+          : {}),
+        ...(query.homeworkId ? { homeworkId: query.homeworkId } : {}),
+        ...(query.minScore !== undefined || query.maxScore !== undefined
+          ? {
+              totalScore: {
+                ...(query.minScore !== undefined ? { gte: query.minScore } : {}),
+                ...(query.maxScore !== undefined ? { lte: query.maxScore } : {}),
+              },
+            }
+          : {}),
+        ...(query.from || query.to
+          ? {
+              updatedAt: {
+                ...(query.from ? { gte: new Date(query.from) } : {}),
+                ...(query.to ? { lte: new Date(query.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      include: { homework: { select: { id: true, title: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const rows: Array<Array<string | number | null>> = [
+      [
+        'submissionId',
+        'homeworkId',
+        'homeworkTitle',
+        'status',
+        'totalScore',
+        'errorCode',
+        'errorMsg',
+        'updatedAt',
+      ],
+    ];
+
+    for (const submission of submissions) {
+      rows.push([
+        submission.id,
+        submission.homework.id,
+        submission.homework.title,
+        submission.status,
+        submission.totalScore ?? '',
+        submission.errorCode ?? '',
+        submission.errorMsg ?? '',
+        submission.updatedAt.toISOString(),
+      ]);
+    }
+
+    return rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async listHomeworkSubmissions(homeworkId: string, user: AuthUser) {
@@ -196,6 +298,180 @@ export class SubmissionsService {
       totalScore: submission.totalScore,
       updatedAt: submission.updatedAt.toISOString(),
     }));
+  }
+
+  async exportHomeworkCsv(homeworkId: string, user: AuthUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can export');
+    }
+
+    const homework = await this.prisma.homework.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: homeworkId }
+          : { id: homeworkId, class: { teachers: { some: { id: user.id } } } },
+      select: { id: true, title: true, classId: true, class: { select: { name: true } } },
+    });
+
+    if (!homework) {
+      throw new NotFoundException('Homework not found or no access');
+    }
+
+    const submissions = await this.prisma.submission.findMany({
+      where: { homeworkId },
+      include: { student: { select: { id: true, name: true, account: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const rows: Array<Array<string | number | null>> = [
+      [
+        'submissionId',
+        'classId',
+        'className',
+        'homeworkId',
+        'homeworkTitle',
+        'studentId',
+        'studentName',
+        'studentAccount',
+        'status',
+        'totalScore',
+        'errorCode',
+        'errorMsg',
+        'errorCount',
+        'summary',
+        'nextSteps',
+        'rewrite',
+        'sampleEssay',
+        'updatedAt',
+      ],
+    ];
+
+    for (const submission of submissions) {
+      const extracted = this.extractGrading(submission.gradingJson);
+      rows.push([
+        submission.id,
+        homework.classId,
+        homework.class.name,
+        homework.id,
+        homework.title,
+        submission.student.id,
+        submission.student.name,
+        submission.student.account,
+        submission.status,
+        submission.totalScore ?? '',
+        submission.errorCode ?? '',
+        submission.errorMsg ?? '',
+        extracted.errorCount,
+        extracted.summary,
+        extracted.nextSteps.join('; '),
+        extracted.rewrite,
+        extracted.sampleEssay,
+        submission.updatedAt.toISOString(),
+      ]);
+    }
+
+    return rows.map((row) => this.toCsvRow(row)).join('\n');
+  }
+
+  async exportHomeworkImagesZip(homeworkId: string, user: AuthUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can export');
+    }
+
+    const homework = await this.prisma.homework.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: homeworkId }
+          : { id: homeworkId, class: { teachers: { some: { id: user.id } } } },
+      select: { id: true },
+    });
+
+    if (!homework) {
+      throw new NotFoundException('Homework not found or no access');
+    }
+
+    const submissions = await this.prisma.submission.findMany({
+      where: { homeworkId },
+      include: {
+        images: true,
+        student: { select: { account: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const zip = new AdmZip();
+    for (const submission of submissions) {
+      for (const image of submission.images) {
+        const buffer = await this.storage.getObject(image.objectKey);
+        const filename = basename(image.objectKey);
+        const entry = `${submission.student.account}/${submission.id}/${filename}`;
+        zip.addFile(entry, buffer);
+      }
+    }
+
+    return zip.toBuffer();
+  }
+
+  async exportHomeworkRemindersCsv(homeworkId: string, user: AuthUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can export');
+    }
+
+    const homework = await this.prisma.homework.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: homeworkId }
+          : { id: homeworkId, class: { teachers: { some: { id: user.id } } } },
+      select: {
+        id: true,
+        title: true,
+        classId: true,
+        class: { select: { name: true } },
+      },
+    });
+
+    if (!homework) {
+      throw new NotFoundException('Homework not found or no access');
+    }
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { classId: homework.classId },
+      include: { student: { select: { id: true, name: true, account: true } } },
+    });
+    const submissions = await this.prisma.submission.findMany({
+      where: { homeworkId },
+      select: { studentId: true },
+    });
+
+    const submitted = new Set(submissions.map((item) => item.studentId));
+    const rows: Array<Array<string | number | null>> = [
+      [
+        'classId',
+        'className',
+        'homeworkId',
+        'homeworkTitle',
+        'studentId',
+        'studentName',
+        'studentAccount',
+      ],
+    ];
+
+    for (const enrollment of enrollments) {
+      if (submitted.has(enrollment.studentId)) {
+        continue;
+      }
+      rows.push([
+        homework.classId,
+        homework.class.name,
+        homework.id,
+        homework.title,
+        enrollment.student.id,
+        enrollment.student.name,
+        enrollment.student.account,
+      ]);
+    }
+
+    return rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async regradeHomeworkSubmissions(dto: RegradeHomeworkSubmissionsDto, user: AuthUser) {
@@ -238,6 +514,234 @@ export class SubmissionsService {
     }
 
     return { homeworkId: dto.homeworkId, count: ids.length };
+  }
+
+  async listBatchUploads(homeworkId: string, user: AuthUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can access batches');
+    }
+
+    const homework = await this.prisma.homework.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: homeworkId }
+          : { id: homeworkId, class: { teachers: { some: { id: user.id } } } },
+      select: { id: true },
+    });
+
+    if (!homework) {
+      throw new NotFoundException('Homework not found or no access');
+    }
+
+    const batches = await this.prisma.batchUpload.findMany({
+      where: { homeworkId },
+      include: { uploader: { select: { id: true, name: true, account: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!batches.length) {
+      return [];
+    }
+
+    const batchIds = batches.map((batch) => batch.id);
+    const statusGroups = await this.prisma.submission.groupBy({
+      by: ['batchId', 'status'],
+      where: { batchId: { in: batchIds } },
+      _count: { _all: true },
+    });
+
+    const statusMap = new Map<
+      string,
+      { queued: number; processing: number; done: number; failed: number }
+    >();
+    for (const group of statusGroups) {
+      if (!group.batchId) {
+        continue;
+      }
+      const entry = statusMap.get(group.batchId) || {
+        queued: 0,
+        processing: 0,
+        done: 0,
+        failed: 0,
+      };
+      const count = group._count._all;
+      if (group.status === 'QUEUED') {
+        entry.queued += count;
+      } else if (group.status === 'PROCESSING') {
+        entry.processing += count;
+      } else if (group.status === 'DONE') {
+        entry.done += count;
+      } else if (group.status === 'FAILED') {
+        entry.failed += count;
+      }
+      statusMap.set(group.batchId, entry);
+    }
+
+    return batches.map((batch) => {
+      const counts = statusMap.get(batch.id) || {
+        queued: 0,
+        processing: 0,
+        done: 0,
+        failed: 0,
+      };
+      const totalSubmissions = batch.createdSubmissions || 0;
+      let status = 'EMPTY';
+      if (totalSubmissions > 0) {
+        if (counts.done === totalSubmissions) {
+          status = 'DONE';
+        } else if (counts.failed === totalSubmissions) {
+          status = 'FAILED';
+        } else if (counts.processing > 0 || counts.queued > 0) {
+          status = 'PROCESSING';
+        } else {
+          status = 'PARTIAL';
+        }
+      }
+
+      return {
+        id: batch.id,
+        homeworkId: batch.homeworkId,
+        uploader: batch.uploader,
+        totalImages: batch.totalImages,
+        matchedImages: batch.matchedImages,
+        unmatchedCount: batch.unmatchedCount,
+        createdSubmissions: batch.createdSubmissions,
+        skipped: batch.skipped,
+        mode: batch.mode,
+        needRewrite: batch.needRewrite,
+        createdAt: batch.createdAt.toISOString(),
+        status,
+        statusCounts: counts,
+      };
+    });
+  }
+
+  async getBatchUploadDetail(batchId: string, user: AuthUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can access batches');
+    }
+
+    const batch = await this.prisma.batchUpload.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: batchId }
+          : { id: batchId, homework: { class: { teachers: { some: { id: user.id } } } } },
+      include: {
+        uploader: { select: { id: true, name: true, account: true } },
+        homework: { select: { id: true, title: true } },
+      },
+    });
+
+    if (!batch) {
+      throw new NotFoundException('Batch not found or no access');
+    }
+
+    const submissions = await this.prisma.submission.findMany({
+      where: { batchId },
+      include: { student: { select: { id: true, name: true, account: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 500,
+    });
+
+    const statusGroups = await this.prisma.submission.groupBy({
+      by: ['status'],
+      where: { batchId },
+      _count: { _all: true },
+    });
+
+    const counts = { queued: 0, processing: 0, done: 0, failed: 0 };
+    for (const group of statusGroups) {
+      const count = group._count._all;
+      if (group.status === 'QUEUED') {
+        counts.queued += count;
+      } else if (group.status === 'PROCESSING') {
+        counts.processing += count;
+      } else if (group.status === 'DONE') {
+        counts.done += count;
+      } else if (group.status === 'FAILED') {
+        counts.failed += count;
+      }
+    }
+
+    let status = 'EMPTY';
+    if (batch.createdSubmissions > 0) {
+      if (counts.done === batch.createdSubmissions) {
+        status = 'DONE';
+      } else if (counts.failed === batch.createdSubmissions) {
+        status = 'FAILED';
+      } else if (counts.processing > 0 || counts.queued > 0) {
+        status = 'PROCESSING';
+      } else {
+        status = 'PARTIAL';
+      }
+    }
+
+    return {
+      id: batch.id,
+      homework: batch.homework,
+      uploader: batch.uploader,
+      totalImages: batch.totalImages,
+      matchedImages: batch.matchedImages,
+      unmatchedCount: batch.unmatchedCount,
+      createdSubmissions: batch.createdSubmissions,
+      skipped: batch.skipped,
+      mode: batch.mode,
+      needRewrite: batch.needRewrite,
+      createdAt: batch.createdAt.toISOString(),
+      updatedAt: batch.updatedAt.toISOString(),
+      status,
+      statusCounts: counts,
+      submissions: submissions.map((submission) => ({
+        id: submission.id,
+        studentName: submission.student.name,
+        studentAccount: submission.student.account,
+        status: submission.status,
+        totalScore: submission.totalScore,
+        updatedAt: submission.updatedAt.toISOString(),
+      })),
+    };
+  }
+
+  async regradeBatchSubmissions(batchId: string, user: AuthUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can regrade batch');
+    }
+
+    const batch = await this.prisma.batchUpload.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: batchId }
+          : { id: batchId, homework: { class: { teachers: { some: { id: user.id } } } } },
+      select: { id: true, homeworkId: true, mode: true, needRewrite: true },
+    });
+
+    if (!batch) {
+      throw new NotFoundException('Batch not found or no access');
+    }
+
+    const submissions = await this.prisma.submission.findMany({
+      where: { batchId, status: SubmissionStatus.FAILED },
+      select: { id: true },
+    });
+
+    if (!submissions.length) {
+      return { batchId, count: 0 };
+    }
+
+    const ids = submissions.map((item) => item.id);
+    await this.prisma.submission.updateMany({
+      where: { id: { in: ids } },
+      data: { status: SubmissionStatus.QUEUED, errorCode: null, errorMsg: null },
+    });
+
+    for (const id of ids) {
+      await this.queueService.enqueueRegrade(id, {
+        mode: (batch.mode as 'cheap' | 'quality' | null) || undefined,
+        needRewrite: batch.needRewrite,
+      });
+    }
+
+    return { batchId, count: ids.length };
   }
 
   async createBatchSubmissions(
@@ -385,13 +889,25 @@ export class SubmissionsService {
         };
       }
 
-      if (unmatched.length) {
-        skipped.push(...unmatched);
-      }
+      const skippedForRecord = unmatched.length ? [...skipped, ...unmatched] : [...skipped];
 
       if (grouped.size === 0) {
         throw new BadRequestException('No images matched enrolled students');
       }
+
+      const batch = await this.prisma.batchUpload.create({
+        data: {
+          homeworkId: homework.id,
+          uploaderId: user.id,
+          totalImages: images.length,
+          matchedImages,
+          unmatchedCount: unmatched.length,
+          createdSubmissions: 0,
+          skipped: skippedForRecord as Prisma.InputJsonValue,
+          mode: dto.mode,
+          needRewrite: Boolean(dto.needRewrite),
+        },
+      });
 
       const submissions: Array<{
         submissionId: string;
@@ -412,6 +928,7 @@ export class SubmissionsService {
           data: {
             homeworkId: homework.id,
             studentId: student.id,
+            batchId: batch.id,
             status: SubmissionStatus.QUEUED,
           },
         });
@@ -445,13 +962,19 @@ export class SubmissionsService {
         });
       }
 
+      await this.prisma.batchUpload.update({
+        where: { id: batch.id },
+        data: { createdSubmissions: submissions.length },
+      });
+
       return {
         homeworkId: homework.id,
         totalImages: images.length,
         acceptedImages,
         createdSubmissions: submissions.length,
-        skipped,
+        skipped: skippedForRecord,
         submissions,
+        batchId: batch.id,
       };
     } finally {
       await this.cleanupTempFiles(tempPaths);
@@ -585,5 +1108,46 @@ export class SubmissionsService {
   private async cleanupTempFiles(paths: Set<string>) {
     const tasks = Array.from(paths).map((filePath) => fs.unlink(filePath).catch(() => undefined));
     await Promise.all(tasks);
+  }
+
+  private extractGrading(value: Prisma.JsonValue | null): {
+    summary: string;
+    nextSteps: string[];
+    rewrite: string;
+    sampleEssay: string;
+    errorCount: number;
+  } {
+    const obj = this.asObject(value);
+    const summary = typeof obj?.summary === 'string' ? obj.summary : '';
+    const nextSteps = Array.isArray(obj?.nextSteps)
+      ? (obj?.nextSteps as unknown[]).filter((item) => typeof item === 'string')
+      : [];
+    const suggestions = this.asObject(obj?.suggestions as Prisma.JsonValue | null);
+    const rewrite = typeof suggestions?.rewrite === 'string' ? suggestions.rewrite : '';
+    const sampleEssay = typeof suggestions?.sampleEssay === 'string' ? suggestions.sampleEssay : '';
+    const errors = Array.isArray(obj?.errors) ? (obj?.errors as unknown[]) : [];
+    return { summary, nextSteps, rewrite, sampleEssay, errorCount: errors.length };
+  }
+
+  private asObject(value: Prisma.JsonValue | null): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private toCsvRow(values: Array<string | number | null>): string {
+    return values
+      .map((value) => {
+        if (value === null || value === undefined) {
+          return '';
+        }
+        const text = String(value);
+        if (text.includes('"') || text.includes(',') || text.includes('\n')) {
+          return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+      })
+      .join(',');
   }
 }

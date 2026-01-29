@@ -41,6 +41,7 @@ export const buildUserPrompt = ({
     'Score ranges: grammar/vocabulary/structure/content/coherence (and handwritingClarity if present) must be 0-20.';
   const totalLine = 'totalScore must equal the sum of dimensionScores (0-100).';
   const jsonRulesLine = 'Use double quotes, no trailing commas, and numeric values (not strings).';
+  const sampleLine = 'Include suggestions.sampleEssay (<= 1500 chars) as a model answer.';
   return [
     jsonLine,
     modeLine,
@@ -48,6 +49,7 @@ export const buildUserPrompt = ({
     scoreLine,
     totalLine,
     jsonRulesLine,
+    sampleLine,
     'You are grading an English essay from OCR. OCR text may contain noise.',
     'Scoring rubric:',
     rubric,
@@ -57,7 +59,7 @@ export const buildUserPrompt = ({
     '1) totalScore (0-100)',
     '2) dimensionScores { grammar, vocabulary, structure, content, coherence, optional handwritingClarity }',
     '3) errors: array of { type, message, original, suggestion, optional startIndex, endIndex }',
-    '4) suggestions: { low, mid, high, optional rewrite }',
+    '4) suggestions: { low, mid, high, rewrite, sampleEssay }',
     '5) summary (<= 300 chars)',
     '6) nextSteps (<= 8 bullets)',
     `needRewrite=${needRewrite ? 'true' : 'false'}. If false, omit rewrite or return empty string.`,

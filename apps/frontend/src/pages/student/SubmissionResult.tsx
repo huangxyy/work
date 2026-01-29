@@ -42,6 +42,7 @@ type GradingResult = {
     mid: string[];
     high: string[];
     rewrite?: string;
+    sampleEssay?: string;
   };
   summary: string;
   nextSteps: string[];
@@ -302,6 +303,13 @@ export const SubmissionResultPage = () => {
               <ProCard bordered title={t('submission.rewrite')} style={{ marginTop: 16 }}>
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
                   {grading.suggestions.rewrite}
+                </Typography.Paragraph>
+              </ProCard>
+            ) : null}
+            {grading?.suggestions?.sampleEssay ? (
+              <ProCard bordered title={t('submission.sampleEssay')} style={{ marginTop: 16 }}>
+                <Typography.Paragraph style={{ marginBottom: 0 }}>
+                  {grading.suggestions.sampleEssay}
                 </Typography.Paragraph>
               </ProCard>
             ) : null}

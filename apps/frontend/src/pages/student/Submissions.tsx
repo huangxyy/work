@@ -1,10 +1,11 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Empty, Input, Select, Space, Tag, Typography } from 'antd';
+import { Alert, Button, DatePicker, Empty, Input, InputNumber, Select, Space, Tag, Typography, message } from 'antd';
 import { useQuery } from '@tanstack/react-query';
+import type { Dayjs } from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchStudentSubmissions } from '../../api';
+import { downloadStudentSubmissionsCsv, fetchStudentSubmissions } from '../../api';
 import { useI18n } from '../../i18n';
 
 type SubmissionRow = {
@@ -20,6 +21,9 @@ export const StudentSubmissionsPage = () => {
   const { t } = useI18n();
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [scoreMin, setScoreMin] = useState<number | null>(null);
+  const [scoreMax, setScoreMax] = useState<number | null>(null);
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
   const statusMeta = useMemo(
     () => ({
@@ -42,12 +46,65 @@ export const StudentSubmissionsPage = () => {
       if (statusFilter !== 'all' && item.status !== statusFilter) {
         return false;
       }
+      if (scoreMin !== null) {
+        if (typeof item.totalScore !== 'number' || item.totalScore < scoreMin) {
+          return false;
+        }
+      }
+      if (scoreMax !== null) {
+        if (typeof item.totalScore !== 'number' || item.totalScore > scoreMax) {
+          return false;
+        }
+      }
+      if (dateRange && (dateRange[0] || dateRange[1])) {
+        if (!item.updatedAt) {
+          return false;
+        }
+        const updatedAtMs = new Date(item.updatedAt).getTime();
+        if (dateRange[0]) {
+          const startMs = dateRange[0].startOf('day').valueOf();
+          if (updatedAtMs < startMs) {
+            return false;
+          }
+        }
+        if (dateRange[1]) {
+          const endMs = dateRange[1].endOf('day').valueOf();
+          if (updatedAtMs > endMs) {
+            return false;
+          }
+        }
+      }
       if (!keyword) {
         return true;
       }
       return item.homeworkTitle.toLowerCase().includes(keyword.toLowerCase());
     });
-  }, [data, keyword, statusFilter]);
+  }, [data, keyword, statusFilter, scoreMin, scoreMax, dateRange]);
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleExport = async () => {
+    try {
+      const blob = await downloadStudentSubmissionsCsv({
+        keyword: keyword || undefined,
+        status: statusFilter === 'all' ? undefined : (statusFilter as SubmissionRow['status']),
+        minScore: scoreMin ?? undefined,
+        maxScore: scoreMax ?? undefined,
+        from: dateRange?.[0]?.startOf('day').toISOString(),
+        to: dateRange?.[1]?.endOf('day').toISOString(),
+      });
+      downloadBlob(blob, 'student-submissions.csv');
+    } catch {
+      message.error(t('student.submissions.exportFailed'));
+    }
+  };
 
   const columns: ProColumns<SubmissionRow>[] = [
     {
@@ -149,6 +206,33 @@ export const StudentSubmissionsPage = () => {
                 { label: t('status.failed'), value: 'FAILED' },
               ]}
             />,
+            <Space key="score" size={4}>
+              <Typography.Text>{t('student.submissions.scoreRange')}</Typography.Text>
+              <InputNumber
+                min={0}
+                max={100}
+                placeholder="0"
+                value={scoreMin ?? undefined}
+                onChange={(value) => setScoreMin(typeof value === 'number' ? value : null)}
+              />
+              <Typography.Text>~</Typography.Text>
+              <InputNumber
+                min={0}
+                max={100}
+                placeholder="100"
+                value={scoreMax ?? undefined}
+                onChange={(value) => setScoreMax(typeof value === 'number' ? value : null)}
+              />
+            </Space>,
+            <DatePicker.RangePicker
+              key="date"
+              value={dateRange || undefined}
+              onChange={(value) => setDateRange(value)}
+              placeholder={[t('student.submissions.dateRangeStart'), t('student.submissions.dateRangeEnd')]}
+            />,
+            <Button key="export" onClick={handleExport}>
+              {t('student.submissions.exportCsv')}
+            </Button>,
           ]}
         />
       </ProCard>

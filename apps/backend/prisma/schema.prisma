@@ -33,6 +33,7 @@ model User {
   teacherClasses Class[]      @relation("TeacherClasses")
   studentEnrolls Enrollment[]
   submissions    Submission[]
+  batchUploads   BatchUpload[]
 }
 
 model Class {
@@ -69,12 +70,14 @@ model Homework {
 
   class       Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
   submissions Submission[]
+  batchUploads BatchUpload[]
 }
 
 model Submission {
   id         String           @id @default(cuid())
   homeworkId String
   studentId  String
+  batchId    String?
   status     SubmissionStatus @default(QUEUED)
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
@@ -88,10 +91,34 @@ model Submission {
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
   student  User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  batch    BatchUpload? @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
   @@index([homeworkId])
   @@index([studentId])
   @@index([status])
+  @@index([batchId])
+}
+
+model BatchUpload {
+  id                 String   @id @default(cuid())
+  homeworkId         String
+  uploaderId         String
+  totalImages        Int
+  matchedImages      Int
+  unmatchedCount     Int
+  createdSubmissions Int
+  skipped            Json?
+  mode               String?
+  needRewrite        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  homework   Homework    @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  uploader   User        @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@index([homeworkId])
+  @@index([uploaderId])
 }
 
 model SubmissionImage {

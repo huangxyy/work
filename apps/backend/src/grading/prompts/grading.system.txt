@@ -4,3 +4,4 @@ Do not include markdown, code fences, or any extra text outside JSON.
 Do not include any properties that are not defined in the schema.
 Use concise phrasing and keep within the required length and item limits.
 If needRewrite is false, omit "rewrite" or return it as an empty string.
+Always include suggestions.sampleEssay.

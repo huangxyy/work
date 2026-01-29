@@ -81,7 +81,7 @@ export class CheapProvider implements LlmProvider {
       lowOnly: params.lowOnly,
     });
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       model,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -91,7 +91,45 @@ export class CheapProvider implements LlmProvider {
       temperature: params.temperature ?? this.runtimeConfig.temperature ?? 0.2,
     };
 
-    const response = await this.fetchWithTimeout(this.resolveApiUrl(), {
+    if (params.strictJson) {
+      payload.response_format = { type: 'json_object' };
+    }
+    const apiUrl = this.resolveApiUrl();
+    const response = await this.fetchCompletion(apiUrl, payload);
+    if (!response.ok && params.strictJson && this.isResponseFormatUnsupported(response.status, response.errorText)) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.response_format;
+      const fallback = await this.fetchCompletion(apiUrl, fallbackPayload);
+      if (!fallback.ok) {
+        throw new GradingError(
+          'LLM_API_ERROR',
+          `LLM API error: ${fallback.status} ${fallback.errorText}`,
+        );
+      }
+      return this.extractContent(fallback.data);
+    }
+
+    if (!response.ok) {
+      throw new GradingError('LLM_API_ERROR', `LLM API error: ${response.status} ${response.errorText}`);
+    }
+
+    return this.extractContent(response.data);
+  }
+
+  private extractContent(data: {
+    choices?: Array<{ message?: { content?: string }; text?: string }>;
+  }): string {
+    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text;
+    if (!content) {
+      this.logger.warn('LLM response missing content');
+      throw new GradingError('LLM_API_ERROR', 'LLM response missing content');
+    }
+
+    return content.trim();
+  }
+
+  private async fetchCompletion(url: string, payload: Record<string, unknown>) {
+    const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -104,19 +142,13 @@ export class CheapProvider implements LlmProvider {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new GradingError('LLM_API_ERROR', `LLM API error: ${response.status} ${errorText}`);
+      return { ok: false, status: response.status, errorText, data: null } as const;
     }
 
     const data = (await response.json()) as {
       choices?: Array<{ message?: { content?: string }; text?: string }>;
     };
-    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text;
-    if (!content) {
-      this.logger.warn('LLM response missing content');
-      throw new GradingError('LLM_API_ERROR', 'LLM response missing content');
-    }
-
-    return content.trim();
+    return { ok: true, status: response.status, errorText: '', data } as const;
   }
 
   private resolveModel(params: GradeEssayParams): string {
@@ -150,6 +182,14 @@ export class CheapProvider implements LlmProvider {
     }
     // Default to OpenAI-compatible chat completions endpoint.
     return `${base}/v1/chat/completions`;
+  }
+
+  private isResponseFormatUnsupported(status: number, errorText: string): boolean {
+    if (status !== 400 && status !== 422) {
+      return false;
+    }
+    const text = errorText.toLowerCase();
+    return text.includes('response_format') || text.includes('json_object') || text.includes('unsupported');
   }
 
   async refreshConfig() {

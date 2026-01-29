@@ -5,7 +5,9 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
+  Res,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -14,12 +16,14 @@ import { Role } from '@prisma/client';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Express } from 'express';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { RegradeSubmissionDto } from './dto/regrade-submission.dto';
+import { StudentSubmissionsQueryDto } from './dto/student-submissions-query.dto';
 import { SubmissionsService } from './submissions.service';
 
 @Controller('submissions')
@@ -41,6 +45,28 @@ export class SubmissionsController {
     @Req() req: { user: AuthUser },
   ) {
     return this.submissionsService.createSubmission(body, files, req.user);
+  }
+
+  @Get()
+  @Roles(Role.STUDENT)
+  async listForStudent(
+    @Query() query: StudentSubmissionsQueryDto,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.submissionsService.listStudentSubmissionsWithQuery(req.user, query);
+  }
+
+  @Get('export')
+  @Roles(Role.STUDENT)
+  async exportForStudent(
+    @Query() query: StudentSubmissionsQueryDto,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const csv = await this.submissionsService.exportStudentSubmissionsCsv(req.user, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="student-submissions.csv"');
+    return csv;
   }
 
   @Get(':id')
@@ -73,12 +99,6 @@ export class SubmissionsController {
       errorCode: submission.errorCode,
       errorMsg: submission.errorMsg,
     };
-  }
-
-  @Get()
-  @Roles(Role.STUDENT)
-  async listForStudent(@Req() req: { user: AuthUser }) {
-    return this.submissionsService.listStudentSubmissions(req.user);
   }
 
   @Post(':id/regrade')

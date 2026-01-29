@@ -2,9 +2,11 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   Req,
+  Res,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -17,6 +19,7 @@ import { mkdirSync } from 'fs';
 import { extname, join } from 'path';
 import { tmpdir } from 'os';
 import type { Express } from 'express';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -54,6 +57,19 @@ export class TeacherSubmissionsController {
     return this.submissionsService.listHomeworkSubmissions(query.homeworkId, req.user);
   }
 
+  @Get('batches')
+  async listBatches(
+    @Query() query: ListHomeworkSubmissionsQueryDto,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.submissionsService.listBatchUploads(query.homeworkId, req.user);
+  }
+
+  @Get('batches/:batchId')
+  async getBatch(@Param('batchId') batchId: string, @Req() req: { user: AuthUser }) {
+    return this.submissionsService.getBatchUploadDetail(batchId, req.user);
+  }
+
   @Post('batch')
   @UseInterceptors(
     FileFieldsInterceptor(
@@ -73,11 +89,61 @@ export class TeacherSubmissionsController {
     return this.submissionsService.createBatchSubmissions(body, files, req.user);
   }
 
+  @Get('export')
+  async exportCsv(
+    @Query() query: ListHomeworkSubmissionsQueryDto,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const csv = await this.submissionsService.exportHomeworkCsv(query.homeworkId, req.user);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="homework-${query.homeworkId}-submissions.csv"`,
+    );
+    return csv;
+  }
+
+  @Get('images')
+  async exportImages(
+    @Query() query: ListHomeworkSubmissionsQueryDto,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const zip = await this.submissionsService.exportHomeworkImagesZip(query.homeworkId, req.user);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="homework-${query.homeworkId}-images.zip"`,
+    );
+    return zip;
+  }
+
+  @Get('reminders')
+  async exportReminders(
+    @Query() query: ListHomeworkSubmissionsQueryDto,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const csv = await this.submissionsService.exportHomeworkRemindersCsv(query.homeworkId, req.user);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="homework-${query.homeworkId}-reminders.csv"`,
+    );
+    return csv;
+  }
+
   @Post('regrade')
   async regradeHomework(
     @Body() body: RegradeHomeworkSubmissionsDto,
     @Req() req: { user: AuthUser },
   ) {
     return this.submissionsService.regradeHomeworkSubmissions(body, req.user);
+  }
+
+  @Post('batches/:batchId/retry')
+  async retryBatch(@Param('batchId') batchId: string, @Req() req: { user: AuthUser }) {
+    return this.submissionsService.regradeBatchSubmissions(batchId, req.user);
   }
 }

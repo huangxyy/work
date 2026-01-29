@@ -363,6 +363,13 @@ export class ReportsService {
       return { student, classIds: null as string[] | null };
     }
 
+    if (user.role === Role.STUDENT) {
+      if (user.id !== studentId) {
+        throw new ForbiddenException('No access to this student');
+      }
+      return { student, classIds: null as string[] | null };
+    }
+
     if (user.role === Role.TEACHER) {
       const enrollments = await this.prisma.enrollment.findMany({
         where: {

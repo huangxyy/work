@@ -1,9 +1,9 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Descriptions, Empty, Skeleton, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Descriptions, Empty, List, Skeleton, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchStudentHomeworks } from '../../api';
+import { fetchStudentHomeworks, fetchStudentSubmissions } from '../../api';
 import { useI18n } from '../../i18n';
 
 export const StudentHomeworkDetailPage = () => {
@@ -19,6 +19,22 @@ export const StudentHomeworkDetailPage = () => {
   const homework = useMemo(
     () => (data || []).find((item) => item.id === id),
     [data, id],
+  );
+
+  const submissionsQuery = useQuery({
+    queryKey: ['student-homework-submissions', id],
+    queryFn: () => fetchStudentSubmissions({ homeworkId: id || '' }),
+    enabled: !!id,
+  });
+
+  const statusMeta = useMemo(
+    () => ({
+      QUEUED: { label: t('status.queued'), color: 'default' },
+      PROCESSING: { label: t('status.processing'), color: 'processing' },
+      DONE: { label: t('status.done'), color: 'success' },
+      FAILED: { label: t('status.failed'), color: 'error' },
+    }),
+    [t],
   );
 
   const dueAtLabel = homework?.dueAt
@@ -97,8 +113,41 @@ export const StudentHomeworkDetailPage = () => {
               </Button>
             }
           >
-            {/* TODO: connect submission history API for homework */}
-            <Empty description={t('student.homeworkDetail.noSubmissionHistory')} />
+            {submissionsQuery.isLoading ? (
+              <Skeleton active paragraph={{ rows: 3 }} />
+            ) : submissionsQuery.data && submissionsQuery.data.length ? (
+              <List
+                dataSource={submissionsQuery.data}
+                renderItem={(item) => {
+                  const meta = statusMeta[item.status];
+                  return (
+                    <List.Item
+                      actions={[
+                        <Button key="view" onClick={() => navigate(`/student/submission/${item.id}`)}>
+                          {t('common.view')}
+                        </Button>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={
+                          <Space>
+                            <Typography.Text strong>{item.homeworkTitle}</Typography.Text>
+                            <Tag color={meta.color}>{meta.label}</Tag>
+                          </Space>
+                        }
+                        description={
+                          <Typography.Text type="secondary">
+                            {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '--'}
+                          </Typography.Text>
+                        }
+                      />
+                    </List.Item>
+                  );
+                }}
+              />
+            ) : (
+              <Empty description={t('student.homeworkDetail.noSubmissionHistory')} />
+            )}
           </ProCard>
         </Space>
       )}

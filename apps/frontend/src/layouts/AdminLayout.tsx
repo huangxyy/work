@@ -35,18 +35,18 @@ export const AdminLayout = () => {
         {
           path: '/admin/system',
           name: t('nav.system'),
-            icon: <SettingOutlined />,
-            routes: [
-              {
-                path: '/admin/system/config',
-                name: t('nav.config'),
-                icon: <ToolOutlined />,
-              },
-              {
-                path: '/admin/system/budget',
-                name: t('nav.budget'),
-                icon: <WalletOutlined />,
-              },
+          icon: <SettingOutlined />,
+          routes: [
+            {
+              path: '/admin/system/config',
+              name: t('nav.config'),
+              icon: <ToolOutlined />,
+            },
+            {
+              path: '/admin/system/budget',
+              name: t('nav.budget'),
+              icon: <WalletOutlined />,
+            },
             {
               path: '/admin/system/retention',
               name: t('nav.retention'),
