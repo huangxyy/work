@@ -6,6 +6,7 @@ import { TeacherLayout } from '../layouts/TeacherLayout';
 import { StudentLayout } from '../layouts/StudentLayout';
 import { LoginPage } from '../pages/Login';
 import { AdminDashboardPage } from '../pages/admin/Dashboard';
+import { AdminClassesPage } from '../pages/admin/Classes';
 import { AdminConfigPage } from '../pages/admin/Config';
 import { AdminSystemBudgetPage } from '../pages/admin/SystemBudget';
 import { AdminSystemRetentionPage } from '../pages/admin/SystemRetention';
@@ -80,6 +81,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/admin/dashboard" replace /> },
       { path: 'dashboard', element: <AdminDashboardPage /> },
+      { path: 'classes', element: <AdminClassesPage /> },
       { path: 'users', element: <AdminUsersPage /> },
       { path: 'system', element: <Navigate to="/admin/system/budget" replace /> },
       { path: 'system/config', element: <AdminConfigPage /> },

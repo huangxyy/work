@@ -145,6 +145,7 @@ export const fetchClasses = async () => {
     id: string;
     name: string;
     grade?: string | null;
+    teachers?: Array<{ id: string; name: string; account: string }>;
   }>;
 };
 
@@ -197,6 +198,16 @@ export const importClassStudents = async (
 ) => {
   const response = await api.post(`/classes/${classId}/students/import`, payload);
   return response.data as { createdUsers: number; enrolled: number };
+};
+
+export const updateClassTeachers = async (classId: string, teacherIds: string[]) => {
+  const response = await api.patch(`/classes/${classId}/teachers`, { teacherIds });
+  return response.data as { id: string; teachers: Array<{ id: string; name: string; account: string }> };
+};
+
+export const removeClassStudent = async (classId: string, studentId: string) => {
+  const response = await api.delete(`/classes/${classId}/students/${studentId}`);
+  return response.data as { removed: number };
 };
 
 export const fetchTeacherClassReportOverview = async (

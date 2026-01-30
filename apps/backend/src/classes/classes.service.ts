@@ -52,6 +52,38 @@ export class ClassesService {
     throw new ForbiddenException('Only teacher or admin can list classes');
   }
 
+  async updateTeachers(classId: string, teacherIds: string[], user: AuthUser) {
+    if (user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only admin can update teachers');
+    }
+
+    const klass = await this.prisma.class.findUnique({ where: { id: classId } });
+    if (!klass) {
+      throw new NotFoundException('Class not found');
+    }
+
+    const uniqueIds = Array.from(new Set(teacherIds || []));
+    if (uniqueIds.length) {
+      const teachers = await this.prisma.user.findMany({
+        where: { id: { in: uniqueIds }, role: Role.TEACHER },
+        select: { id: true },
+      });
+      if (teachers.length !== uniqueIds.length) {
+        throw new BadRequestException('Invalid teacher selection');
+      }
+    }
+
+    return this.prisma.class.update({
+      where: { id: classId },
+      data: {
+        teachers: {
+          set: uniqueIds.map((id) => ({ id })),
+        },
+      },
+      include: { teachers: { select: { id: true, name: true, account: true } } },
+    });
+  }
+
   private parseStudentText(text: string): StudentInputDto[] {
     return text
       .split(/\r?\n/)
@@ -155,5 +187,13 @@ export class ClassesService {
       account: enrollment.student.account,
       name: enrollment.student.name,
     }));
+  }
+
+  async removeStudent(classId: string, studentId: string, user: AuthUser) {
+    await this.ensureClassAccess(classId, user);
+    const result = await this.prisma.enrollment.deleteMany({
+      where: { classId, studentId },
+    });
+    return { removed: result.count };
   }
 }

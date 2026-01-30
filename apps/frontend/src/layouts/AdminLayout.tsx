@@ -1,4 +1,5 @@
 import {
+  ApartmentOutlined,
   DashboardOutlined,
   HistoryOutlined,
   SettingOutlined,
@@ -26,6 +27,11 @@ export const AdminLayout = () => {
           path: '/admin/dashboard',
           name: t('nav.dashboard'),
           icon: <DashboardOutlined />,
+        },
+        {
+          path: '/admin/classes',
+          name: t('nav.classes'),
+          icon: <ApartmentOutlined />,
         },
         {
           path: '/admin/users',
