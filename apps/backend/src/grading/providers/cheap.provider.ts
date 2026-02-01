@@ -1,52 +1,31 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { GradingError } from '../grading.errors';
 import { buildUserPrompt } from '../prompts/grading.user.template';
 import { resolveGradingAssetPath } from '../utils/asset-path';
 import { GradeEssayParams, LlmProvider, ProviderInfo } from './provider.interface';
-import { SystemConfigService } from '../../system-config/system-config.service';
-
-type LlmConfig = {
-  baseUrl?: string;
-  apiKey?: string;
-  model?: string;
-  cheaperModel?: string;
-  qualityModel?: string;
-  providerName?: string;
-  maxTokens?: number;
-  temperature?: number;
-  timeoutMs?: number;
-};
+import { LlmConfigService, type LlmRuntimeConfig } from '../../llm/llm-config.service';
+import { LlmLogsService } from '../../llm/llm-logs.service';
 
 @Injectable()
 export class CheapProvider implements LlmProvider {
   private readonly logger = new Logger(CheapProvider.name);
   private readonly systemPrompt: string;
-  private readonly defaults: LlmConfig;
-  private runtimeConfig: LlmConfig;
+  private runtimeConfig: LlmRuntimeConfig;
   private lastConfigSync = 0;
   private readonly configTtlMs = 15000;
 
   constructor(
-    configService: ConfigService,
-    private readonly systemConfigService: SystemConfigService,
+    private readonly llmConfigService: LlmConfigService,
+    private readonly llmLogsService: LlmLogsService,
   ) {
-    this.defaults = {
-      baseUrl: configService.get<string>('LLM_BASE_URL') || '',
-      apiKey: configService.get<string>('LLM_API_KEY') || undefined,
-      model: configService.get<string>('LLM_MODEL') || '',
-      cheaperModel: configService.get<string>('LLM_MODEL_CHEAPER') || undefined,
-      qualityModel: configService.get<string>('LLM_MODEL_QUALITY') || undefined,
-      providerName:
-      configService.get<string>('LLM_PROVIDER_NAME') ||
-      configService.get<string>('LLM_PROVIDER') ||
-      'llm',
-      maxTokens: Number(configService.get<string>('LLM_MAX_TOKENS') || '800'),
-      temperature: Number(configService.get<string>('LLM_TEMPERATURE') || '0.2'),
-      timeoutMs: Number(configService.get<string>('LLM_TIMEOUT_MS') || '20000'),
+    this.runtimeConfig = {
+      providerName: 'llm',
+      baseUrl: '',
+      headers: {},
+      prices: {},
     };
-    this.runtimeConfig = { ...this.defaults };
 
     const systemPromptPath = resolveGradingAssetPath('prompts/grading.system.txt');
     this.systemPrompt = readFileSync(systemPromptPath, 'utf-8').trim();
@@ -91,29 +70,73 @@ export class CheapProvider implements LlmProvider {
       temperature: params.temperature ?? this.runtimeConfig.temperature ?? 0.2,
     };
 
-    if (params.strictJson) {
+    const topP = params.topP ?? this.runtimeConfig.topP;
+    const presencePenalty = params.presencePenalty ?? this.runtimeConfig.presencePenalty;
+    const frequencyPenalty = params.frequencyPenalty ?? this.runtimeConfig.frequencyPenalty;
+    const stop = params.stop ?? this.runtimeConfig.stop;
+
+    if (typeof topP === 'number') {
+      payload.top_p = topP;
+    }
+    if (typeof presencePenalty === 'number') {
+      payload.presence_penalty = presencePenalty;
+    }
+    if (typeof frequencyPenalty === 'number') {
+      payload.frequency_penalty = frequencyPenalty;
+    }
+    if (stop?.length) {
+      payload.stop = stop;
+    }
+
+    const responseFormat = params.strictJson
+      ? 'json_object'
+      : params.responseFormat ?? this.runtimeConfig.responseFormat;
+    if (responseFormat === 'json_object') {
       payload.response_format = { type: 'json_object' };
     }
     const apiUrl = this.resolveApiUrl();
-    const response = await this.fetchCompletion(apiUrl, payload);
+    const startedAt = Date.now();
+    let response = await this.fetchCompletion(apiUrl, payload);
+    let usedFallback = false;
     if (!response.ok && params.strictJson && this.isResponseFormatUnsupported(response.status, response.errorText)) {
       const fallbackPayload = { ...payload };
       delete fallbackPayload.response_format;
-      const fallback = await this.fetchCompletion(apiUrl, fallbackPayload);
-      if (!fallback.ok) {
-        throw new GradingError(
-          'LLM_API_ERROR',
-          `LLM API error: ${fallback.status} ${fallback.errorText}`,
-        );
-      }
-      return this.extractContent(fallback.data);
+      response = await this.fetchCompletion(apiUrl, fallbackPayload);
+      usedFallback = true;
     }
 
+    const latencyMs = Date.now() - startedAt;
     if (!response.ok) {
+      await this.logCall({
+        status: 'ERROR',
+        latencyMs,
+        model,
+        prompt: userPrompt,
+        systemPrompt,
+        error: `LLM API error: ${response.status} ${response.errorText}`,
+        meta: { usedFallback },
+      });
       throw new GradingError('LLM_API_ERROR', `LLM API error: ${response.status} ${response.errorText}`);
     }
 
-    return this.extractContent(response.data);
+    const content = this.extractContent(response.data);
+    const usage = this.extractUsage(response.data);
+    const cost = this.computeCost(model, usage?.promptTokens, usage?.completionTokens);
+    await this.logCall({
+      status: 'OK',
+      latencyMs,
+      model,
+      prompt: userPrompt,
+      systemPrompt,
+      response: content,
+      promptTokens: usage?.promptTokens,
+      completionTokens: usage?.completionTokens,
+      totalTokens: usage?.totalTokens,
+      cost,
+      meta: { usedFallback },
+    });
+
+    return content;
   }
 
   private extractContent(data: {
@@ -129,26 +152,35 @@ export class CheapProvider implements LlmProvider {
   }
 
   private async fetchCompletion(url: string, payload: Record<string, unknown>) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.runtimeConfig.headers,
+    };
+    if (this.runtimeConfig.apiKey) {
+      headers.Authorization = `Bearer ${this.runtimeConfig.apiKey}`;
+    }
+
     const response = await this.fetchWithTimeout(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.runtimeConfig.apiKey
-          ? { Authorization: `Bearer ${this.runtimeConfig.apiKey}` }
-          : {}),
-      },
+      headers,
       body: JSON.stringify(payload),
     });
 
+    const text = await response.text();
     if (!response.ok) {
-      const errorText = await response.text();
-      return { ok: false, status: response.status, errorText, data: null } as const;
+      return { ok: false, status: response.status, errorText: text, data: null } as const;
     }
 
-    const data = (await response.json()) as {
+    let data: {
       choices?: Array<{ message?: { content?: string }; text?: string }>;
-    };
-    return { ok: true, status: response.status, errorText: '', data } as const;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    } | null = null;
+    try {
+      data = text ? (JSON.parse(text) as typeof data) : null;
+    } catch {
+      data = null;
+    }
+    return { ok: true, status: response.status, errorText: '', data, rawText: text } as const;
   }
 
   private resolveModel(params: GradeEssayParams): string {
@@ -172,7 +204,8 @@ export class CheapProvider implements LlmProvider {
     if (params.strictJson) {
       extra.push('Output must be valid JSON only.');
     }
-    return [this.systemPrompt, ...extra].filter(Boolean).join('\n');
+    const base = params.systemPrompt || this.runtimeConfig.systemPrompt || this.systemPrompt;
+    return [base, ...extra].filter(Boolean).join('\n');
   }
 
   private resolveApiUrl(): string {
@@ -180,7 +213,13 @@ export class CheapProvider implements LlmProvider {
     if (base.endsWith('/chat/completions') || base.endsWith('/v1/chat/completions')) {
       return base;
     }
-    // Default to OpenAI-compatible chat completions endpoint.
+    const customPath = this.normalizeText(this.runtimeConfig.path || '');
+    if (customPath) {
+      if (customPath.startsWith('http://') || customPath.startsWith('https://')) {
+        return customPath;
+      }
+      return `${base}${customPath.startsWith('/') ? '' : '/'}${customPath}`;
+    }
     return `${base}/v1/chat/completions`;
   }
 
@@ -197,27 +236,8 @@ export class CheapProvider implements LlmProvider {
     if (now - this.lastConfigSync < this.configTtlMs) {
       return;
     }
-    const overrides = await this.systemConfigService.getValue<LlmConfig>('llm');
-    this.runtimeConfig = this.mergeConfig(overrides);
+    this.runtimeConfig = await this.llmConfigService.resolveRuntimeConfig();
     this.lastConfigSync = now;
-  }
-
-  private mergeConfig(overrides: LlmConfig | null): LlmConfig {
-    if (!overrides) {
-      return { ...this.defaults };
-    }
-    const merged: LlmConfig = { ...this.defaults, ...overrides };
-    merged.baseUrl = this.normalizeText(overrides.baseUrl) || this.defaults.baseUrl;
-    merged.model = this.normalizeText(overrides.model) || this.defaults.model;
-    merged.cheaperModel = this.normalizeText(overrides.cheaperModel) || this.defaults.cheaperModel;
-    merged.qualityModel = this.normalizeText(overrides.qualityModel) || this.defaults.qualityModel;
-    merged.providerName = this.normalizeText(overrides.providerName) || this.defaults.providerName;
-
-    if (overrides.apiKey !== undefined) {
-      merged.apiKey = this.normalizeText(overrides.apiKey) || undefined;
-    }
-
-    return merged;
   }
 
   private normalizeText(value?: string) {
@@ -227,7 +247,7 @@ export class CheapProvider implements LlmProvider {
 
   private async fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
     const controller = new AbortController();
-    const timeoutMs = this.runtimeConfig.timeoutMs ?? this.defaults.timeoutMs ?? 20000;
+    const timeoutMs = this.runtimeConfig.timeoutMs ?? 20000;
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       return await fetch(url, { ...options, signal: controller.signal });
@@ -239,5 +259,74 @@ export class CheapProvider implements LlmProvider {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private extractUsage(data: {
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  } | null) {
+    if (!data?.usage) {
+      return null;
+    }
+    return {
+      promptTokens: data.usage.prompt_tokens,
+      completionTokens: data.usage.completion_tokens,
+      totalTokens: data.usage.total_tokens,
+    };
+  }
+
+  private computeCost(model: string, promptTokens?: number, completionTokens?: number) {
+    const prices = this.runtimeConfig.prices[model];
+    if (!prices || (!promptTokens && !completionTokens)) {
+      return undefined;
+    }
+    const inCost = prices.priceIn ? (promptTokens || 0) / 1000 * prices.priceIn : 0;
+    const outCost = prices.priceOut ? (completionTokens || 0) / 1000 * prices.priceOut : 0;
+    const total = inCost + outCost;
+    return Number.isFinite(total) ? total : undefined;
+  }
+
+  private async logCall(input: {
+    status: string;
+    latencyMs?: number;
+    model?: string;
+    prompt?: string;
+    systemPrompt?: string;
+    response?: string;
+    error?: string;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    cost?: number;
+    meta?: Prisma.InputJsonValue;
+  }) {
+    try {
+      await this.llmLogsService.logCall({
+        source: 'grading',
+        providerId: this.runtimeConfig.providerId,
+        providerName: this.runtimeConfig.providerName,
+        model: input.model,
+        status: input.status,
+        latencyMs: input.latencyMs,
+        promptTokens: input.promptTokens,
+        completionTokens: input.completionTokens,
+        totalTokens: input.totalTokens,
+        cost: input.cost,
+        prompt: this.trimText(input.prompt),
+        systemPrompt: this.trimText(input.systemPrompt),
+        response: this.trimText(input.response),
+        error: this.trimText(input.error),
+        meta: input.meta,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown log error';
+      this.logger.warn(`Failed to log LLM call: ${message}`);
+    }
+  }
+
+  private trimText(value?: string, limit = 20000) {
+    if (!value) {
+      return undefined;
+    }
+    return value.length > limit ? value.slice(0, limit) : value;
   }
 }

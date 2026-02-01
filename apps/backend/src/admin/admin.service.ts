@@ -2,8 +2,11 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import type { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { LlmConfigService, type LlmProviderConfig } from '../llm/llm-config.service';
+import { LlmLogsService } from '../llm/llm-logs.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
@@ -20,7 +23,14 @@ type LlmConfig = {
   qualityModel?: string;
   maxTokens?: number;
   temperature?: number;
+  topP?: number;
+  presencePenalty?: number;
+  frequencyPenalty?: number;
   timeoutMs?: number;
+  stop?: string[];
+  responseFormat?: string;
+  systemPrompt?: string;
+  activeProviderId?: string;
 };
 
 type OcrConfig = {
@@ -51,6 +61,8 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly systemConfigService: SystemConfigService,
+    private readonly llmConfigService: LlmConfigService,
+    private readonly llmLogsService: LlmLogsService,
   ) {}
 
   async getMetrics() {
@@ -306,12 +318,13 @@ export class AdminService {
   }
 
   async getSystemConfig() {
-    const [llmConfig, ocrConfig, budgetConfig, llmHealth, ocrHealth] = await Promise.all([
+    const [llmConfig, ocrConfig, budgetConfig, llmHealth, ocrHealth, llmProviders] = await Promise.all([
       this.systemConfigService.getValue<LlmConfig>('llm'),
       this.systemConfigService.getValue<OcrConfig>('ocr'),
       this.systemConfigService.getValue<BudgetConfig>('budget'),
       this.systemConfigService.getValue<HealthStatus>('health:llm'),
       this.systemConfigService.getValue<HealthStatus>('health:ocr'),
+      this.llmConfigService.getProviders(),
     ]);
 
     const resolvedLlm = this.buildLlmConfig(llmConfig);
@@ -320,6 +333,7 @@ export class AdminService {
 
     return {
       llm: resolvedLlm,
+      llmProviders: this.sanitizeProviders(llmProviders),
       ocr: resolvedOcr,
       budget: resolvedBudget,
       health: {
@@ -339,6 +353,9 @@ export class AdminService {
       this.applyTextUpdate(next, 'model', dto.llm.model);
       this.applyTextUpdate(next, 'cheaperModel', dto.llm.cheaperModel);
       this.applyTextUpdate(next, 'qualityModel', dto.llm.qualityModel);
+      this.applyTextUpdate(next, 'responseFormat', dto.llm.responseFormat);
+      this.applyTextUpdate(next, 'systemPrompt', dto.llm.systemPrompt);
+      this.applyTextUpdate(next, 'activeProviderId', dto.llm.activeProviderId);
 
       if (dto.llm.apiKey !== undefined) {
         const trimmed = dto.llm.apiKey.trim();
@@ -355,11 +372,60 @@ export class AdminService {
       if (dto.llm.temperature !== undefined) {
         next.temperature = dto.llm.temperature;
       }
+      if (dto.llm.topP !== undefined) {
+        next.topP = dto.llm.topP;
+      }
+      if (dto.llm.presencePenalty !== undefined) {
+        next.presencePenalty = dto.llm.presencePenalty;
+      }
+      if (dto.llm.frequencyPenalty !== undefined) {
+        next.frequencyPenalty = dto.llm.frequencyPenalty;
+      }
       if (dto.llm.timeoutMs !== undefined) {
         next.timeoutMs = dto.llm.timeoutMs;
       }
+      if (dto.llm.stop !== undefined) {
+        next.stop = dto.llm.stop?.filter((entry) => entry?.trim()) || undefined;
+      }
 
       await this.systemConfigService.setValue('llm', this.stripUndefined(next));
+    }
+
+    if (dto.llmProviders) {
+      const existingProviders = (await this.systemConfigService.getValue<LlmProviderConfig[]>('llmProviders')) || [];
+      const existingMap = new Map(existingProviders.map((provider) => [provider.id, provider]));
+
+      const normalized = dto.llmProviders
+        .map((provider) => {
+          const id = this.normalizeText(provider.id) || this.normalizeText(provider.name) || '';
+          if (!id) {
+            return null;
+          }
+          const existing = existingMap.get(id);
+          const baseUrl = this.normalizeText(provider.baseUrl) || this.normalizeText(existing?.baseUrl) || '';
+          if (!baseUrl) {
+            return null;
+          }
+          const apiKey = provider.clearApiKey
+            ? undefined
+            : provider.apiKey !== undefined
+              ? this.normalizeText(provider.apiKey) || undefined
+              : existing?.apiKey;
+
+          return {
+            id,
+            name: this.normalizeText(provider.name) || this.normalizeText(existing?.name) || id,
+            baseUrl,
+            path: this.normalizeText(provider.path) || this.normalizeText(existing?.path) || undefined,
+            apiKey,
+            enabled: provider.enabled ?? existing?.enabled ?? true,
+            headers: provider.headers || existing?.headers || [],
+            models: provider.models || existing?.models || [],
+          } as LlmProviderConfig;
+        })
+        .filter(Boolean) as LlmProviderConfig[];
+
+      await this.systemConfigService.setValue('llmProviders', normalized);
     }
 
     if (dto.ocr) {
@@ -392,7 +458,7 @@ export class AdminService {
 
   async testLlmConnection() {
     const checkedAt = new Date().toISOString();
-    const config = await this.resolveLlmRuntimeConfig();
+    const config = await this.llmConfigService.resolveRuntimeConfigForProvider();
     if (!config.baseUrl) {
       const result = { ok: false, reason: 'LLM_BASE_URL is not configured' };
       await this.storeHealthStatus('llm', { ...result, checkedAt });
@@ -412,14 +478,23 @@ export class AdminService {
     };
 
     const startedAt = Date.now();
-    const response = await this.fetchWithTimeout(this.resolveChatUrl(config.baseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...config.headers,
+    };
+    if (config.apiKey && !headers.Authorization) {
+      headers.Authorization = `Bearer ${config.apiKey}`;
+    }
+
+    const response = await this.fetchWithTimeout(
+      this.resolveChatUrl(config.baseUrl, config.path),
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    }, config.timeoutMs ?? 12000);
+      config.timeoutMs ?? 12000,
+    );
 
     const latencyMs = Date.now() - startedAt;
     if (!response.ok) {
@@ -456,6 +531,162 @@ export class AdminService {
     return result;
   }
 
+  async testLlmCall(
+    dto: {
+      providerId?: string;
+      model?: string;
+      prompt: string;
+      systemPrompt?: string;
+      maxTokens?: number;
+      temperature?: number;
+      topP?: number;
+      presencePenalty?: number;
+      frequencyPenalty?: number;
+      responseFormat?: string;
+      stop?: string[];
+    },
+    user: AuthUser,
+  ) {
+    const config = await this.llmConfigService.resolveRuntimeConfigForProvider(dto.providerId, {
+      model: dto.model,
+      maxTokens: dto.maxTokens,
+      temperature: dto.temperature,
+      topP: dto.topP,
+      presencePenalty: dto.presencePenalty,
+      frequencyPenalty: dto.frequencyPenalty,
+      responseFormat: dto.responseFormat,
+      systemPrompt: dto.systemPrompt,
+      stop: dto.stop,
+    });
+
+    if (!config.baseUrl) {
+      throw new BadRequestException('LLM_BASE_URL is not configured');
+    }
+    if (!config.model) {
+      throw new BadRequestException('LLM_MODEL is not configured');
+    }
+
+    const payload: Record<string, unknown> = {
+      model: config.model,
+      messages: [
+        ...(config.systemPrompt ? [{ role: 'system', content: config.systemPrompt }] : []),
+        { role: 'user', content: dto.prompt },
+      ],
+      max_tokens: config.maxTokens ?? 128,
+      temperature: config.temperature ?? 0.2,
+    };
+
+    if (typeof config.topP === 'number') {
+      payload.top_p = config.topP;
+    }
+    if (typeof config.presencePenalty === 'number') {
+      payload.presence_penalty = config.presencePenalty;
+    }
+    if (typeof config.frequencyPenalty === 'number') {
+      payload.frequency_penalty = config.frequencyPenalty;
+    }
+    if (config.stop?.length) {
+      payload.stop = config.stop;
+    }
+    if (config.responseFormat === 'json_object') {
+      payload.response_format = { type: 'json_object' };
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...config.headers,
+    };
+    if (config.apiKey && !headers.Authorization) {
+      headers.Authorization = `Bearer ${config.apiKey}`;
+    }
+
+    const startedAt = Date.now();
+    const response = await fetch(this.resolveChatUrl(config.baseUrl, config.path), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const latencyMs = Date.now() - startedAt;
+    const text = await response.text();
+
+    if (!response.ok) {
+      await this.llmLogsService.logCall({
+        source: 'admin-test',
+        providerId: config.providerId,
+        providerName: config.providerName,
+        model: config.model,
+        status: 'ERROR',
+        latencyMs,
+        prompt: dto.prompt,
+        systemPrompt: config.systemPrompt,
+        error: text,
+        userId: user.id,
+      });
+      return { ok: false, status: response.status, latencyMs, error: text };
+    }
+
+    const parsed = text ? this.safeJson(text) : null;
+    const usage = this.extractUsage(parsed);
+    const cost = this.computeCost(config, usage?.promptTokens, usage?.completionTokens);
+
+    await this.llmLogsService.logCall({
+      source: 'admin-test',
+      providerId: config.providerId,
+      providerName: config.providerName,
+      model: config.model,
+      status: 'OK',
+      latencyMs,
+      prompt: dto.prompt,
+      systemPrompt: config.systemPrompt,
+      response: text,
+      promptTokens: usage?.promptTokens,
+      completionTokens: usage?.completionTokens,
+      totalTokens: usage?.totalTokens,
+      cost,
+      userId: user.id,
+    });
+
+    return {
+      ok: true,
+      status: response.status,
+      latencyMs,
+      provider: config.providerName,
+      model: config.model,
+      response: text,
+      usage,
+      cost,
+    };
+  }
+
+  async listLlmLogs(query: {
+    page?: number;
+    pageSize?: number;
+    providerId?: string;
+    model?: string;
+    status?: string;
+    source?: string;
+    from?: string;
+    to?: string;
+  }) {
+    return this.llmLogsService.listLogs({
+      page: query.page,
+      pageSize: query.pageSize,
+      providerId: query.providerId,
+      model: query.model,
+      status: query.status,
+      source: query.source,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+    });
+  }
+
+  async clearLlmLogs(query: { before?: string; source?: string }) {
+    return this.llmLogsService.clearLogs({
+      before: query.before ? new Date(query.before) : undefined,
+      source: query.source,
+    });
+  }
+
   private buildLlmConfig(overrides: LlmConfig | null) {
     const envBaseUrl = this.configService.get<string>('LLM_BASE_URL') || '';
     const envApiKey = this.configService.get<string>('LLM_API_KEY') || '';
@@ -477,7 +708,14 @@ export class AdminService {
     const qualityModel = this.normalizeText(overrides?.qualityModel) || envQualityModel || undefined;
     const maxTokens = overrides?.maxTokens ?? envMaxTokens;
     const temperature = overrides?.temperature ?? envTemperature;
+    const topP = overrides?.topP;
+    const presencePenalty = overrides?.presencePenalty;
+    const frequencyPenalty = overrides?.frequencyPenalty;
     const timeoutMs = overrides?.timeoutMs ?? envTimeout;
+    const stop = overrides?.stop;
+    const responseFormat = this.normalizeText(overrides?.responseFormat) || undefined;
+    const systemPrompt = this.normalizeText(overrides?.systemPrompt) || undefined;
+    const activeProviderId = this.normalizeText(overrides?.activeProviderId) || undefined;
     const apiKeyValue = this.normalizeText(overrides?.apiKey) || envApiKey;
 
     return {
@@ -489,7 +727,14 @@ export class AdminService {
       qualityModel,
       maxTokens,
       temperature,
+      topP,
+      presencePenalty,
+      frequencyPenalty,
       timeoutMs,
+      stop,
+      responseFormat,
+      systemPrompt,
+      activeProviderId,
     };
   }
 
@@ -516,30 +761,17 @@ export class AdminService {
     };
   }
 
-  private async resolveLlmRuntimeConfig(): Promise<{
-    baseUrl: string;
-    apiKey?: string;
-    model: string;
-    timeoutMs?: number;
-  }> {
-    const overrides = (await this.systemConfigService.getValue<LlmConfig>('llm')) || {};
-    const envBaseUrl = this.configService.get<string>('LLM_BASE_URL') || '';
-    const envApiKey = this.configService.get<string>('LLM_API_KEY') || '';
-    const envModel = this.configService.get<string>('LLM_MODEL') || '';
-    const envTimeout = Number(this.configService.get<string>('LLM_TIMEOUT_MS') || '20000');
-
-    const baseUrl = this.normalizeText(overrides.baseUrl) || envBaseUrl;
-    const model = this.normalizeText(overrides.model) || envModel;
-    const apiKey = this.normalizeText(overrides.apiKey) || envApiKey || undefined;
-    const timeoutMs = overrides.timeoutMs ?? envTimeout;
-
-    return { baseUrl, apiKey, model, timeoutMs };
-  }
-
-  private resolveChatUrl(baseUrl: string): string {
+  private resolveChatUrl(baseUrl: string, path?: string): string {
     const base = baseUrl.replace(/\/$/, '');
     if (base.endsWith('/chat/completions') || base.endsWith('/v1/chat/completions')) {
       return base;
+    }
+    const customPath = this.normalizeText(path || '');
+    if (customPath) {
+      if (customPath.startsWith('http://') || customPath.startsWith('https://')) {
+        return customPath;
+      }
+      return `${base}${customPath.startsWith('/') ? '' : '/'}${customPath}`;
     }
     return `${base}/v1/chat/completions`;
   }
@@ -564,6 +796,49 @@ export class AdminService {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private extractUsage(data: { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } } | null) {
+    if (!data?.usage) {
+      return null;
+    }
+    return {
+      promptTokens: data.usage.prompt_tokens,
+      completionTokens: data.usage.completion_tokens,
+      totalTokens: data.usage.total_tokens,
+    };
+  }
+
+  private computeCost(
+    config: { prices: Record<string, { priceIn?: number; priceOut?: number }>; model?: string },
+    promptTokens?: number,
+    completionTokens?: number,
+  ) {
+    const model = config.model || '';
+    const pricing = config.prices[model];
+    if (!pricing) {
+      return undefined;
+    }
+    const inCost = pricing.priceIn ? (promptTokens || 0) / 1000 * pricing.priceIn : 0;
+    const outCost = pricing.priceOut ? (completionTokens || 0) / 1000 * pricing.priceOut : 0;
+    const total = inCost + outCost;
+    return Number.isFinite(total) ? total : undefined;
+  }
+
+  private safeJson(payload: string) {
+    try {
+      return JSON.parse(payload) as { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+    } catch {
+      return null;
+    }
+  }
+
+  private sanitizeProviders(providers: LlmProviderConfig[]) {
+    return providers.map((provider) => ({
+      ...provider,
+      apiKey: undefined,
+      apiKeySet: Boolean(provider.apiKey),
+    }));
   }
 
   private applyTextUpdate<T extends Record<string, unknown>>(

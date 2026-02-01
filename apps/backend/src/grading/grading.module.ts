@@ -4,9 +4,10 @@ import { GradingService } from './grading.service';
 import { CheapProvider } from './providers/cheap.provider';
 import { BudgetTracker } from './utils/budget';
 import { SystemConfigModule } from '../system-config/system-config.module';
+import { LlmModule } from '../llm/llm.module';
 
 @Module({
-  imports: [ConfigModule, SystemConfigModule],
+  imports: [ConfigModule, SystemConfigModule, LlmModule],
   providers: [GradingService, CheapProvider, BudgetTracker],
   exports: [GradingService],
 })

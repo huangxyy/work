@@ -1,11 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { AuthUser } from '../auth/auth.types';
 import { AdminService } from './admin.service';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
+import { LlmLogsClearDto } from './dto/llm-logs-clear.dto';
+import { LlmLogsQueryDto } from './dto/llm-logs-query.dto';
+import { LlmTestDto } from './dto/llm-test.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
@@ -70,5 +74,19 @@ export class AdminController {
   @Put('config')
   async updateConfig(@Body() body: UpdateSystemConfigDto) {
     return this.adminService.updateSystemConfig(body);
+  }
+  @Post('llm/test')
+  async testLlm(@Body() body: LlmTestDto, @Req() req: { user: AuthUser }) {
+    return this.adminService.testLlmCall(body, req.user);
+  }
+
+  @Get('llm/logs')
+  async listLlmLogs(@Query() query: LlmLogsQueryDto) {
+    return this.adminService.listLlmLogs(query);
+  }
+
+  @Delete('llm/logs')
+  async clearLlmLogs(@Body() body: LlmLogsClearDto) {
+    return this.adminService.clearLlmLogs(body);
   }
 }

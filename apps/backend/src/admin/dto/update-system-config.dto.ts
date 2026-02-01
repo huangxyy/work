@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
@@ -46,7 +47,108 @@ export class LlmConfigDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  topP?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  presencePenalty?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  frequencyPenalty?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   timeoutMs?: number;
+
+  @IsOptional()
+  @IsString({ each: true })
+  stop?: string[];
+
+  @IsOptional()
+  @IsString()
+  responseFormat?: string;
+
+  @IsOptional()
+  @IsString()
+  systemPrompt?: string;
+
+  @IsOptional()
+  @IsString()
+  activeProviderId?: string;
+}
+
+export class LlmHeaderDto {
+  @IsString()
+  key!: string;
+
+  @IsString()
+  value!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  secret?: boolean;
+}
+
+export class LlmModelPricingDto {
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  priceIn?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  priceOut?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+}
+
+export class LlmProviderConfigDto {
+  @IsString()
+  id!: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  baseUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  path?: string;
+
+  @IsOptional()
+  @IsString()
+  apiKey?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  clearApiKey?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => LlmHeaderDto)
+  headers?: LlmHeaderDto[];
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => LlmModelPricingDto)
+  models?: LlmModelPricingDto[];
 }
 
 export class OcrConfigDto {
@@ -80,6 +182,11 @@ export class UpdateSystemConfigDto {
   @ValidateNested()
   @Type(() => LlmConfigDto)
   llm?: LlmConfigDto;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => LlmProviderConfigDto)
+  llmProviders?: LlmProviderConfigDto[];
 
   @IsOptional()
   @ValidateNested()

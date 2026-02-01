@@ -6,6 +6,12 @@ export type GradeEssayParams = {
   mode?: GradingMode;
   maxTokens?: number;
   temperature?: number;
+  topP?: number;
+  presencePenalty?: number;
+  frequencyPenalty?: number;
+  stop?: string[];
+  responseFormat?: string;
+  systemPrompt?: string;
   rubric?: string;
   strictJson?: boolean;
   shortMode?: boolean;

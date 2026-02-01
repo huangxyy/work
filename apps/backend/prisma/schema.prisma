@@ -136,3 +136,30 @@ model SystemConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model LlmCallLog {
+  id               String   @id @default(cuid())
+  source           String
+  providerId       String?
+  providerName     String?
+  model            String?
+  status           String
+  latencyMs        Int?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  cost             Float?
+  prompt           String?  @db.Text
+  systemPrompt     String?  @db.Text
+  response         String?  @db.Text
+  error            String?  @db.Text
+  userId           String?
+  submissionId     String?
+  createdAt        DateTime @default(now())
+  meta             Json?
+
+  @@index([createdAt])
+  @@index([source])
+  @@index([providerId])
+  @@index([status])
+}

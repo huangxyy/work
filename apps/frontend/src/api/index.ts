@@ -44,8 +44,25 @@ export type AdminSystemConfig = {
     qualityModel?: string;
     maxTokens: number;
     temperature: number;
+    topP?: number;
+    presencePenalty?: number;
+    frequencyPenalty?: number;
     timeoutMs: number;
+    stop?: string[];
+    responseFormat?: string;
+    systemPrompt?: string;
+    activeProviderId?: string;
   };
+  llmProviders?: Array<{
+    id: string;
+    name?: string;
+    baseUrl: string;
+    path?: string;
+    apiKeySet?: boolean;
+    enabled?: boolean;
+    headers?: Array<{ key: string; value: string; secret?: boolean }>;
+    models?: Array<{ name: string; priceIn?: number; priceOut?: number; isDefault?: boolean }>;
+  }>;
   ocr: {
     baseUrl: string;
     timeoutMs: number;
@@ -451,8 +468,26 @@ export const updateAdminConfig = async (payload: {
     qualityModel?: string;
     maxTokens?: number;
     temperature?: number;
+    topP?: number;
+    presencePenalty?: number;
+    frequencyPenalty?: number;
     timeoutMs?: number;
+    stop?: string[];
+    responseFormat?: string;
+    systemPrompt?: string;
+    activeProviderId?: string;
   };
+  llmProviders?: Array<{
+    id: string;
+    name?: string;
+    baseUrl?: string;
+    path?: string;
+    apiKey?: string;
+    clearApiKey?: boolean;
+    enabled?: boolean;
+    headers?: Array<{ key: string; value: string; secret?: boolean }>;
+    models?: Array<{ name: string; priceIn?: number; priceOut?: number; isDefault?: boolean }>;
+  }>;
   ocr?: { baseUrl?: string; timeoutMs?: number };
   budget?: { enabled?: boolean; dailyCallLimit?: number; mode?: 'soft' | 'hard' };
 }) => {
@@ -487,6 +522,70 @@ export const fetchAdminUsage = async (days = 7) => {
 export const testAdminLlmHealth = async () => {
   const response = await api.get('/admin/health/llm');
   return response.data as { ok: boolean; status?: number; latencyMs?: number; reason?: string; model?: string };
+};
+
+export const testAdminLlmCall = async (payload: {
+  providerId?: string;
+  model?: string;
+  prompt: string;
+  systemPrompt?: string;
+  maxTokens?: number;
+  temperature?: number;
+  topP?: number;
+  presencePenalty?: number;
+  frequencyPenalty?: number;
+  responseFormat?: string;
+  stop?: string[];
+}) => {
+  const response = await api.post('/admin/llm/test', payload);
+  return response.data as {
+    ok: boolean;
+    status?: number;
+    latencyMs?: number;
+    provider?: string;
+    model?: string;
+    response?: string;
+    usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
+    cost?: number;
+    error?: string;
+  };
+};
+
+export const fetchAdminLlmLogs = async (params?: {
+  page?: number;
+  pageSize?: number;
+  providerId?: string;
+  model?: string;
+  status?: string;
+  source?: string;
+  from?: string;
+  to?: string;
+}) => {
+  const response = await api.get('/admin/llm/logs', { params });
+  return response.data as {
+    items: Array<{
+      id: string;
+      source: string;
+      providerId?: string | null;
+      providerName?: string | null;
+      model?: string | null;
+      status: string;
+      latencyMs?: number | null;
+      promptTokens?: number | null;
+      completionTokens?: number | null;
+      totalTokens?: number | null;
+      cost?: number | null;
+      createdAt: string;
+    }>;
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+};
+
+export const clearAdminLlmLogs = async (payload: { before?: string; source?: string }) => {
+  const response = await api.delete('/admin/llm/logs', { data: payload });
+  return response.data as { deleted: number };
 };
 
 export const testAdminOcrHealth = async () => {
