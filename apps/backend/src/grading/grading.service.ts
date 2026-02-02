@@ -42,7 +42,7 @@ export class GradingService {
     this.maxInputChars = Number(configService.get<string>('LLM_MAX_INPUT_CHARS') || '6000');
     this.defaultMaxTokens = Number(configService.get<string>('LLM_MAX_TOKENS') || '800');
     this.retryMaxTokens = Math.max(200, Math.floor(this.defaultMaxTokens * 0.7));
-    this.shortMaxTokens = Math.max(200, Math.floor(this.defaultMaxTokens * 0.5));
+    this.shortMaxTokens = Math.max(600, Math.floor(this.defaultMaxTokens * 0.9));
   }
 
   async grade(text: string, options: GradeOptions = {}) {
@@ -151,6 +151,22 @@ export class GradingService {
         meta: this.buildMeta(outcome.providerInfo, true, degradeReason || 'DEGRADED', attemptCount),
       };
     } catch (error) {
+      if (error instanceof GradingError && error.code === 'LLM_SCHEMA_INVALID') {
+        try {
+          const retryOutcome = await runAttempt({
+            ...degradedParams,
+            maxTokens: Math.max(this.defaultMaxTokens, degradedParams.maxTokens ?? 0),
+          });
+          return {
+            result: retryOutcome.result,
+            meta: this.buildMeta(retryOutcome.providerInfo, true, degradeReason || 'DEGRADED', attemptCount),
+          };
+        } catch (retryError) {
+          throw retryError instanceof GradingError
+            ? retryError
+            : new GradingError('LLM_API_ERROR', this.describeError(retryError));
+        }
+      }
       throw error instanceof GradingError
         ? error
         : new GradingError('LLM_API_ERROR', this.describeError(error));
@@ -176,10 +192,8 @@ export class GradingService {
       adjustedParams.shortMode = true;
       adjustedParams.lowOnly = true;
       adjustedParams.needRewrite = false;
-      adjustedParams.maxTokens = Math.min(
-        adjustedParams.maxTokens ?? this.shortMaxTokens,
-        this.shortMaxTokens,
-      );
+      const baseMaxTokens = adjustedParams.maxTokens ?? this.defaultMaxTokens;
+      adjustedParams.maxTokens = Math.max(baseMaxTokens, this.shortMaxTokens);
     }
 
     await this.provider.refreshConfig();
@@ -218,22 +232,22 @@ export class GradingService {
     if (!trimmed) {
       throw new GradingError('LLM_SCHEMA_INVALID', 'Empty LLM response');
     }
-
-    const cleaned = this.stripCodeFences(trimmed);
-    try {
-      return JSON.parse(cleaned);
-    } catch {
-      const start = cleaned.indexOf('{');
-      const end = cleaned.lastIndexOf('}');
-      if (start >= 0 && end > start) {
-        try {
-          return JSON.parse(cleaned.slice(start, end + 1));
-        } catch {
-          throw new GradingError('LLM_SCHEMA_INVALID', 'Invalid JSON output');
+    const candidates = this.buildJsonCandidates(trimmed);
+    for (const candidate of candidates) {
+      const parsed = this.tryParseJson(candidate);
+      if (parsed !== null) {
+        return parsed;
+      }
+      const repaired = this.stripTrailingCommas(candidate);
+      if (repaired !== candidate) {
+        const repairedParsed = this.tryParseJson(repaired);
+        if (repairedParsed !== null) {
+          return repairedParsed;
         }
       }
-      throw new GradingError('LLM_SCHEMA_INVALID', 'Invalid JSON output');
     }
+
+    throw new GradingError('LLM_SCHEMA_INVALID', 'Invalid JSON output');
   }
 
   private stripCodeFences(input: string): string {
@@ -242,6 +256,126 @@ export class GradingService {
       return stripped.trim();
     }
     return input;
+  }
+
+  private extractCodeFence(input: string): string | null {
+    const match = input.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (!match) {
+      return null;
+    }
+    return match[1].trim();
+  }
+
+  private tryParseJson(input: string): unknown | null {
+    try {
+      return JSON.parse(input);
+    } catch {
+      return null;
+    }
+  }
+
+  private stripTrailingCommas(input: string): string {
+    let result = '';
+    let inString = false;
+    let escape = false;
+    for (let i = 0; i < input.length; i += 1) {
+      const ch = input[i];
+      if (escape) {
+        result += ch;
+        escape = false;
+        continue;
+      }
+      if (ch === '\\' && inString) {
+        result += ch;
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        result += ch;
+        inString = !inString;
+        continue;
+      }
+      if (!inString && ch === ',') {
+        let j = i + 1;
+        while (j < input.length && /\s/.test(input[j])) {
+          j += 1;
+        }
+        const next = input[j];
+        if (next === '}' || next === ']') {
+          continue;
+        }
+      }
+      result += ch;
+    }
+    return result;
+  }
+
+  private extractJsonSegments(input: string): string[] {
+    const segments: string[] = [];
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = 0; i < input.length; i += 1) {
+      const ch = input[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\' && inString) {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) {
+        continue;
+      }
+      if (ch === '{' || ch === '[') {
+        if (depth === 0) {
+          start = i;
+        }
+        depth += 1;
+        continue;
+      }
+      if (ch === '}' || ch === ']') {
+        if (depth === 0) {
+          continue;
+        }
+        depth -= 1;
+        if (depth === 0 && start >= 0) {
+          segments.push(input.slice(start, i + 1).trim());
+          start = -1;
+        }
+      }
+    }
+    return segments;
+  }
+
+  private buildJsonCandidates(input: string): string[] {
+    const candidates: string[] = [];
+    candidates.push(input);
+
+    const fenced = this.extractCodeFence(input);
+    if (fenced && !candidates.includes(fenced)) {
+      candidates.push(fenced);
+    }
+
+    const stripped = this.stripCodeFences(input);
+    if (stripped && !candidates.includes(stripped)) {
+      candidates.push(stripped);
+    }
+
+    const segments = this.extractJsonSegments(input);
+    segments.forEach((segment) => {
+      if (segment && !candidates.includes(segment)) {
+        candidates.push(segment);
+      }
+    });
+
+    return candidates;
   }
 
   private isRetryableApiError(error: GradingError) {

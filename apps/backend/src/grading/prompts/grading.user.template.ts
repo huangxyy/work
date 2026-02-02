@@ -29,7 +29,7 @@ export const buildUserPrompt = ({
   lowOnly,
 }: UserPromptParams) => {
   const modeLine = shortMode
-    ? 'Short mode: keep output compact; errors <= 20, suggestions <= 6 each.'
+    ? 'Short mode: keep output compact; errors <= 10, suggestions <= 3 each.'
     : 'Standard mode: errors <= 60, suggestions <= 12 each.';
   const lowOnlyLine = lowOnly
     ? 'Only fill suggestions.low. suggestions.mid and suggestions.high must be empty arrays.'
@@ -37,19 +37,28 @@ export const buildUserPrompt = ({
   const jsonLine = strictJson
     ? 'Output MUST be valid JSON only. Do not add any extra text.'
     : 'Output JSON only.';
+  const summaryLine = shortMode
+    ? 'Summary <= 120 chars. nextSteps <= 3 items.'
+    : 'Summary <= 300 chars. nextSteps <= 8 items.';
   const scoreLine =
     'Score ranges: grammar/vocabulary/structure/content/coherence (and handwritingClarity if present) must be 0-20.';
   const totalLine = 'totalScore must equal the sum of dimensionScores (0-100).';
   const jsonRulesLine = 'Use double quotes, no trailing commas, and numeric values (not strings).';
-  const sampleLine = 'Include suggestions.sampleEssay (<= 1500 chars) as a model answer.';
+  const sampleLine = shortMode
+    ? 'Include suggestions.sampleEssay (<= 300 chars) as a model answer.'
+    : 'Include suggestions.sampleEssay (<= 1500 chars) as a model answer.';
+  const truncationLine =
+    'If output risks truncation, shorten sampleEssay and suggestions first; do not truncate JSON.';
   return [
     jsonLine,
     modeLine,
     lowOnlyLine,
+    summaryLine,
     scoreLine,
     totalLine,
     jsonRulesLine,
     sampleLine,
+    truncationLine,
     'You are grading an English essay from OCR. OCR text may contain noise.',
     'Scoring rubric:',
     rubric,

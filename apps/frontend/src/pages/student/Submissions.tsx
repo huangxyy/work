@@ -19,7 +19,7 @@ type SubmissionRow = {
 
 export const StudentSubmissionsPage = () => {
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [scoreMin, setScoreMin] = useState<number | null>(null);
@@ -100,6 +100,7 @@ export const StudentSubmissionsPage = () => {
         maxScore: scoreMax ?? undefined,
         from: dateRange?.[0]?.startOf('day').toISOString(),
         to: dateRange?.[1]?.endOf('day').toISOString(),
+        lang: language,
       });
       downloadBlob(blob, 'student-submissions.csv');
     } catch {

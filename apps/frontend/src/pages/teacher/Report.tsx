@@ -62,7 +62,7 @@ type ClassReport = {
 };
 
 export const TeacherReportPage = () => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [rangeDays, setRangeDays] = useState<number>(7);
   const [exporting, setExporting] = useState(false);
@@ -230,7 +230,7 @@ export const TeacherReportPage = () => {
       return;
     }
     try {
-      const blob = await downloadTeacherClassReportCsv(selectedClassId, rangeDays);
+      const blob = await downloadTeacherClassReportCsv(selectedClassId, rangeDays, language);
       downloadBlob(blob, `class-${selectedClassId}-report.csv`);
     } catch {
       message.error(t('teacher.reports.exportFailed'));

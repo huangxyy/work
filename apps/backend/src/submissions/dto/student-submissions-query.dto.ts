@@ -32,4 +32,8 @@ export class StudentSubmissionsQueryDto {
   @Type(() => Number)
   @IsNumber()
   maxScore?: number;
+
+  @IsOptional()
+  @IsString()
+  lang?: string;
 }

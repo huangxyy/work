@@ -222,26 +222,30 @@ export const TeacherHomeworksPage = () => {
               value={selectedClassId || undefined}
               onChange={(value) => setSelectedClassId(value)}
             />
-            <ModalForm
-              title={t('teacher.homeworks.createHomework')}
-              trigger={<Button type="primary">{t('teacher.homeworks.createHomework')}</Button>}
-              onFinish={async (values) => {
-                if (!selectedClassId) {
-                  message.warning(t('teacher.homeworks.selectClassFirst'));
-                  return false;
-                }
-                const dueAtValue = values.dueAt as { toISOString?: () => string } | undefined;
-                await createMutation.mutateAsync({
-                  classId: selectedClassId,
-                  title: values.title as string,
-                  desc: values.desc as string | undefined,
-                  dueAt: dueAtValue?.toISOString?.(),
-                });
-                return true;
-              }}
-              modalProps={{ destroyOnClose: true }}
-              submitter={{ submitButtonProps: { loading: createMutation.isPending } }}
-            >
+              <ModalForm
+                title={t('teacher.homeworks.createHomework')}
+                trigger={<Button type="primary">{t('teacher.homeworks.createHomework')}</Button>}
+                onFinish={async (values) => {
+                  if (!selectedClassId) {
+                    message.warning(t('teacher.homeworks.selectClassFirst'));
+                    return false;
+                  }
+                  const dueAtValue = values.dueAt as { toISOString?: () => string } | string | undefined;
+                  const dueAt = typeof dueAtValue === 'string'
+                    ? dueAtValue
+                    : dueAtValue?.toISOString?.();
+                  await createMutation.mutateAsync({
+                    classId: selectedClassId,
+                    title: values.title as string,
+                    desc: values.desc as string | undefined,
+                    dueAt,
+                  });
+                  return true;
+                }}
+                dateFormatter={false}
+                modalProps={{ destroyOnClose: true }}
+                submitter={{ submitButtonProps: { loading: createMutation.isPending } }}
+              >
               <ProFormText
                 name="title"
                 label={t('teacher.homeworks.homeworkTitle')}

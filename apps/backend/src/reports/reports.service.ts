@@ -1,4 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { existsSync } from 'fs';
+import { isAbsolute, resolve } from 'path';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
 import PDFDocument = require('pdfkit');
 import { PrismaService } from '../prisma/prisma.service';
@@ -133,18 +135,7 @@ export class ReportsService {
     });
 
     const rows: Array<Array<string | number | null>> = [
-      [
-        'submissionId',
-        'classId',
-        'className',
-        'studentId',
-        'studentName',
-        'homeworkId',
-        'homeworkTitle',
-        'totalScore',
-        'status',
-        'createdAt',
-      ],
+      this.getClassReportHeaders(query.lang),
     ];
 
     for (const submission of submissions) {
@@ -167,38 +158,41 @@ export class ReportsService {
 
   async exportClassPdf(classId: string, query: ReportRangeQueryDto, user: AuthUser) {
     const report = await this.getClassOverview(classId, query, user);
+    const isZh = this.isZhLang(query.lang);
+    const font = this.resolvePdfFont(query.lang);
     return this.renderPdf((doc) => {
-      this.writeHeader(doc, 'Class Report', [
-        `Class: ${report.className}`,
-        `Class ID: ${report.classId}`,
-        `Range: last ${report.rangeDays} days`,
-        `Generated: ${this.formatDateTime(new Date())}`,
+      doc.font(font);
+      this.writeHeader(doc, isZh ? '班级报告' : 'Class Report', [
+        isZh ? `班级：${report.className}` : `Class: ${report.className}`,
+        isZh ? `班级ID：${report.classId}` : `Class ID: ${report.classId}`,
+        isZh ? `范围：近${report.rangeDays}天` : `Range: last ${report.rangeDays} days`,
+        isZh ? `生成时间：${this.formatDateTime(new Date())}` : `Generated: ${this.formatDateTime(new Date())}`,
       ]);
 
-      this.writeSection(doc, 'Summary', () => {
+      this.writeSection(doc, isZh ? '汇总' : 'Summary', () => {
         const baseRows: Array<[string, number | string]> = [
-          ['Total Students', report.totalStudents],
-          ['Submitted Students', report.submittedStudents],
-          ['Pending Students', report.pendingStudents],
-          ['Submission Rate', this.formatRatio(report.submissionRate)],
+          [isZh ? '学生总数' : 'Total Students', report.totalStudents],
+          [isZh ? '已提交学生' : 'Submitted Students', report.submittedStudents],
+          [isZh ? '未提交学生' : 'Pending Students', report.pendingStudents],
+          [isZh ? '提交率' : 'Submission Rate', this.formatRatio(report.submissionRate)],
         ];
         if (!report.summary.count) {
           this.writeKeyValues(doc, baseRows);
-          doc.text('No completed submissions.');
+          doc.text(isZh ? '暂无已完成提交。' : 'No completed submissions.');
           return;
         }
         this.writeKeyValues(doc, [
           ...baseRows,
-          ['Average', report.summary.avg],
-          ['Highest', report.summary.max],
-          ['Lowest', report.summary.min],
-          ['Submissions', report.summary.count],
+          [isZh ? '平均分' : 'Average', report.summary.avg],
+          [isZh ? '最高分' : 'Highest', report.summary.max],
+          [isZh ? '最低分' : 'Lowest', report.summary.min],
+          [isZh ? '提交次数' : 'Submissions', report.summary.count],
         ]);
       });
 
-      this.writeSection(doc, 'Score Distribution', () => {
+      this.writeSection(doc, isZh ? '分数分布' : 'Score Distribution', () => {
         if (!report.distribution.length) {
-          doc.text('No distribution data.');
+          doc.text(isZh ? '暂无分布数据。' : 'No distribution data.');
           return;
         }
         report.distribution.forEach((item) => {
@@ -206,29 +200,33 @@ export class ReportsService {
         });
       });
 
-      this.writeSection(doc, 'Top Students', () => {
+      this.writeSection(doc, isZh ? '优秀学生' : 'Top Students', () => {
         if (!report.topRank.length) {
-          doc.text('No ranking data.');
+          doc.text(isZh ? '暂无排名数据。' : 'No ranking data.');
           return;
         }
         report.topRank.forEach((item, index) => {
-          doc.text(`${index + 1}. ${item.name} - avg ${item.avgScore} (${item.count} submissions)`);
+          doc.text(
+            isZh
+              ? `${index + 1}. ${item.name} - 平均 ${item.avgScore}（${item.count} 次提交）`
+              : `${index + 1}. ${item.name} - avg ${item.avgScore} (${item.count} submissions)`,
+          );
         });
       });
 
-      this.writeSection(doc, 'Trend', () => {
+      this.writeSection(doc, isZh ? '趋势' : 'Trend', () => {
         if (!report.trend.length) {
-          doc.text('No trend data.');
+          doc.text(isZh ? '暂无趋势数据。' : 'No trend data.');
           return;
         }
         report.trend.forEach((item) => {
-          doc.text(`${item.date} - avg ${item.avg} (${item.count})`);
+          doc.text(isZh ? `${item.date} - 平均 ${item.avg}（${item.count}）` : `${item.date} - avg ${item.avg} (${item.count})`);
         });
       });
 
-      this.writeSection(doc, 'Top Error Types', () => {
+      this.writeSection(doc, isZh ? '高频错误类型' : 'Top Error Types', () => {
         if (!report.errorTypes.length) {
-          doc.text('No error stats.');
+          doc.text(isZh ? '暂无错误统计。' : 'No error stats.');
           return;
         }
         report.errorTypes.forEach((item) => {
@@ -278,40 +276,43 @@ export class ReportsService {
 
   async exportStudentPdf(studentId: string, query: ReportRangeQueryDto, user: AuthUser) {
     const report = await this.getStudentOverview(studentId, query, user);
+    const isZh = this.isZhLang(query.lang);
+    const font = this.resolvePdfFont(query.lang);
     return this.renderPdf((doc) => {
-      this.writeHeader(doc, 'Student Report', [
-        `Student: ${report.studentName}`,
-        `Student ID: ${report.studentId}`,
-        `Range: last ${report.rangeDays} days`,
-        `Generated: ${this.formatDateTime(new Date())}`,
+      doc.font(font);
+      this.writeHeader(doc, isZh ? '学生报告' : 'Student Report', [
+        isZh ? `学生：${report.studentName}` : `Student: ${report.studentName}`,
+        isZh ? `学生ID：${report.studentId}` : `Student ID: ${report.studentId}`,
+        isZh ? `范围：近${report.rangeDays}天` : `Range: last ${report.rangeDays} days`,
+        isZh ? `生成时间：${this.formatDateTime(new Date())}` : `Generated: ${this.formatDateTime(new Date())}`,
       ]);
 
-      this.writeSection(doc, 'Summary', () => {
+      this.writeSection(doc, isZh ? '汇总' : 'Summary', () => {
         if (!report.summary.count) {
-          doc.text('No completed submissions.');
+          doc.text(isZh ? '暂无已完成提交。' : 'No completed submissions.');
           return;
         }
         this.writeKeyValues(doc, [
-          ['Average', report.summary.avg],
-          ['Highest', report.summary.max],
-          ['Lowest', report.summary.min],
-          ['Submissions', report.summary.count],
+          [isZh ? '平均分' : 'Average', report.summary.avg],
+          [isZh ? '最高分' : 'Highest', report.summary.max],
+          [isZh ? '最低分' : 'Lowest', report.summary.min],
+          [isZh ? '提交次数' : 'Submissions', report.summary.count],
         ]);
       });
 
-      this.writeSection(doc, 'Trend', () => {
+      this.writeSection(doc, isZh ? '趋势' : 'Trend', () => {
         if (!report.trend.length) {
-          doc.text('No trend data.');
+          doc.text(isZh ? '暂无趋势数据。' : 'No trend data.');
           return;
         }
         report.trend.forEach((item) => {
-          doc.text(`${item.date} - avg ${item.avg} (${item.count})`);
+          doc.text(isZh ? `${item.date} - 平均 ${item.avg}（${item.count}）` : `${item.date} - avg ${item.avg} (${item.count})`);
         });
       });
 
-      this.writeSection(doc, 'Top Error Types', () => {
+      this.writeSection(doc, isZh ? '高频错误类型' : 'Top Error Types', () => {
         if (!report.errorTypes.length) {
-          doc.text('No error stats.');
+          doc.text(isZh ? '暂无错误统计。' : 'No error stats.');
           return;
         }
         report.errorTypes.forEach((item) => {
@@ -319,13 +320,13 @@ export class ReportsService {
         });
       });
 
-      this.writeSection(doc, 'Next Steps', () => {
+      this.writeSection(doc, isZh ? '下一步建议' : 'Next Steps', () => {
         if (!report.nextSteps.length) {
-          doc.text('No next-step suggestions.');
+          doc.text(isZh ? '暂无下一步建议。' : 'No next-step suggestions.');
           return;
         }
         report.nextSteps.forEach((item) => {
-          doc.text(`- ${item.text} (${item.count})`);
+          doc.text(isZh ? `- ${item.text}（${item.count}）` : `- ${item.text} (${item.count})`);
         });
       });
     });
@@ -597,6 +598,64 @@ export class ReportsService {
     return Number(value.toFixed(3));
   }
 
+  private resolvePdfFont(lang?: string): string {
+    if (!this.isZhLang(lang)) {
+      return 'Helvetica';
+    }
+    const envFont = process.env.REPORT_PDF_FONT || process.env.PDF_FONT_PATH || '';
+    const resolvedEnv = envFont
+      ? isAbsolute(envFont)
+        ? envFont
+        : resolve(process.cwd(), envFont)
+      : '';
+    const candidates = [
+      resolvedEnv,
+      'C:\\Windows\\Fonts\\msyh.ttc',
+      'C:\\Windows\\Fonts\\msyh.ttf',
+      'C:\\Windows\\Fonts\\simhei.ttf',
+      'C:\\Windows\\Fonts\\simsun.ttc',
+      '/System/Library/Fonts/PingFang.ttc',
+      '/System/Library/Fonts/STHeiti Light.ttc',
+      '/System/Library/Fonts/STHeiti Medium.ttc',
+      '/Library/Fonts/Arial Unicode.ttf',
+      '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+      '/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf',
+      '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+      '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+      '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+      '/usr/share/fonts/truetype/arphic/uming.ttc',
+      '/usr/share/fonts/truetype/arphic/ukai.ttc',
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      if (candidate && existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return 'Helvetica';
+  }
+
+  private isZhLang(lang?: string) {
+    return (lang || '').toLowerCase().startsWith('zh');
+  }
+
+  private getClassReportHeaders(lang?: string): string[] {
+    if (this.isZhLang(lang)) {
+      return ['提交ID', '班级ID', '班级名称', '学生ID', '学生姓名', '作业ID', '作业标题', '总分', '状态', '提交时间'];
+    }
+    return [
+      'submissionId',
+      'classId',
+      'className',
+      'studentId',
+      'studentName',
+      'homeworkId',
+      'homeworkTitle',
+      'totalScore',
+      'status',
+      'createdAt',
+    ];
+  }
+
   private toCsvRow(values: Array<string | number | null>): string {
     return values
       .map((value) => {
@@ -625,7 +684,6 @@ export class ReportsService {
   }
 
   private writeHeader(doc: PDFDocument, title: string, lines: string[]) {
-    doc.font('Helvetica');
     doc.fontSize(18).text(title, { align: 'left' });
     doc.moveDown(0.5);
     doc.fontSize(11);

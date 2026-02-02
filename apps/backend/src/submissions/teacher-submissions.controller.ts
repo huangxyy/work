@@ -95,7 +95,7 @@ export class TeacherSubmissionsController {
     @Req() req: { user: AuthUser },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const csv = await this.submissionsService.exportHomeworkCsv(query.homeworkId, req.user);
+    const csv = await this.submissionsService.exportHomeworkCsv(query.homeworkId, req.user, query.lang);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
@@ -125,7 +125,7 @@ export class TeacherSubmissionsController {
     @Req() req: { user: AuthUser },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const csv = await this.submissionsService.exportHomeworkRemindersCsv(query.homeworkId, req.user);
+    const csv = await this.submissionsService.exportHomeworkRemindersCsv(query.homeworkId, req.user, query.lang);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',

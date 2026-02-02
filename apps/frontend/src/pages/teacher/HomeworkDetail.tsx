@@ -63,7 +63,7 @@ export const TeacherHomeworkDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const state = location.state as { homework?: HomeworkItem; classId?: string | null } | undefined;
   const homework = state?.homework;
   const classId = state?.classId || '';
@@ -243,7 +243,7 @@ export const TeacherHomeworkDetailPage = () => {
       return;
     }
     try {
-      const blob = await downloadTeacherHomeworkSubmissionsCsv(id);
+      const blob = await downloadTeacherHomeworkSubmissionsCsv(id, language);
       downloadBlob(blob, `homework-${id}-submissions.csv`);
     } catch {
       message.error(t('teacher.homeworkDetail.exportFailed'));
@@ -267,7 +267,7 @@ export const TeacherHomeworkDetailPage = () => {
       return;
     }
     try {
-      const blob = await downloadTeacherHomeworkRemindersCsv(id);
+      const blob = await downloadTeacherHomeworkRemindersCsv(id, language);
       downloadBlob(blob, `homework-${id}-reminders.csv`);
     } catch {
       message.error(t('teacher.homeworkDetail.exportFailed'));

@@ -3,10 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Card,
+  Descriptions,
   Divider,
   Form,
   Input,
   InputNumber,
+  Modal,
   Popconfirm,
   Space,
   Select,
@@ -49,6 +51,28 @@ type LlmTestResult = {
   error?: string;
 };
 
+type LlmLogItem = {
+  id: string;
+  source: string;
+  providerId?: string | null;
+  providerName?: string | null;
+  model?: string | null;
+  status: string;
+  latencyMs?: number | null;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  totalTokens?: number | null;
+  cost?: number | null;
+  prompt?: string | null;
+  systemPrompt?: string | null;
+  response?: string | null;
+  error?: string | null;
+  meta?: unknown;
+  userId?: string | null;
+  submissionId?: string | null;
+  createdAt: string;
+};
+
 export const AdminConfigPage = () => {
   const { t } = useI18n();
   const [form] = Form.useForm();
@@ -57,6 +81,8 @@ export const AdminConfigPage = () => {
   const [llmHealth, setLlmHealth] = useState<HealthState | null>(null);
   const [ocrHealth, setOcrHealth] = useState<HealthState | null>(null);
   const [llmTestResult, setLlmTestResult] = useState<LlmTestResult | null>(null);
+  const [logDetailOpen, setLogDetailOpen] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<LlmLogItem | null>(null);
   const [logFilters, setLogFilters] = useState<{ providerId?: string; status?: string; source?: string }>({
     providerId: undefined,
     status: undefined,
@@ -83,7 +109,7 @@ export const AdminConfigPage = () => {
     queryFn: () => fetchAdminLlmLogs({ page: 1, pageSize: 10, ...logFilters }),
   });
 
-  const logs = logsQuery.data?.items || [];
+  const logs: LlmLogItem[] = logsQuery.data?.items || [];
 
   const logColumns = useMemo(
     () => [
@@ -95,7 +121,7 @@ export const AdminConfigPage = () => {
       {
         title: t('admin.config.logProvider'),
         dataIndex: 'providerName',
-        render: (_: string, row: { providerName?: string; model?: string }) => (
+        render: (_: string, row: LlmLogItem) => (
           <Space direction="vertical" size={0}>
             <Typography.Text>{row.providerName || '--'}</Typography.Text>
             <Typography.Text type="secondary">{row.model || '--'}</Typography.Text>
@@ -112,7 +138,7 @@ export const AdminConfigPage = () => {
       {
         title: t('admin.config.logTokens'),
         dataIndex: 'totalTokens',
-        render: (_: number, row: { promptTokens?: number; completionTokens?: number; totalTokens?: number }) => (
+        render: (_: number, row: LlmLogItem) => (
           <Typography.Text>
             {row.totalTokens ?? '--'}
           </Typography.Text>
@@ -127,6 +153,22 @@ export const AdminConfigPage = () => {
         title: t('admin.config.logCost'),
         dataIndex: 'cost',
         render: (value: number) => (typeof value === 'number' ? value.toFixed(4) : '--'),
+      },
+      {
+        title: t('common.detail'),
+        key: 'detail',
+        render: (_: unknown, row: LlmLogItem) => (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setSelectedLog(row);
+              setLogDetailOpen(true);
+            }}
+          >
+            {t('common.detail')}
+          </Button>
+        ),
       },
     ],
     [t],
@@ -801,6 +843,107 @@ export const AdminConfigPage = () => {
             pagination={false}
             size="small"
           />
+          <Modal
+            open={logDetailOpen}
+            onCancel={() => setLogDetailOpen(false)}
+            footer={<Button onClick={() => setLogDetailOpen(false)}>{t('common.close')}</Button>}
+            width={900}
+            title={t('admin.config.logDetailTitle')}
+          >
+            {selectedLog ? (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <Descriptions size="small" column={2} bordered>
+                  <Descriptions.Item label={t('admin.config.logId')}>{selectedLog.id}</Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logTime')}>
+                    {new Date(selectedLog.createdAt).toLocaleString()}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logSource')}>
+                    {selectedLog.source || '--'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logStatus')}>
+                    <Tag color={selectedLog.status === 'OK' ? 'green' : 'red'}>{selectedLog.status}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logProviderName')}>
+                    {selectedLog.providerName || '--'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logProviderId')}>
+                    {selectedLog.providerId || '--'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logModel')}>
+                    {selectedLog.model || '--'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logLatency')}>
+                    {selectedLog.latencyMs ? `${selectedLog.latencyMs}ms` : '--'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logTokens')}>
+                    <Space size={6} wrap>
+                      <Typography.Text>{selectedLog.totalTokens ?? '--'}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {selectedLog.promptTokens ?? '--'} / {selectedLog.completionTokens ?? '--'}
+                      </Typography.Text>
+                    </Space>
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logCost')}>
+                    {typeof selectedLog.cost === 'number' ? selectedLog.cost.toFixed(4) : '--'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logUserId')}>
+                    {selectedLog.userId || '--'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.config.logSubmissionId')}>
+                    {selectedLog.submissionId || '--'}
+                  </Descriptions.Item>
+                </Descriptions>
+                <Divider />
+                <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                  <div>
+                    <Typography.Text type="secondary">{t('admin.config.logPrompt')}</Typography.Text>
+                    <Typography.Paragraph
+                      copyable
+                      style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}
+                    >
+                      {selectedLog.prompt || '--'}
+                    </Typography.Paragraph>
+                  </div>
+                  <div>
+                    <Typography.Text type="secondary">{t('admin.config.logSystemPrompt')}</Typography.Text>
+                    <Typography.Paragraph
+                      copyable
+                      style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}
+                    >
+                      {selectedLog.systemPrompt || '--'}
+                    </Typography.Paragraph>
+                  </div>
+                  <div>
+                    <Typography.Text type="secondary">{t('admin.config.logResponse')}</Typography.Text>
+                    <Typography.Paragraph
+                      copyable
+                      style={{ whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto' }}
+                    >
+                      {selectedLog.response || '--'}
+                    </Typography.Paragraph>
+                  </div>
+                  <div>
+                    <Typography.Text type="secondary">{t('admin.config.logError')}</Typography.Text>
+                    <Typography.Paragraph
+                      copyable
+                      style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto' }}
+                    >
+                      {selectedLog.error || '--'}
+                    </Typography.Paragraph>
+                  </div>
+                  <div>
+                    <Typography.Text type="secondary">{t('admin.config.logMeta')}</Typography.Text>
+                    <Typography.Paragraph
+                      copyable
+                      style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto' }}
+                    >
+                      {selectedLog.meta ? JSON.stringify(selectedLog.meta, null, 2) : '--'}
+                    </Typography.Paragraph>
+                  </div>
+                </Space>
+              </Space>
+            ) : null}
+          </Modal>
         </ProCard>
       </Card>
     </PageContainer>

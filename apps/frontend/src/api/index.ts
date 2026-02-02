@@ -284,25 +284,25 @@ export const fetchTeacherStudentReportOverview = async (studentId: string, days 
   };
 };
 
-export const downloadTeacherClassReportCsv = async (classId: string, days = 7) => {
+export const downloadTeacherClassReportCsv = async (classId: string, days = 7, lang?: string) => {
   const response = await api.get(`/teacher/reports/class/${classId}/export`, {
-    params: { days },
+    params: { days, lang },
     responseType: 'blob',
   });
   return response.data as Blob;
 };
 
-export const downloadTeacherClassReportPdf = async (classId: string, days = 7) => {
+export const downloadTeacherClassReportPdf = async (classId: string, days = 7, lang?: string) => {
   const response = await api.get(`/teacher/reports/class/${classId}/pdf`, {
-    params: { days },
+    params: { days, lang },
     responseType: 'blob',
   });
   return response.data as Blob;
 };
 
-export const downloadTeacherStudentReportPdf = async (studentId: string, days = 7) => {
+export const downloadTeacherStudentReportPdf = async (studentId: string, days = 7, lang?: string) => {
   const response = await api.get(`/teacher/reports/student/${studentId}/pdf`, {
-    params: { days },
+    params: { days, lang },
     responseType: 'blob',
   });
   return response.data as Blob;
@@ -321,9 +321,9 @@ export const fetchStudentReportOverview = async (days = 7) => {
   };
 };
 
-export const downloadStudentReportPdf = async (days = 7) => {
+export const downloadStudentReportPdf = async (days = 7, lang?: string) => {
   const response = await api.get('/student/reports/pdf', {
-    params: { days },
+    params: { days, lang },
     responseType: 'blob',
   });
   return response.data as Blob;
@@ -406,6 +406,7 @@ export const downloadStudentSubmissionsCsv = async (params?: {
   to?: string;
   minScore?: number;
   maxScore?: number;
+  lang?: string;
 }) => {
   const response = await api.get('/submissions/export', {
     params,
@@ -575,6 +576,13 @@ export const fetchAdminLlmLogs = async (params?: {
       completionTokens?: number | null;
       totalTokens?: number | null;
       cost?: number | null;
+      prompt?: string | null;
+      systemPrompt?: string | null;
+      response?: string | null;
+      error?: string | null;
+      meta?: unknown;
+      userId?: string | null;
+      submissionId?: string | null;
       createdAt: string;
     }>;
     total: number;
@@ -776,9 +784,9 @@ export const retryTeacherBatchUploads = async (batchId: string) => {
   return response.data as { batchId: string; count: number };
 };
 
-export const downloadTeacherHomeworkSubmissionsCsv = async (homeworkId: string) => {
+export const downloadTeacherHomeworkSubmissionsCsv = async (homeworkId: string, lang?: string) => {
   const response = await api.get('/teacher/submissions/export', {
-    params: { homeworkId },
+    params: { homeworkId, lang },
     responseType: 'blob',
   });
   return response.data as Blob;
@@ -792,9 +800,9 @@ export const downloadTeacherHomeworkImagesZip = async (homeworkId: string) => {
   return response.data as Blob;
 };
 
-export const downloadTeacherHomeworkRemindersCsv = async (homeworkId: string) => {
+export const downloadTeacherHomeworkRemindersCsv = async (homeworkId: string, lang?: string) => {
   const response = await api.get('/teacher/submissions/reminders', {
-    params: { homeworkId },
+    params: { homeworkId, lang },
     responseType: 'blob',
   });
   return response.data as Blob;

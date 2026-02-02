@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ReportRangeQueryDto {
   @IsOptional()
@@ -15,4 +15,8 @@ export class ReportRangeQueryDto {
   @Min(1)
   @Max(50)
   topN?: number;
+
+  @IsOptional()
+  @IsString()
+  lang?: string;
 }

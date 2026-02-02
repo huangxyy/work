@@ -239,16 +239,7 @@ export class SubmissionsService {
     });
 
     const rows: Array<Array<string | number | null>> = [
-      [
-        'submissionId',
-        'homeworkId',
-        'homeworkTitle',
-        'status',
-        'totalScore',
-        'errorCode',
-        'errorMsg',
-        'updatedAt',
-      ],
+      this.getStudentExportHeaders(query.lang),
     ];
 
     for (const submission of submissions) {
@@ -300,7 +291,7 @@ export class SubmissionsService {
     }));
   }
 
-  async exportHomeworkCsv(homeworkId: string, user: AuthUser) {
+  async exportHomeworkCsv(homeworkId: string, user: AuthUser, lang?: string) {
     if (user.role === Role.STUDENT) {
       throw new ForbiddenException('Only teacher or admin can export');
     }
@@ -324,26 +315,7 @@ export class SubmissionsService {
     });
 
     const rows: Array<Array<string | number | null>> = [
-      [
-        'submissionId',
-        'classId',
-        'className',
-        'homeworkId',
-        'homeworkTitle',
-        'studentId',
-        'studentName',
-        'studentAccount',
-        'status',
-        'totalScore',
-        'errorCode',
-        'errorMsg',
-        'errorCount',
-        'summary',
-        'nextSteps',
-        'rewrite',
-        'sampleEssay',
-        'updatedAt',
-      ],
+      this.getHomeworkExportHeaders(lang),
     ];
 
     for (const submission of submissions) {
@@ -412,7 +384,7 @@ export class SubmissionsService {
     return zip.toBuffer();
   }
 
-  async exportHomeworkRemindersCsv(homeworkId: string, user: AuthUser) {
+  async exportHomeworkRemindersCsv(homeworkId: string, user: AuthUser, lang?: string) {
     if (user.role === Role.STUDENT) {
       throw new ForbiddenException('Only teacher or admin can export');
     }
@@ -445,15 +417,7 @@ export class SubmissionsService {
 
     const submitted = new Set(submissions.map((item) => item.studentId));
     const rows: Array<Array<string | number | null>> = [
-      [
-        'classId',
-        'className',
-        'homeworkId',
-        'homeworkTitle',
-        'studentId',
-        'studentName',
-        'studentAccount',
-      ],
+      this.getReminderExportHeaders(lang),
     ];
 
     for (const enrollment of enrollments) {
@@ -1134,6 +1098,86 @@ export class SubmissionsService {
       return null;
     }
     return value as Record<string, unknown>;
+  }
+
+  private isZhLang(lang?: string) {
+    return (lang || '').toLowerCase().startsWith('zh');
+  }
+
+  private getStudentExportHeaders(lang?: string): string[] {
+    if (this.isZhLang(lang)) {
+      return ['提交ID', '作业ID', '作业标题', '状态', '总分', '错误码', '错误信息', '更新时间'];
+    }
+    return [
+      'submissionId',
+      'homeworkId',
+      'homeworkTitle',
+      'status',
+      'totalScore',
+      'errorCode',
+      'errorMsg',
+      'updatedAt',
+    ];
+  }
+
+  private getHomeworkExportHeaders(lang?: string): string[] {
+    if (this.isZhLang(lang)) {
+      return [
+        '提交ID',
+        '班级ID',
+        '班级名称',
+        '作业ID',
+        '作业标题',
+        '学生ID',
+        '学生姓名',
+        '学生账号',
+        '状态',
+        '总分',
+        '错误码',
+        '错误信息',
+        '错误数',
+        '总结',
+        '下一步建议',
+        '改写建议',
+        '范文参考',
+        '更新时间',
+      ];
+    }
+    return [
+      'submissionId',
+      'classId',
+      'className',
+      'homeworkId',
+      'homeworkTitle',
+      'studentId',
+      'studentName',
+      'studentAccount',
+      'status',
+      'totalScore',
+      'errorCode',
+      'errorMsg',
+      'errorCount',
+      'summary',
+      'nextSteps',
+      'rewrite',
+      'sampleEssay',
+      'updatedAt',
+    ];
+  }
+
+  private getReminderExportHeaders(lang?: string): string[] {
+    if (this.isZhLang(lang)) {
+      return ['班级ID', '班级名称', '作业ID', '作业标题', '学生ID', '学生姓名', '学生账号'];
+    }
+    return [
+      'classId',
+      'className',
+      'homeworkId',
+      'homeworkTitle',
+      'studentId',
+      'studentName',
+      'studentAccount',
+    ];
   }
 
   private toCsvRow(values: Array<string | number | null>): string {
