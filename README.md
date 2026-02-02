@@ -43,8 +43,8 @@ pnpm --filter backend start:worker:dev
 pnpm --filter frontend dev
 ```
 
-## Docker Compose（依赖服务 + Nginx）
-默认 compose 只负责依赖服务（MySQL/Redis/MinIO/OCR）和 Nginx 静态服务。后端 API/Worker 建议在宿主机启动，便于本地调试。
+## 本地前后端 + Docker 依赖服务（推荐）
+前后端都在本地运行，MySQL/Redis/MinIO/OCR 在 Docker 中运行；前端通过 Nginx 反向代理访问，避免直接暴露开发端口。
 
 ```bash
 # 1) 启动依赖服务（在仓库根目录）
@@ -54,7 +54,30 @@ docker compose -f deploy/docker-compose.yml up -d mysql redis minio ocr-service
 pnpm --filter backend start:dev
 pnpm --filter backend start:worker:dev
 
-# 3) 构建前端并用 Nginx 提供静态服务
+# 3) 启动前端（宿主机）
+# 通过 Nginx 反代到本地 API
+# Windows CMD: set VITE_API_BASE_URL=/api
+# PowerShell:  $env:VITE_API_BASE_URL="/api"
+# macOS/Linux: export VITE_API_BASE_URL=/api
+pnpm --filter frontend dev
+
+# 4) 启动 Nginx（容器）
+docker compose -f deploy/docker-compose.yml up -d nginx
+```
+
+访问：
+- 前端：`http://localhost/`
+- API：`http://localhost:3000/api`
+- OCR：`http://localhost:8000`
+- MinIO 控制台：`http://localhost:9001`
+
+说明：Nginx 现在会代理前端到本地 `http://host.docker.internal:3001`（Vite dev）。若你不希望 3001 暴露到局域网，请配合系统防火墙限制。
+
+## Docker + Nginx（前端构建部署）
+如果需要用 Nginx 提供前端静态资源：
+
+```bash
+# 构建前端并启动 Nginx
 # 建议设置 VITE_API_BASE_URL=/api 走 Nginx 反代
 # Windows CMD: set VITE_API_BASE_URL=/api
 # PowerShell:  $env:VITE_API_BASE_URL="/api"
@@ -66,10 +89,6 @@ docker compose -f deploy/docker-compose.yml up -d nginx
 访问：
 - 前端：`http://localhost/`
 - API：`http://localhost/api`
-- OCR：`http://localhost:8000`
-- MinIO 控制台：`http://localhost:9001`
-
-说明：Nginx 默认反代到宿主机 `http://host.docker.internal:3000`。如果你在 Linux 上运行 Docker，请改为宿主机 IP 或配置 `extra_hosts`。
 
 ## 关键功能与现状
 - API 健康检查：`GET /api/health` 返回 `{ status: 'ok' }`
