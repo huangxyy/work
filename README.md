@@ -6,7 +6,7 @@
 - `apps/backend`：NestJS API + BullMQ worker，Prisma 模型与迁移
 - `apps/frontend`：Vite + React + Ant Design 前端
 - `services/ocr-service`：FastAPI OCR 模拟服务
-- `deploy/docker-compose.yml`：一键拉起 MySQL、Redis、MinIO、后端 API/Worker、OCR
+- `deploy/docker-compose.yml`：一键拉起 MySQL、Redis、MinIO、OCR 与 Nginx（前端静态）
 - `docs/`：占位文档
 
 ## 技术栈
@@ -27,28 +27,49 @@ cp apps/backend/.env.example apps/backend/.env
 cp apps/frontend/.env.example apps/frontend/.env
 
 # 生成 Prisma 客户端
-cd apps/backend && pnpm prisma:generate && cd ../..
+pnpm --filter backend prisma:generate
 
 # 可选：初始化测试账号（仅本地）
 # 在 apps/backend/.env 中设置 SEED_USERS=true 后执行
 pnpm --filter backend exec prisma db seed
 
-# 启动后台 API（需要本地 MySQL/Redis）
+# 启动后台 API（需要 MySQL/Redis）
 pnpm --filter backend start:dev
 
 # 启动 Worker（监听 BullMQ grading 队列）
 pnpm --filter backend start:worker:dev
 
-# 启动前端
-cd apps/frontend && pnpm dev
+# 启动前端（开发模式）
+pnpm --filter frontend dev
 ```
 
-## Docker Compose 一键启动
-在 `deploy/` 目录：
+## Docker Compose（依赖服务 + Nginx）
+默认 compose 只负责依赖服务（MySQL/Redis/MinIO/OCR）和 Nginx 静态服务。后端 API/Worker 建议在宿主机启动，便于本地调试。
+
 ```bash
-docker compose up --build
+# 1) 启动依赖服务（在仓库根目录）
+docker compose -f deploy/docker-compose.yml up -d mysql redis minio ocr-service
+
+# 2) 启动后端（宿主机）
+pnpm --filter backend start:dev
+pnpm --filter backend start:worker:dev
+
+# 3) 构建前端并用 Nginx 提供静态服务
+# 建议设置 VITE_API_BASE_URL=/api 走 Nginx 反代
+# Windows CMD: set VITE_API_BASE_URL=/api
+# PowerShell:  $env:VITE_API_BASE_URL="/api"
+# macOS/Linux: export VITE_API_BASE_URL=/api
+pnpm --filter frontend build
+docker compose -f deploy/docker-compose.yml up -d nginx
 ```
-包含服务：MySQL、Redis、MinIO、OCR mock、backend-api、backend-worker。API 暴露 `http://localhost:3000/api`，OCR 暴露 `http://localhost:8000`，MinIO 控制台 `http://localhost:9001`。
+
+访问：
+- 前端：`http://localhost/`
+- API：`http://localhost/api`
+- OCR：`http://localhost:8000`
+- MinIO 控制台：`http://localhost:9001`
+
+说明：Nginx 默认反代到宿主机 `http://host.docker.internal:3000`。如果你在 Linux 上运行 Docker，请改为宿主机 IP 或配置 `extra_hosts`。
 
 ## 关键功能与现状
 - API 健康检查：`GET /api/health` 返回 `{ status: 'ok' }`

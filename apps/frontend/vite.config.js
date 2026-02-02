@@ -12,4 +12,16 @@ export default defineConfig({
             '@': resolve(__dirname, 'src'),
         },
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+                    'vendor-antd': ['antd', '@ant-design/icons', '@ant-design/pro-components'],
+                    'vendor-charts': ['echarts'],
+                    'vendor-pdf': ['html2canvas', 'jspdf'],
+                },
+            },
+        },
+    },
 });

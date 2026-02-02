@@ -38,7 +38,7 @@ export const StudentSubmissionsPage = () => {
 
   const { data, isLoading, isError, error, refetch } = useQuery<SubmissionRow[]>({
     queryKey: ['student-submissions'],
-    queryFn: fetchStudentSubmissions,
+    queryFn: () => fetchStudentSubmissions(),
   });
 
   const filteredData = useMemo(() => {

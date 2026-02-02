@@ -1,3 +1,4 @@
+import type { ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProCard, ProFormSelect, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, Descriptions, Drawer, Space, Tag, Typography, message } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -93,7 +94,7 @@ export const AdminClassesPage = () => {
     onError: () => message.error(t('admin.classes.removeStudentFailed')),
   });
 
-  const columns = [
+  const columns: ProColumns<ClassItem>[] = [
     {
       title: t('common.class'),
       dataIndex: 'name',
@@ -107,10 +108,10 @@ export const AdminClassesPage = () => {
     {
       title: t('nav.teachers'),
       dataIndex: 'teachers',
-      render: (teachers: ClassItem['teachers']) =>
-        teachers && teachers.length ? (
+      render: (_: unknown, row: ClassItem) =>
+        row.teachers && row.teachers.length ? (
           <Space size={[4, 4]} wrap>
-            {teachers.map((teacher) => (
+            {row.teachers.map((teacher) => (
               <Tag key={teacher.id}>{teacher.name}</Tag>
             ))}
           </Space>

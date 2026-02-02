@@ -35,6 +35,15 @@ services:
     ports:
       - "8000:8000"
 
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../apps/frontend/dist:/usr/share/nginx/html:ro
+
 volumes:
   mysql-data:
   minio-data:
