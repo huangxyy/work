@@ -11,6 +11,9 @@ import { LlmLogsClearDto } from './dto/llm-logs-clear.dto';
 import { LlmLogsQueryDto } from './dto/llm-logs-query.dto';
 import { LlmTestDto } from './dto/llm-test.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { QueueMetricsQueryDto } from './dto/queue-metrics-query.dto';
+import { QueueCleanDto } from './dto/queue-clean.dto';
+import { QueueRetryDto } from './dto/queue-retry.dto';
 import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
@@ -88,5 +91,30 @@ export class AdminController {
   @Delete('llm/logs')
   async clearLlmLogs(@Body() body: LlmLogsClearDto) {
     return this.adminService.clearLlmLogs(body);
+  }
+
+  @Get('queue/metrics')
+  async getQueueMetrics(@Query() query: QueueMetricsQueryDto) {
+    return this.adminService.getQueueMetrics(query);
+  }
+
+  @Post('queue/retry-failed')
+  async retryFailedJobs(@Body() body: QueueRetryDto) {
+    return this.adminService.retryFailedQueueJobs(body.limit);
+  }
+
+  @Post('queue/clean')
+  async cleanQueue(@Body() body: QueueCleanDto) {
+    return this.adminService.cleanQueue(body);
+  }
+
+  @Post('queue/pause')
+  async pauseQueue() {
+    return this.adminService.pauseQueue();
+  }
+
+  @Post('queue/resume')
+  async resumeQueue() {
+    return this.adminService.resumeQueue();
   }
 }

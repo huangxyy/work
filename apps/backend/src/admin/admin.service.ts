@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { LlmConfigService, type LlmProviderConfig } from '../llm/llm-config.service';
 import { LlmLogsService } from '../llm/llm-logs.service';
+import { QueueService } from '../queue/queue.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
@@ -63,6 +64,7 @@ export class AdminService {
     private readonly systemConfigService: SystemConfigService,
     private readonly llmConfigService: LlmConfigService,
     private readonly llmLogsService: LlmLogsService,
+    private readonly queueService: QueueService,
   ) {}
 
   async getMetrics() {
@@ -341,6 +343,26 @@ export class AdminService {
         ocr: ocrHealth ?? null,
       },
     };
+  }
+
+  async getQueueMetrics(query: { status?: string; limit?: number }) {
+    return this.queueService.getQueueMetrics(query);
+  }
+
+  async retryFailedQueueJobs(limit?: number) {
+    return this.queueService.retryFailedJobs(limit);
+  }
+
+  async cleanQueue(options: { status?: string; graceMs?: number; limit?: number }) {
+    return this.queueService.cleanQueue(options);
+  }
+
+  async pauseQueue() {
+    return this.queueService.pauseQueue();
+  }
+
+  async resumeQueue() {
+    return this.queueService.resumeQueue();
   }
 
   async updateSystemConfig(dto: UpdateSystemConfigDto) {

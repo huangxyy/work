@@ -23,6 +23,9 @@ const AdminSystemBudgetPage = lazy(() =>
 const AdminSystemRetentionPage = lazy(() =>
   import('../pages/admin/SystemRetention').then((module) => ({ default: module.AdminSystemRetentionPage })),
 );
+const AdminQueuePage = lazy(() =>
+  import('../pages/admin/Queue').then((module) => ({ default: module.AdminQueuePage })),
+);
 const AdminUsersPage = lazy(() =>
   import('../pages/admin/Users').then((module) => ({ default: module.AdminUsersPage })),
 );
@@ -153,6 +156,7 @@ export const router = createBrowserRouter([
       { path: 'system/config', element: withSuspense(<AdminConfigPage />) },
       { path: 'system/budget', element: withSuspense(<AdminSystemBudgetPage />) },
       { path: 'system/retention', element: withSuspense(<AdminSystemRetentionPage />) },
+      { path: 'system/queue', element: withSuspense(<AdminQueuePage />) },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

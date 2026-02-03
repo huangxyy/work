@@ -64,6 +64,11 @@ export const AdminLayout = () => {
               name: t('nav.retention'),
               icon: <HistoryOutlined />,
             },
+            {
+              path: '/admin/system/queue',
+              name: t('nav.queue'),
+              icon: <BarChartOutlined />,
+            },
           ],
         },
       ],
@@ -73,7 +78,7 @@ export const AdminLayout = () => {
 
   return (
     <ProLayout
-      className="app-pro-layout admin-blueprint"
+      className="app-pro-layout admin-blueprint app-motion"
       title={t('app.title')}
       logo={false}
       navTheme="light"
@@ -89,7 +94,7 @@ export const AdminLayout = () => {
         sider: {
           colorMenuBackground: '#ffffff',
           colorTextMenu: '#1f2937',
-          colorTextMenuSelected: '#1d4ed8',
+          colorTextMenuSelected: '#3e6ee6',
         },
       }}
       menuProps={{
@@ -112,7 +117,7 @@ export const AdminLayout = () => {
         )
       }
       actionsRender={() => [<LanguageSwitcher key="lang" />]}
-      contentStyle={{ padding: '20px 24px 32px' }}
+      contentStyle={{ padding: '24px 28px 40px' }}
     >
       <Outlet />
     </ProLayout>

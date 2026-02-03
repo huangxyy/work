@@ -23,6 +23,8 @@ export const LoginPage = () => {
     typeof overview?.completionRate === 'number'
       ? Math.round(overview.completionRate * 100)
       : undefined;
+  const statusHint =
+    completionRateValue === undefined ? t('login.systemStatusPending') : t('login.systemStatusHint');
 
   useEffect(() => {
     const root = rootRef.current;
@@ -132,7 +134,7 @@ export const LoginPage = () => {
 
       <main className="login-dashboard__main">
         <section className="login-dashboard__panel">
-          <div>
+          <div className="login-dashboard__intro login-dashboard__reveal login-dashboard__reveal--delay-1">
             <Typography.Title level={2} className="login-dashboard__headline">
               {t('login.welcomeTitle')}
             </Typography.Title>
@@ -140,7 +142,7 @@ export const LoginPage = () => {
               {t('login.welcomeSubtitle')}
             </Typography.Text>
           </div>
-          <div className="login-dashboard__tiles">
+          <div className="login-dashboard__tiles login-dashboard__reveal login-dashboard__reveal--delay-2">
               <div className="login-dashboard__tile">
                 <span className="login-dashboard__tile-label">{t('nav.homeworks')}</span>
                 <span className="login-dashboard__tile-value">
@@ -160,13 +162,23 @@ export const LoginPage = () => {
                 </span>
               </div>
           </div>
-          <div className="login-dashboard__sparkline" />
+          <div className="login-dashboard__sparkline login-dashboard__reveal login-dashboard__reveal--delay-3" />
         </section>
 
-        <Card className="login-dashboard__card">
+        <Card className="login-dashboard__card login-dashboard__reveal login-dashboard__reveal--delay-2">
           <Typography.Title level={4} className="login-dashboard__title">
             {t('login.title')}
           </Typography.Title>
+          <div className="login-dashboard__status login-dashboard__reveal login-dashboard__reveal--delay-3">
+            <span className="login-dashboard__status-dot" />
+            <div className="login-dashboard__status-body">
+              <span className="login-dashboard__status-label">{t('login.systemStatusTitle')}</span>
+              <span className="login-dashboard__status-value">
+                <CountUpNumber value={completionRateValue} decimals={0} suffix="%" />
+              </span>
+            </div>
+            <span className="login-dashboard__status-hint">{statusHint}</span>
+          </div>
           <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
             <Form.Item
               name="account"

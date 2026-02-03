@@ -43,9 +43,10 @@ model Class {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  teachers  User[]       @relation("TeacherClasses")
-  enrolls   Enrollment[]
-  homeworks Homework[]
+  teachers      User[]          @relation("TeacherClasses")
+  enrolls       Enrollment[]
+  homeworks     Homework[]
+  gradingPolicy GradingPolicy? @relation("ClassGradingPolicy")
 }
 
 model Enrollment {
@@ -68,9 +69,10 @@ model Homework {
   dueAt     DateTime?
   createdAt DateTime @default(now())
 
-  class       Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
-  submissions Submission[]
-  batchUploads BatchUpload[]
+  class         Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  submissions   Submission[]
+  batchUploads  BatchUpload[]
+  gradingPolicy GradingPolicy? @relation("HomeworkGradingPolicy")
 }
 
 model Submission {
@@ -162,4 +164,20 @@ model LlmCallLog {
   @@index([source])
   @@index([providerId])
   @@index([status])
+}
+
+model GradingPolicy {
+  id         String   @id @default(cuid())
+  classId    String?  @unique
+  homeworkId String?  @unique
+  mode       String?
+  needRewrite Boolean?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  class    Class?    @relation("ClassGradingPolicy", fields: [classId], references: [id], onDelete: Cascade)
+  homework Homework? @relation("HomeworkGradingPolicy", fields: [homeworkId], references: [id], onDelete: Cascade)
+
+  @@index([classId])
+  @@index([homeworkId])
 }

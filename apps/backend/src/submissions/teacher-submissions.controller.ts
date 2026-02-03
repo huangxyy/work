@@ -30,6 +30,9 @@ import { RegradeHomeworkSubmissionsDto } from './dto/regrade-homework-submission
 import { SubmissionsService } from './submissions.service';
 
 const uploadDir = join(tmpdir(), 'homework-ai');
+const MAX_ZIP_BYTES = Number.isFinite(Number(process.env.BATCH_ZIP_MAX_BYTES))
+  ? Number(process.env.BATCH_ZIP_MAX_BYTES)
+  : 104857600;
 
 const ensureUploadDir = () => {
   mkdirSync(uploadDir, { recursive: true });
@@ -77,7 +80,7 @@ export class TeacherSubmissionsController {
         { name: 'images', maxCount: 100 },
         { name: 'archive', maxCount: 1 },
       ],
-      { storage: uploadStorage, limits: { files: 101 } },
+      { storage: uploadStorage, limits: { files: 101, fileSize: MAX_ZIP_BYTES } },
     ),
   )
   async createBatch(

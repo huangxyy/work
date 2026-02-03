@@ -7,10 +7,13 @@ import {
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
 import AdmZip from 'adm-zip';
 import { randomUUID } from 'crypto';
-import { promises as fs } from 'fs';
+import { createReadStream, promises as fs } from 'fs';
 import type { Express } from 'express';
 import { basename, extname } from 'path';
+import { Readable } from 'stream';
+import * as unzipper from 'unzipper';
 import { AuthUser } from '../auth/auth.types';
+import { GradingPolicyService } from '../grading-policy/grading-policy.service';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -35,6 +38,20 @@ type BatchSkip = {
 
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const MAX_BATCH_IMAGES = 100;
+const DEFAULT_ZIP_MAX_BYTES = 104857600;
+const DEFAULT_ZIP_UNCOMPRESSED_BYTES = 314572800;
+const DEFAULT_ZIP_ENTRY_BYTES = 15728640;
+const MAX_ZIP_BYTES = Number.isFinite(Number(process.env.BATCH_ZIP_MAX_BYTES))
+  ? Number(process.env.BATCH_ZIP_MAX_BYTES)
+  : DEFAULT_ZIP_MAX_BYTES;
+const MAX_ZIP_UNCOMPRESSED_BYTES = Number.isFinite(
+  Number(process.env.BATCH_ZIP_MAX_UNCOMPRESSED_BYTES),
+)
+  ? Number(process.env.BATCH_ZIP_MAX_UNCOMPRESSED_BYTES)
+  : DEFAULT_ZIP_UNCOMPRESSED_BYTES;
+const MAX_ZIP_ENTRY_BYTES = Number.isFinite(Number(process.env.BATCH_ZIP_MAX_ENTRY_BYTES))
+  ? Number(process.env.BATCH_ZIP_MAX_ENTRY_BYTES)
+  : DEFAULT_ZIP_ENTRY_BYTES;
 
 @Injectable()
 export class SubmissionsService {
@@ -42,6 +59,7 @@ export class SubmissionsService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly queueService: QueueService,
+    private readonly gradingPolicyService: GradingPolicyService,
   ) {}
 
   async createSubmission(
@@ -79,6 +97,13 @@ export class SubmissionsService {
       throw new NotFoundException('Homework not found or no access');
     }
 
+    const resolvedPolicy = await this.resolveGradingOptions({
+      classId: homework.classId,
+      homeworkId: homework.id,
+      mode: dto.mode,
+      needRewrite: dto.needRewrite,
+    });
+
     const submission = await this.prisma.submission.create({
       data: {
         homeworkId: dto.homeworkId,
@@ -99,7 +124,12 @@ export class SubmissionsService {
       await this.prisma.submissionImage.createMany({ data: images });
     }
 
-    await this.queueService.enqueueGrading(submission.id);
+    const policy = await this.resolveGradingOptions({
+      classId: homework.classId,
+      homeworkId: homework.id,
+    });
+
+    await this.queueService.enqueueGrading(submission.id, policy);
 
     return { submissionId: submission.id, status: submission.status };
   }
@@ -448,7 +478,7 @@ export class SubmissionsService {
         user.role === Role.ADMIN
           ? { id: dto.homeworkId }
           : { id: dto.homeworkId, class: { teachers: { some: { id: user.id } } } },
-      select: { id: true },
+      select: { id: true, classId: true },
     });
 
     if (!homework) {
@@ -464,6 +494,13 @@ export class SubmissionsService {
       return { homeworkId: dto.homeworkId, count: 0 };
     }
 
+    const resolvedPolicy = await this.resolveGradingOptions({
+      classId: homework.classId,
+      homeworkId: homework.id,
+      mode: dto.mode,
+      needRewrite: dto.needRewrite,
+    });
+
     const ids = submissions.map((item) => item.id);
     await this.prisma.submission.updateMany({
       where: { id: { in: ids } },
@@ -472,8 +509,8 @@ export class SubmissionsService {
 
     for (const id of ids) {
       await this.queueService.enqueueRegrade(id, {
-        mode: dto.mode,
-        needRewrite: dto.needRewrite,
+        mode: resolvedPolicy.mode,
+        needRewrite: resolvedPolicy.needRewrite,
       });
     }
 
@@ -692,6 +729,12 @@ export class SubmissionsService {
       return { batchId, count: 0 };
     }
 
+    const resolvedPolicy = await this.resolveGradingOptions({
+      homeworkId: batch.homeworkId,
+      mode: (batch.mode as 'cheap' | 'quality' | null) || undefined,
+      needRewrite: batch.needRewrite,
+    });
+
     const ids = submissions.map((item) => item.id);
     await this.prisma.submission.updateMany({
       where: { id: { in: ids } },
@@ -700,8 +743,8 @@ export class SubmissionsService {
 
     for (const id of ids) {
       await this.queueService.enqueueRegrade(id, {
-        mode: (batch.mode as 'cheap' | 'quality' | null) || undefined,
-        needRewrite: batch.needRewrite,
+        mode: resolvedPolicy.mode,
+        needRewrite: resolvedPolicy.needRewrite,
       });
     }
 
@@ -745,6 +788,7 @@ export class SubmissionsService {
     const tempPaths = new Set<string>();
     const skipped: BatchSkip[] = [];
     const images: BatchImage[] = [];
+    const totalUncompressed = { value: 0 };
 
     const uploadImages = files?.images || [];
     const archiveFiles = files?.archive || [];
@@ -773,33 +817,16 @@ export class SubmissionsService {
         if (file.path) {
           tempPaths.add(file.path);
         }
-        const archiveBuffer = file.buffer ? file.buffer : file.path ? await fs.readFile(file.path) : null;
-        if (!archiveBuffer) {
-          continue;
+        const archiveSize = file.size || file.buffer?.length || 0;
+        if (archiveSize > MAX_ZIP_BYTES) {
+          throw new BadRequestException(`Zip file too large (max ${MAX_ZIP_BYTES} bytes)`);
         }
-        const zip = new AdmZip(archiveBuffer);
-        const entries = zip.getEntries();
-        for (const entry of entries) {
-          if (entry.isDirectory) {
-            continue;
-          }
-          const entryName = entry.entryName.replace(/\\/g, '/');
-          if (this.isHiddenZipEntry(entryName)) {
-            continue;
-          }
-          const fileKey = `zip:${entryName}`;
-          const extension = extname(entryName).toLowerCase();
-          if (!ALLOWED_IMAGE_EXTS.has(extension)) {
-            skipped.push({ file: entryName, reason: 'NON_IMAGE', fileKey });
-            continue;
-          }
-          images.push({
-            fileKey,
-            filename: entryName,
-            mimeType: this.mapImageMimeType(extension),
-            buffer: entry.getData(),
-          });
-        }
+        await this.extractZipEntries(file, {
+          images,
+          skipped,
+          totalUncompressed,
+          dryRun,
+        });
       }
 
       if (images.length === 0) {
@@ -868,8 +895,8 @@ export class SubmissionsService {
           unmatchedCount: unmatched.length,
           createdSubmissions: 0,
           skipped: skippedForRecord as Prisma.InputJsonValue,
-          mode: dto.mode,
-          needRewrite: Boolean(dto.needRewrite),
+          mode: resolvedPolicy.mode,
+          needRewrite: resolvedPolicy.needRewrite,
         },
       });
 
@@ -914,8 +941,8 @@ export class SubmissionsService {
         }
 
         await this.queueService.enqueueGrading(submission.id, {
-          mode: dto.mode,
-          needRewrite: dto.needRewrite,
+          mode: resolvedPolicy.mode,
+          needRewrite: resolvedPolicy.needRewrite,
         });
 
         submissions.push({
@@ -964,8 +991,38 @@ export class SubmissionsService {
       },
     });
 
-    await this.queueService.enqueueRegrade(id, options);
+    const scope = await this.prisma.submission.findUnique({
+      where: { id },
+      select: { homeworkId: true, homework: { select: { classId: true } } },
+    });
+    const resolvedPolicy = await this.resolveGradingOptions({
+      classId: scope?.homework?.classId,
+      homeworkId: scope?.homeworkId,
+      mode: options.mode,
+      needRewrite: options.needRewrite,
+    });
+
+    await this.queueService.enqueueRegrade(id, resolvedPolicy);
     return { submissionId: id, status: SubmissionStatus.QUEUED };
+  }
+
+  private async resolveGradingOptions(params: {
+    classId?: string | null;
+    homeworkId?: string | null;
+    mode?: 'cheap' | 'quality';
+    needRewrite?: boolean;
+  }) {
+    if (params.mode !== undefined && params.needRewrite !== undefined) {
+      return { mode: params.mode, needRewrite: params.needRewrite };
+    }
+    const resolved = await this.gradingPolicyService.resolvePolicy({
+      classId: params.classId || undefined,
+      homeworkId: params.homeworkId || undefined,
+    });
+    return {
+      mode: params.mode ?? resolved.mode,
+      needRewrite: params.needRewrite ?? resolved.needRewrite,
+    };
   }
 
   private resolveAccount(
@@ -1067,6 +1124,133 @@ export class SubmissionsService {
     }
     const base = basename(normalized);
     return base.startsWith('.');
+  }
+
+  private async extractZipEntries(
+    file: Express.Multer.File,
+    options: {
+      images: BatchImage[];
+      skipped: BatchSkip[];
+      totalUncompressed: { value: number };
+      dryRun: boolean;
+    },
+  ) {
+    const source = file.buffer
+      ? Readable.from([file.buffer])
+      : file.path
+        ? createReadStream(file.path)
+        : null;
+    if (!source) {
+      return;
+    }
+
+    const parser = source.pipe(unzipper.Parse({ forceStream: true }));
+    for await (const entry of parser) {
+      if (entry.type === 'Directory') {
+        entry.autodrain();
+        continue;
+      }
+
+      const entryName = entry.path.replace(/\\/g, '/');
+      if (this.isHiddenZipEntry(entryName)) {
+        entry.autodrain();
+        continue;
+      }
+
+      const fileKey = `zip:${entryName}`;
+      const extension = extname(entryName).toLowerCase();
+      if (!ALLOWED_IMAGE_EXTS.has(extension)) {
+        options.skipped.push({ file: entryName, reason: 'NON_IMAGE', fileKey });
+        entry.autodrain();
+        continue;
+      }
+
+      if (options.images.length >= MAX_BATCH_IMAGES) {
+        entry.autodrain();
+        throw new BadRequestException(`Up to ${MAX_BATCH_IMAGES} images are allowed`);
+      }
+
+      const declaredSize = this.getZipEntrySize(entry);
+      if (declaredSize !== null && declaredSize > MAX_ZIP_ENTRY_BYTES) {
+        entry.autodrain();
+        throw new BadRequestException(`Zip entry too large (max ${MAX_ZIP_ENTRY_BYTES} bytes)`);
+      }
+      if (
+        declaredSize !== null &&
+        options.totalUncompressed.value + declaredSize > MAX_ZIP_UNCOMPRESSED_BYTES
+      ) {
+        entry.autodrain();
+        throw new BadRequestException('Zip exceeds uncompressed size limit');
+      }
+
+      if (options.dryRun) {
+        const entrySize =
+          declaredSize !== null
+            ? declaredSize
+            : await this.drainEntry(entry, MAX_ZIP_ENTRY_BYTES);
+        options.totalUncompressed.value += entrySize;
+        if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
+          throw new BadRequestException('Zip exceeds uncompressed size limit');
+        }
+        if (declaredSize !== null) {
+          entry.autodrain();
+        }
+        options.images.push({
+          fileKey,
+          filename: entryName,
+          mimeType: this.mapImageMimeType(extension),
+        });
+        continue;
+      }
+
+      const buffer = await this.readEntryBuffer(entry, MAX_ZIP_ENTRY_BYTES);
+      options.totalUncompressed.value += buffer.length;
+      if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
+        throw new BadRequestException('Zip exceeds uncompressed size limit');
+      }
+      options.images.push({
+        fileKey,
+        filename: entryName,
+        mimeType: this.mapImageMimeType(extension),
+        buffer,
+      });
+    }
+  }
+
+  private async readEntryBuffer(entry: unzipper.Entry, limitBytes: number): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of entry) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buffer.length;
+      if (total > limitBytes) {
+        entry.autodrain();
+        throw new BadRequestException(`Zip entry too large (max ${limitBytes} bytes)`);
+      }
+      chunks.push(buffer);
+    }
+    return Buffer.concat(chunks, total);
+  }
+
+  private async drainEntry(entry: unzipper.Entry, limitBytes: number): Promise<number> {
+    let total = 0;
+    for await (const chunk of entry) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buffer.length;
+      if (total > limitBytes) {
+        entry.autodrain();
+        throw new BadRequestException(`Zip entry too large (max ${limitBytes} bytes)`);
+      }
+    }
+    return total;
+  }
+
+  private getZipEntrySize(entry: unzipper.Entry): number | null {
+    const size = (entry as { vars?: { uncompressedSize?: number } }).vars?.uncompressedSize;
+    if (typeof size === 'number' && Number.isFinite(size)) {
+      return size;
+    }
+    return null;
   }
 
   private async cleanupTempFiles(paths: Set<string>) {

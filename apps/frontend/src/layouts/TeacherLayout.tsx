@@ -61,7 +61,7 @@ export const TeacherLayout = () => {
 
   return (
     <ProLayout
-      className="app-pro-layout teacher-soft"
+      className="app-pro-layout teacher-soft app-motion"
       title={t('app.title')}
       logo={false}
       navTheme="light"
@@ -77,7 +77,7 @@ export const TeacherLayout = () => {
         sider: {
           colorMenuBackground: '#ffffff',
           colorTextMenu: '#1f2937',
-          colorTextMenuSelected: '#1d4ed8',
+          colorTextMenuSelected: '#3e6ee6',
         },
       }}
       menuProps={{
@@ -100,7 +100,7 @@ export const TeacherLayout = () => {
         )
       }
       actionsRender={() => [<LanguageSwitcher key="lang" />]}
-      contentStyle={{ padding: '20px 24px 32px' }}
+      contentStyle={{ padding: '24px 28px 40px' }}
     >
       <Outlet />
     </ProLayout>

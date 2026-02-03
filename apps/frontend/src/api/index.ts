@@ -520,6 +520,58 @@ export const fetchAdminUsage = async (days = 7) => {
   };
 };
 
+export const fetchAdminQueueMetrics = async (params?: { status?: string; limit?: number }) => {
+  const response = await api.get('/admin/queue/metrics', { params });
+  return response.data as {
+    queue: string;
+    isPaused?: boolean;
+    updatedAt: string;
+    counts: {
+      waiting: number;
+      active: number;
+      delayed: number;
+      failed: number;
+      completed: number;
+      paused: number;
+    };
+    jobs: Array<{
+      id: string | number;
+      name: string;
+      status: string;
+      attemptsMade: number;
+      timestamp: number;
+      processedOn?: number | null;
+      finishedOn?: number | null;
+      failedReason?: string | null;
+      data?: Record<string, unknown>;
+    }>;
+  };
+};
+
+export const retryAdminFailedJobs = async (limit?: number) => {
+  const response = await api.post('/admin/queue/retry-failed', { limit });
+  return response.data as { retried: number; skipped: number; total: number };
+};
+
+export const cleanAdminQueue = async (payload: {
+  status?: string;
+  graceMs?: number;
+  limit?: number;
+}) => {
+  const response = await api.post('/admin/queue/clean', payload);
+  return response.data as { total: number; details: Record<string, number> };
+};
+
+export const pauseAdminQueue = async () => {
+  const response = await api.post('/admin/queue/pause');
+  return response.data as { paused: boolean };
+};
+
+export const resumeAdminQueue = async () => {
+  const response = await api.post('/admin/queue/resume');
+  return response.data as { paused: boolean };
+};
+
 export const testAdminLlmHealth = async () => {
   const response = await api.get('/admin/health/llm');
   return response.data as { ok: boolean; status?: number; latencyMs?: number; reason?: string; model?: string };
@@ -670,6 +722,91 @@ export const resetAdminUserPassword = async (id: string, password: string) => {
 export const fetchTeacherHomeworkSubmissions = async (homeworkId: string) => {
   const response = await api.get('/teacher/submissions', { params: { homeworkId } });
   return response.data as TeacherSubmissionRow[];
+};
+
+export const fetchTeacherGradingSettings = async () => {
+  const response = await api.get('/teacher/settings/grading');
+  return response.data as {
+    grading: {
+      defaultMode: string;
+      needRewriteDefault: boolean;
+      provider?: { id?: string; name?: string };
+      model?: string | null;
+      cheaperModel?: string | null;
+      qualityModel?: string | null;
+      maxTokens?: number | null;
+      temperature?: number | null;
+      topP?: number | null;
+      presencePenalty?: number | null;
+      frequencyPenalty?: number | null;
+      timeoutMs?: number | null;
+      responseFormat?: string | null;
+      stop?: string[] | null;
+      systemPromptSet?: boolean;
+    };
+    budget: {
+      enabled?: boolean;
+      dailyCallLimit?: number;
+      mode?: 'soft' | 'hard';
+    };
+  };
+};
+
+export const fetchTeacherGradingPolicy = async (params: {
+  classId?: string;
+  homeworkId?: string;
+}) => {
+  const response = await api.get('/teacher/settings/grading/policies', { params });
+  return response.data as {
+    classPolicy?: { classId?: string | null; mode?: string | null; needRewrite?: boolean | null } | null;
+    homeworkPolicy?: { homeworkId?: string | null; mode?: string | null; needRewrite?: boolean | null } | null;
+    effective: { mode: 'cheap' | 'quality'; needRewrite: boolean };
+  };
+};
+
+export const fetchTeacherGradingPolicyPreview = async (classId: string) => {
+  const response = await api.get('/teacher/settings/grading/policies/preview', { params: { classId } });
+  return response.data as {
+    classId: string;
+    classPolicy?: { classId?: string | null; mode?: string | null; needRewrite?: boolean | null } | null;
+    items: Array<{
+      homeworkId: string;
+      title: string;
+      dueAt?: string | null;
+      createdAt: string;
+      submissionCount: number;
+      lastStatus?: string | null;
+      lastUpdatedAt?: string | null;
+      effective: { mode: 'cheap' | 'quality'; needRewrite: boolean };
+      source: { mode: 'default' | 'class' | 'homework'; needRewrite: 'default' | 'class' | 'homework' };
+    }>;
+  };
+};
+
+export const upsertTeacherClassPolicy = async (
+  classId: string,
+  payload: { mode?: 'cheap' | 'quality'; needRewrite?: boolean },
+) => {
+  const response = await api.put(`/teacher/settings/grading/policies/class/${classId}`, payload);
+  return response.data as { id: string };
+};
+
+export const clearTeacherClassPolicy = async (classId: string) => {
+  const response = await api.delete(`/teacher/settings/grading/policies/class/${classId}`);
+  return response.data as { count?: number };
+};
+
+export const upsertTeacherHomeworkPolicy = async (
+  homeworkId: string,
+  payload: { mode?: 'cheap' | 'quality'; needRewrite?: boolean },
+) => {
+  const response = await api.put(`/teacher/settings/grading/policies/homework/${homeworkId}`, payload);
+  return response.data as { id: string };
+};
+
+export const clearTeacherHomeworkPolicy = async (homeworkId: string) => {
+  const response = await api.delete(`/teacher/settings/grading/policies/homework/${homeworkId}`);
+  return response.data as { count?: number };
 };
 
 export const createTeacherBatchSubmissions = async (payload: {

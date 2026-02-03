@@ -40,14 +40,14 @@ export const StudentLayout = () => {
   );
 
   return (
-    <Layout className="app-student-layout dashboard-clean" style={{ minHeight: '100vh' }}>
+    <Layout className="app-student-layout dashboard-clean app-motion" style={{ minHeight: '100vh' }}>
       <Header
         className="student-dashboard__header"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 20,
-          padding: '0 28px',
+          padding: '0 32px',
           height: 60,
         }}
       >
