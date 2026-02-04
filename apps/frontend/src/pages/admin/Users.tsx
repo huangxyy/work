@@ -1,6 +1,6 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProCard, ProFormSelect, ProFormText, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Input, Select, Space, Switch, Tag, Typography, message } from 'antd';
+import { Alert, Button, Input, Select, Space, Switch, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
@@ -14,9 +14,11 @@ import {
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 export const AdminUsersPage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');

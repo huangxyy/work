@@ -1,11 +1,12 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Collapse, Descriptions, List, Space, Switch, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Button, Collapse, Descriptions, List, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchSubmission, regradeSubmission } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type GradingResult = {
   totalScore: number;
@@ -37,6 +38,7 @@ type GradingResult = {
 export const TeacherSubmissionDetailPage = () => {
   const { t } = useI18n();
   const { id } = useParams();
+  const message = useMessage();
   const [needRewrite, setNeedRewrite] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({

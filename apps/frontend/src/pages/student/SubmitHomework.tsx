@@ -8,21 +8,25 @@ import {
   Space,
   Typography,
   Upload,
-  message,
 } from 'antd';
 import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createSubmission } from '../../api';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 export const SubmitHomeworkPage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadPercent, setUploadPercent] = useState(0);
   const navigate = useNavigate();
   const { homeworkId } = useParams();
+
+  // Maximum file size: 10MB
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
   const tips = useMemo(
     () => [t('submit.tip1'), t('submit.tip2'), t('submit.tip3')],
@@ -47,6 +51,14 @@ export const SubmitHomeworkPage = () => {
     if (files.length > 3) {
       message.warning(t('submit.uploadLimit'));
       return;
+    }
+
+    // Validate file size
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        message.error(`File ${file.name} exceeds 10MB limit`);
+        return;
+      }
     }
 
     setSubmitting(true);

@@ -1,7 +1,7 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, InputNumber, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, InputNumber, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   cleanAdminQueue,
   fetchAdminQueueMetrics,
@@ -12,6 +12,7 @@ import {
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 const statusColorMap: Record<string, string> = {
   completed: 'green',
@@ -24,6 +25,7 @@ const statusColorMap: Record<string, string> = {
 
 export const AdminQueuePage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string>('all');
   const [limit, setLimit] = useState<number>(30);
@@ -183,6 +185,15 @@ export const AdminQueuePage = () => {
     [t],
   );
 
+  // Auto-refresh queue metrics every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['admin-queue-metrics'] });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [queryClient]);
+
   return (
     <PageContainer
       title={t('admin.queue.title')}
@@ -236,9 +247,17 @@ export const AdminQueuePage = () => {
             value={cleanScope}
             onChange={setCleanScope}
           />
-          <Button danger loading={cleanMutation.isPending} onClick={() => cleanMutation.mutate()}>
-            {t('admin.queue.clean')}
-          </Button>
+          <Popconfirm
+            title={t('admin.queue.confirmClean')}
+            description={t('admin.queue.confirmCleanDesc')}
+            onConfirm={() => cleanMutation.mutate()}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+          >
+            <Button danger loading={cleanMutation.isPending}>
+              {t('admin.queue.clean')}
+            </Button>
+          </Popconfirm>
           <Typography.Text type="secondary">
             {metrics?.updatedAt ? `${t('admin.queue.updatedAt')} ${new Date(metrics.updatedAt).toLocaleString()}` : ''}
           </Typography.Text>

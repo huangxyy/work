@@ -4,7 +4,6 @@ import {
   Alert,
   Button,
   Descriptions,
-  message,
   Skeleton,
   Space,
   Tabs,
@@ -22,6 +21,7 @@ import {
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type StudentRow = {
   id: string;
@@ -37,6 +37,7 @@ type HomeworkRow = {
 };
 
 export const TeacherClassDetailPage = () => {
+  const message = useMessage();
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();

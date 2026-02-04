@@ -1,6 +1,6 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProCard, ProFormSelect, ProFormTextArea, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Descriptions, Drawer, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Descriptions, Drawer, Space, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
@@ -14,6 +14,7 @@ import {
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type ClassItem = {
   id: string;
@@ -26,6 +27,7 @@ type StudentRow = { id: string; account: string; name: string };
 
 export const AdminClassesPage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeClass, setActiveClass] = useState<ClassItem | null>(null);

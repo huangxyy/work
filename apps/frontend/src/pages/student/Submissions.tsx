@@ -1,6 +1,6 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, DatePicker, Input, InputNumber, Select, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, DatePicker, Input, InputNumber, Select, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import type { Dayjs } from 'dayjs';
 import { useMemo, useState } from 'react';
@@ -8,6 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import { downloadStudentSubmissionsCsv, fetchStudentSubmissions } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
+import { getErrorMessage } from '../../utils/errorHandler';
 
 type SubmissionRow = {
   id: string;
@@ -15,11 +17,14 @@ type SubmissionRow = {
   status: 'QUEUED' | 'PROCESSING' | 'DONE' | 'FAILED';
   totalScore?: number | null;
   updatedAt?: string;
+  errorCode?: string | null;
+  errorMsg?: string | null;
 };
 
 export const StudentSubmissionsPage = () => {
   const navigate = useNavigate();
   const { t, language } = useI18n();
+  const message = useMessage();
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [scoreMin, setScoreMin] = useState<number | null>(null);
@@ -160,7 +165,7 @@ export const StudentSubmissionsPage = () => {
         <Alert
           type="error"
           message={t('student.submissions.loadError')}
-          description={error instanceof Error ? error.message : t('common.tryAgain')}
+          description={getErrorMessage(error, language === 'zh-CN' ? 'zh' : 'en')}
           action={
             <Button size="small" onClick={() => refetch()}>
               {t('common.retry')}

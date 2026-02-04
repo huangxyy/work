@@ -2,7 +2,7 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { Alert, Button, InputNumber, List, Space, Typography, message } from 'antd';
+import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type StudentReport = {
   studentId: string;
@@ -24,6 +25,7 @@ type StudentReport = {
 
 export const TeacherStudentReportPage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const { studentId } = useParams();
   const [searchParams] = useSearchParams();
   const [rangeDays, setRangeDays] = useState(7);

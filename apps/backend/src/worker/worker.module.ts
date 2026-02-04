@@ -7,6 +7,7 @@ import { GradingProcessor } from './grading.processor';
 import { StorageModule } from '../storage/storage.module';
 import { GradingModule } from '../grading/grading.module';
 import { SystemConfigModule } from '../system-config/system-config.module';
+import { OcrModule } from '../ocr/ocr.module';
 
 const buildRedisConnection = (redisUrl: string) => {
   try {
@@ -35,11 +36,13 @@ const buildRedisConnection = (redisUrl: string) => {
         },
       }),
     }),
+    BullModule.registerQueue({ name: 'grading' }),
     PrismaModule,
     StorageModule,
     GradingModule,
     QueueModule,
     SystemConfigModule,
+    OcrModule,
   ],
   providers: [GradingProcessor],
 })

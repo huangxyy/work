@@ -97,13 +97,6 @@ export class SubmissionsService {
       throw new NotFoundException('Homework not found or no access');
     }
 
-    const resolvedPolicy = await this.resolveGradingOptions({
-      classId: homework.classId,
-      homeworkId: homework.id,
-      mode: dto.mode,
-      needRewrite: dto.needRewrite,
-    });
-
     const submission = await this.prisma.submission.create({
       data: {
         homeworkId: dto.homeworkId,
@@ -124,12 +117,15 @@ export class SubmissionsService {
       await this.prisma.submissionImage.createMany({ data: images });
     }
 
-    const policy = await this.resolveGradingOptions({
+    // Resolve grading policy with DTO parameters, falling back to class/homework policy
+    const resolvedPolicy = await this.resolveGradingOptions({
       classId: homework.classId,
       homeworkId: homework.id,
+      mode: dto.mode,
+      needRewrite: dto.needRewrite,
     });
 
-    await this.queueService.enqueueGrading(submission.id, policy);
+    await this.queueService.enqueueGrading(submission.id, resolvedPolicy);
 
     return { submissionId: submission.id, status: submission.status };
   }
@@ -230,6 +226,8 @@ export class SubmissionsService {
       homeworkTitle: submission.homework.title,
       status: submission.status,
       totalScore: submission.totalScore,
+      errorCode: submission.errorCode,
+      errorMsg: submission.errorMsg,
       updatedAt: submission.updatedAt.toISOString(),
     }));
   }
@@ -317,6 +315,8 @@ export class SubmissionsService {
       studentAccount: submission.student.account,
       status: submission.status,
       totalScore: submission.totalScore,
+      errorCode: submission.errorCode,
+      errorMsg: submission.errorMsg,
       updatedAt: submission.updatedAt.toISOString(),
     }));
   }
@@ -698,6 +698,8 @@ export class SubmissionsService {
         studentAccount: submission.student.account,
         status: submission.status,
         totalScore: submission.totalScore,
+        errorCode: submission.errorCode,
+        errorMsg: submission.errorMsg,
         updatedAt: submission.updatedAt.toISOString(),
       })),
     };
@@ -885,6 +887,14 @@ export class SubmissionsService {
       if (grouped.size === 0) {
         throw new BadRequestException('No images matched enrolled students');
       }
+
+      // Resolve grading policy with DTO parameters, falling back to class/homework policy
+      const resolvedPolicy = await this.resolveGradingOptions({
+        classId: homework.classId,
+        homeworkId: homework.id,
+        mode: dto.mode,
+        needRewrite: dto.needRewrite,
+      });
 
       const batch = await this.prisma.batchUpload.create({
         data: {
@@ -1078,7 +1088,7 @@ export class SubmissionsService {
     try {
       const parsed = JSON.parse(raw) as Record<string, string>;
       const entries = Object.entries(parsed || {})
-        .map(([key, value]) => [String(key), String(value).trim()])
+        .map(([key, value]) => [String(key), String(value).trim()] as [string, string])
         .filter(([, value]) => value);
       return new Map(entries);
     } catch {

@@ -1,11 +1,12 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProCard, ProFormText, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Skeleton, Space, Tag, message } from 'antd';
+import { Alert, Button, Skeleton, Space, Tag } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createClass, fetchClasses } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type ClassItem = {
   id: string;
@@ -17,6 +18,7 @@ export const TeacherClassesPage = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { t } = useI18n();
+  const message = useMessage();
 
   const {
     data,

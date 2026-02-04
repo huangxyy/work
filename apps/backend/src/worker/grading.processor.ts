@@ -8,11 +8,8 @@ import { GradingService } from '../grading/grading.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { SystemConfigService } from '../system-config/system-config.service';
-
-type OcrResponse = {
-  text: string;
-  confidence?: number;
-};
+import { BaiduOcrService } from '../ocr/baidu-ocr.service';
+import { BaiduOcrConfig } from '../ocr/ocr.types';
 
 class OcrError extends Error {
   readonly code: string;
@@ -33,20 +30,20 @@ type GradingJobData = {
 export class GradingProcessor extends WorkerHost {
   private readonly logger = new Logger(GradingProcessor.name);
   private readonly concurrency = Number(process.env.WORKER_CONCURRENCY || '5');
-  private readonly defaultOcrServiceUrl: string;
-  private readonly defaultOcrTimeoutMs: number;
+  private readonly defaultApiKey: string;
+  private readonly defaultSecretKey: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly gradingService: GradingService,
     private readonly systemConfigService: SystemConfigService,
+    private readonly baiduOcrService: BaiduOcrService,
     configService: ConfigService,
   ) {
     super();
-    this.defaultOcrServiceUrl =
-      configService.get<string>('OCR_BASE_URL') || 'http://localhost:8000';
-    this.defaultOcrTimeoutMs = Number(configService.get<string>('OCR_TIMEOUT_MS') || '10000');
+    this.defaultApiKey = configService.get<string>('BAIDU_OCR_API_KEY') || '';
+    this.defaultSecretKey = configService.get<string>('BAIDU_OCR_SECRET_KEY') || '';
   }
 
   protected getWorkerOptions(): WorkerOptions {
@@ -101,24 +98,49 @@ export class GradingProcessor extends WorkerHost {
       let mergedText = submission.ocrText?.trim() || '';
       if (!mergedText) {
         const ocrStart = Date.now();
+        const ocrConfig = await this.getOcrConfig();
         const texts: string[] = [];
+        const failedImages: number[] = [];
+        const imageCount = submission.images.length;
+        this.logger.log(`Starting OCR for submission ${submissionId} with ${imageCount} images`);
 
-        for (const image of submission.images) {
-          const imageBuffer = await this.storage.getObject(image.objectKey);
-          const base64 = imageBuffer.toString('base64');
-          const ocrResult = await this.callOcrWithRetry({
-            image_base64: base64,
-            preprocess: false,
-          });
-          if (ocrResult.text?.trim()) {
-            texts.push(ocrResult.text.trim());
+        for (let i = 0; i < submission.images.length; i++) {
+          const image = submission.images[i];
+          const imageStart = Date.now();
+          try {
+            const imageBuffer = await this.storage.getObject(image.objectKey);
+            const ocrResult = await this.baiduOcrService.recognize(imageBuffer, ocrConfig);
+            const imageDuration = Date.now() - imageStart;
+            if (ocrResult.text?.trim()) {
+              const textLength = ocrResult.text.trim().length;
+              texts.push(ocrResult.text.trim());
+              this.logger.log(`OCR image ${i + 1}/${imageCount} succeeded in ${imageDuration}ms, text length: ${textLength}`);
+            } else {
+              this.logger.warn(`OCR image ${i + 1}/${imageCount} returned empty text in ${imageDuration}ms`);
+              failedImages.push(i + 1);
+            }
+          } catch (error) {
+            const imageDuration = Date.now() - imageStart;
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.logger.error(`OCR image ${i + 1}/${imageCount} failed in ${imageDuration}ms: ${message}`);
+            failedImages.push(i + 1);
+            // Continue processing other images instead of failing immediately
           }
         }
 
-        mergedText = texts.join('\n\n').trim();
+        // Use single newline to preserve paragraph structure from OCR
+        // Using '\n\n' could create artificial paragraph breaks
+        mergedText = texts.join('\n').trim();
         ocrDurationMs = Date.now() - ocrStart;
+
+        if (failedImages.length > 0) {
+          this.logger.warn(`OCR completed with ${failedImages.length}/${imageCount} images failed: [${failedImages.join(', ')}]`);
+        } else {
+          this.logger.log(`OCR completed for submission ${submissionId}: total duration ${ocrDurationMs}ms, all ${imageCount} images succeeded, total text length: ${mergedText.length}`);
+        }
+
         if (!mergedText) {
-          throw new OcrError('OCR_EMPTY', 'OCR returned empty text');
+          throw new OcrError('OCR_EMPTY', `OCR returned empty text from all ${imageCount} images`);
         }
 
         await this.prisma.submission.update({
@@ -190,74 +212,13 @@ export class GradingProcessor extends WorkerHost {
     }
   }
 
-  private async callOcrWithRetry(payload: {
-    image_base64: string;
-    preprocess?: boolean;
-  }): Promise<OcrResponse> {
-    try {
-      return await this.callOcr(payload);
-    } catch (error) {
-      if (error instanceof OcrError && error.code === 'OCR_TIMEOUT') {
-        this.logger.warn('OCR timeout, retrying once...');
-        return this.callOcr(payload);
-      }
-      throw error;
-    }
-  }
-
-  private async callOcr(payload: {
-    image_base64: string;
-    preprocess?: boolean;
-  }): Promise<OcrResponse> {
-    const ocrConfig = await this.getOcrConfig();
-    const response = await this.fetchWithTimeout(
-      `${ocrConfig.baseUrl}/ocr`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      },
-      ocrConfig.timeoutMs,
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new OcrError('OCR_ERROR', `OCR service error: ${response.status} ${errorText}`);
-    }
-
-    const data = (await response.json()) as OcrResponse;
-    if (!data.text || !data.text.trim()) {
-      throw new OcrError('OCR_EMPTY', 'OCR returned empty text');
-    }
-
-    return data;
-  }
-
-  private async fetchWithTimeout(
-    url: string,
-    options: RequestInit,
-    timeoutMs: number,
-  ): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, { ...options, signal: controller.signal });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new OcrError('OCR_TIMEOUT', 'OCR request timed out');
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  private async getOcrConfig(): Promise<{ baseUrl: string; timeoutMs: number }> {
-    const stored = await this.systemConfigService.getValue<{ baseUrl?: string; timeoutMs?: number }>(
+  private async getOcrConfig(): Promise<Partial<BaiduOcrConfig>> {
+    const stored = await this.systemConfigService.getValue<{ apiKey?: string; secretKey?: string }>(
       'ocr',
     );
-    const baseUrl = (stored?.baseUrl?.trim() || this.defaultOcrServiceUrl).replace(/\/$/, '');
-    const timeoutMs = stored?.timeoutMs ?? this.defaultOcrTimeoutMs;
-    return { baseUrl, timeoutMs };
+    return {
+      apiKey: stored?.apiKey?.trim() || this.defaultApiKey,
+      secretKey: stored?.secretKey?.trim() || this.defaultSecretKey,
+    };
   }
 }

@@ -16,7 +16,6 @@ import {
   Tag,
   Table,
   Typography,
-  message,
 } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -29,6 +28,7 @@ import {
   updateAdminConfig,
 } from '../../api';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type HealthState = {
   ok: boolean;
@@ -75,6 +75,7 @@ type LlmLogItem = {
 
 export const AdminConfigPage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const [form] = Form.useForm();
   const [llmTestForm] = Form.useForm();
   const queryClient = useQueryClient();

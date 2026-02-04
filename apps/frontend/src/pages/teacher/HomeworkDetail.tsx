@@ -18,7 +18,6 @@ import {
   Tag,
   Typography,
   Upload,
-  message,
 } from 'antd';
 import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -42,6 +41,7 @@ import {
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type HomeworkItem = {
   id: string;
@@ -64,6 +64,7 @@ export const TeacherHomeworkDetailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, language } = useI18n();
+  const message = useMessage();
   const state = location.state as { homework?: HomeworkItem; classId?: string | null } | undefined;
   const homework = state?.homework;
   const classId = state?.classId || '';

@@ -1,6 +1,6 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
-import { Alert, Button, InputNumber, List, Space, Typography, message } from 'antd';
+import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -10,6 +10,7 @@ import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type StudentReport = {
   studentId: string;
@@ -23,6 +24,7 @@ type StudentReport = {
 
 export const StudentReportPage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const [rangeDays, setRangeDays] = useState(7);
   const [exporting, setExporting] = useState(false);
   const reportRef = useRef<HTMLDivElement | null>(null);

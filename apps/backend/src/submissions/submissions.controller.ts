@@ -36,7 +36,17 @@ export class SubmissionsController {
   @UseInterceptors(
     FilesInterceptor('images', 3, {
       storage: memoryStorage(),
-      limits: { files: 3 },
+      limits: { files: 3, fileSize: 10 * 1024 * 1024 }, // 10MB per file
+      fileFilter: (_req, file, cb) => {
+        // Validate image file types
+        const allowedTypes = /jpeg|jpg|png|webp|gif/;
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (mimetype) {
+          cb(null, true);
+        } else {
+          cb(null, false);
+        }
+      },
     }),
   )
   async create(

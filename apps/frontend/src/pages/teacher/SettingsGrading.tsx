@@ -1,5 +1,5 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Button, Descriptions, Divider, Select, Space, Tag, Typography, message } from 'antd';
+import { Button, Descriptions, Divider, Select, Space, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -15,9 +15,11 @@ import {
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 export const TeacherSettingsGradingPage = () => {
   const { t } = useI18n();
+  const message = useMessage();
   const queryClient = useQueryClient();
   const [selectedClassId, setSelectedClassId] = useState<string | undefined>();
   const [selectedHomeworkId, setSelectedHomeworkId] = useState<string | undefined>();

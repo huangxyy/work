@@ -1,5 +1,5 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Typography, message } from 'antd';
+import { Button, Card, Form, Input, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,12 +7,14 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { CountUpNumber } from '../components/CountUpNumber';
 import { authStore, fetchPublicOverview, login } from '../api';
 import { useI18n } from '../i18n';
+import { useMessage } from '../hooks/useMessage';
 
 export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const message = useMessage();
 
   const { data: overview } = useQuery({
     queryKey: ['public-overview', 7],

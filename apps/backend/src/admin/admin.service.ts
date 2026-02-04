@@ -8,6 +8,7 @@ import { SystemConfigService } from '../system-config/system-config.service';
 import { LlmConfigService, type LlmProviderConfig } from '../llm/llm-config.service';
 import { LlmLogsService } from '../llm/llm-logs.service';
 import { QueueService } from '../queue/queue.service';
+import { BaiduOcrService } from '../ocr/baidu-ocr.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
@@ -35,8 +36,8 @@ type LlmConfig = {
 };
 
 type OcrConfig = {
-  baseUrl?: string;
-  timeoutMs?: number;
+  apiKey?: string;
+  secretKey?: string;
 };
 
 type BudgetConfig = {
@@ -65,6 +66,7 @@ export class AdminService {
     private readonly llmConfigService: LlmConfigService,
     private readonly llmLogsService: LlmLogsService,
     private readonly queueService: QueueService,
+    private readonly baiduOcrService: BaiduOcrService,
   ) {}
 
   async getMetrics() {
@@ -452,10 +454,22 @@ export class AdminService {
 
     if (dto.ocr) {
       const existing = (await this.systemConfigService.getValue<OcrConfig>('ocr')) || {};
-      const next: OcrConfig = { ...existing, ...dto.ocr };
-      this.applyTextUpdate(next, 'baseUrl', dto.ocr.baseUrl);
-      if (dto.ocr.timeoutMs !== undefined) {
-        next.timeoutMs = dto.ocr.timeoutMs;
+      const next: OcrConfig = { ...existing };
+      if (dto.ocr.apiKey !== undefined) {
+        const trimmed = dto.ocr.apiKey.trim();
+        if (trimmed) {
+          next.apiKey = trimmed;
+        } else {
+          delete next.apiKey;
+        }
+      }
+      if (dto.ocr.secretKey !== undefined) {
+        const trimmed = dto.ocr.secretKey.trim();
+        if (trimmed) {
+          next.secretKey = trimmed;
+        } else {
+          delete next.secretKey;
+        }
       }
       await this.systemConfigService.setValue('ocr', this.stripUndefined(next));
     }
@@ -533,22 +547,16 @@ export class AdminService {
   async testOcrConnection() {
     const checkedAt = new Date().toISOString();
     const ocrConfig = await this.systemConfigService.getValue<OcrConfig>('ocr');
-    const baseUrl = this.normalizeText(ocrConfig?.baseUrl) ||
-      this.configService.get<string>('OCR_BASE_URL') ||
-      'http://localhost:8000';
-    const timeoutMs = ocrConfig?.timeoutMs ??
-      Number(this.configService.get<string>('OCR_TIMEOUT_MS') || '10000');
-    const startedAt = Date.now();
-    const response = await this.fetchWithTimeout(`${baseUrl.replace(/\/$/, '')}/health`, {
-      method: 'GET',
-    }, timeoutMs);
-    const latencyMs = Date.now() - startedAt;
-    if (!response.ok) {
-      const result = { ok: false, status: response.status, latencyMs, reason: response.errorText };
-      await this.storeHealthStatus('ocr', { ...result, checkedAt });
-      return result;
-    }
-    const result = { ok: true, status: response.status, latencyMs };
+    const apiKey = this.normalizeText(ocrConfig?.apiKey) ||
+      this.configService.get<string>('BAIDU_OCR_API_KEY') || '';
+    const secretKey = this.normalizeText(ocrConfig?.secretKey) ||
+      this.configService.get<string>('BAIDU_OCR_SECRET_KEY') || '';
+
+    const config: Partial<{ apiKey: string; secretKey: string }> = {};
+    if (apiKey) config.apiKey = apiKey;
+    if (secretKey) config.secretKey = secretKey;
+
+    const result = await this.baiduOcrService.testConnection(config);
     await this.storeHealthStatus('ocr', { ...result, checkedAt });
     return result;
   }
@@ -761,13 +769,13 @@ export class AdminService {
   }
 
   private buildOcrConfig(overrides: OcrConfig | null) {
-    const envBaseUrl = this.configService.get<string>('OCR_BASE_URL') || 'http://localhost:8000';
-    const envTimeout = Number(this.configService.get<string>('OCR_TIMEOUT_MS') || '10000');
+    const envApiKey = this.configService.get<string>('BAIDU_OCR_API_KEY') || '';
+    const envSecretKey = this.configService.get<string>('BAIDU_OCR_SECRET_KEY') || '';
 
-    const baseUrl = this.normalizeText(overrides?.baseUrl) || envBaseUrl;
-    const timeoutMs = overrides?.timeoutMs ?? envTimeout;
-
-    return { baseUrl, timeoutMs };
+    return {
+      apiKeySet: Boolean(this.normalizeText(overrides?.apiKey) || envApiKey),
+      secretKeySet: Boolean(this.normalizeText(overrides?.secretKey) || envSecretKey),
+    };
   }
 
   private buildBudgetConfig(overrides: BudgetConfig | null) {

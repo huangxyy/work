@@ -28,13 +28,6 @@ services:
     volumes:
       - minio-data:/data
 
-  ocr-service:
-    build:
-      context: ../services/ocr-service
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped

@@ -8,13 +8,14 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Alert, Button, Select, Skeleton, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Select, Skeleton, Space, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createHomework, fetchClasses, fetchHomeworksSummaryByClass } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type HomeworkItem = {
   id: string;
@@ -37,6 +38,7 @@ type ClassOption = {
 };
 
 export const TeacherHomeworksPage = () => {
+  const message = useMessage();
   const queryClient = useQueryClient();
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const navigate = useNavigate();

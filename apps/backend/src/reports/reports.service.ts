@@ -2,8 +2,10 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { existsSync } from 'fs';
 import { isAbsolute, resolve } from 'path';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
-import PDFDocument = require('pdfkit');
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../prisma/prisma.service';
+
+type PDFDocumentInstance = InstanceType<typeof PDFDocument>;
 import { AuthUser } from '../auth/auth.types';
 import { ReportRangeQueryDto } from './dto/report-range-query.dto';
 
@@ -671,7 +673,7 @@ export class ReportsService {
       .join(',');
   }
 
-  private renderPdf(build: (doc: PDFDocument) => void): Promise<Buffer> {
+  private renderPdf(build: (doc: PDFDocumentInstance) => void): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 48 });
       const chunks: Buffer[] = [];
@@ -683,7 +685,7 @@ export class ReportsService {
     });
   }
 
-  private writeHeader(doc: PDFDocument, title: string, lines: string[]) {
+  private writeHeader(doc: PDFDocumentInstance, title: string, lines: string[]) {
     doc.fontSize(18).text(title, { align: 'left' });
     doc.moveDown(0.5);
     doc.fontSize(11);
@@ -691,7 +693,7 @@ export class ReportsService {
     doc.moveDown(1.2);
   }
 
-  private writeSection(doc: PDFDocument, title: string, body: () => void) {
+  private writeSection(doc: PDFDocumentInstance, title: string, body: () => void) {
     doc.fontSize(14).text(title, { underline: true });
     doc.moveDown(0.4);
     doc.fontSize(11);
@@ -699,7 +701,7 @@ export class ReportsService {
     doc.moveDown(0.8);
   }
 
-  private writeKeyValues(doc: PDFDocument, rows: Array<[string, number | string]>) {
+  private writeKeyValues(doc: PDFDocumentInstance, rows: Array<[string, number | string]>) {
     rows.forEach(([label, value]) => {
       doc.text(`${label}: ${value}`);
     });

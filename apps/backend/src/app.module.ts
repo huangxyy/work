@@ -14,6 +14,7 @@ import { ReportsModule } from './reports/reports.module';
 import { AdminModule } from './admin/admin.module';
 import { PublicModule } from './public/public.module';
 import { TeacherSettingsModule } from './teacher-settings/teacher-settings.module';
+import { OcrModule } from './ocr/ocr.module';
 
 const buildRedisConnection = (redisUrl: string) => {
   try {
@@ -55,6 +56,7 @@ const buildRedisConnection = (redisUrl: string) => {
     AdminModule,
     PublicModule,
     TeacherSettingsModule,
+    OcrModule,
   ],
 })
 export class AppModule {}

@@ -1,113 +1,243 @@
-# Homework AI Monorepo（中文指南）
+# Homework AI - AI英语作文批改系统
 
-面向“作业图片 ➜ OCR ➜ LLM 评分”的全链路样板工程，覆盖前后端、异步队列、对象存储与 OCR mock。当前状态为 Phase A 脚手架，可跑通健康检查与队列 demo，后续可按需求逐步扩展。
+面向"作业图片 -> OCR -> LLM 批改"的全链路系统，支持学生提交手写作业图片，自动完成文字识别和AI批改评分。
+
+## 功能特性
+
+- **多角色权限系统**：学生、教师、管理员三种角色
+- **作业管理**：教师创建作业、班级管理、学生导入
+- **图片提交**：学生支持1-3张作业图片上传
+- **OCR识别**：百度OCR文字识别
+- **AI批改**：DeepSeek LLM智能评分与建议
+- **异步处理**：BullMQ队列处理批改任务
+- **报表导出**：班级/学生报表、CSV导出
 
 ## 目录结构
-- `apps/backend`：NestJS API + BullMQ worker，Prisma 模型与迁移
-- `apps/frontend`：Vite + React + Ant Design 前端
-- `services/ocr-service`：FastAPI OCR 模拟服务
-- `deploy/docker-compose.yml`：一键拉起 MySQL、Redis、MinIO、OCR 与 Nginx（前端静态）
-- `docs/`：占位文档
+
+```
+apps/
+├── backend/           # NestJS API + BullMQ Worker
+│   ├── prisma/        # 数据库模型与迁移
+│   ├── src/
+│   │   ├── admin/     # 管理员功能
+│   │   ├── auth/      # JWT认证
+│   │   ├── classes/   # 班级管理
+│   │   ├── grading/   # AI批改服务
+│   │   ├── homeworks/ # 作业管理
+│   │   ├── ocr/       # 百度OCR服务
+│   │   ├── queue/     # BullMQ队列
+│   │   ├── reports/   # 报表服务
+│   │   ├── retention/ # 数据清理
+│   │   ├── storage/   # MinIO对象存储
+│   │   ├── submissions/ # 提交管理
+│   │   ├── worker/    # 后台Worker进程
+│   │   └── main.ts    # API入口
+│   └── .env           # 环境配置
+├── frontend/          # Vite + React + Ant Design
+└── deploy/            # Docker Compose配置
+docs/                  # 项目文档
+```
 
 ## 技术栈
-- Monorepo：pnpm workspaces
-- 后端：NestJS、Prisma、MySQL、Redis、BullMQ、JWT（预留）、MinIO/S3 封装（预留）
-- 前端：React 18、Vite、TypeScript、Ant Design、React Router、React Query、ECharts（待接入）
-- OCR：FastAPI + PaddleOCR 预留，目前为 mock
+
+- **Monorepo**: pnpm workspaces
+- **后端**: NestJS、Prisma、MySQL、Redis、BullMQ、JWT
+- **前端**: React 18、Vite、TypeScript、Ant Design、React Router、React Query
+- **OCR**: 百度OCR API
+- **LLM**: DeepSeek API (OpenAI兼容)
+- **存储**: MinIO (S3兼容)
+- **代理**: Nginx
 
 ## 本地开发
-前置：Node.js 18+、pnpm、Python 3.11+（如需跑 OCR 服务）
+
+### 前置要求
+
+- Node.js 18+
+- pnpm
+- Docker & Docker Compose
+
+### 1. 启动依赖服务
 
 ```bash
-# 安装依赖（根目录）
-pnpm install
+cd deploy
+docker-compose up -d
+```
 
-# 复制环境变量
-cp apps/backend/.env.example apps/backend/.env
-cp apps/frontend/.env.example apps/frontend/.env
+这将启动：MySQL、Redis、MinIO、Nginx
 
-# 生成 Prisma 客户端
+### 2. 配置后端环境变量
+
+```bash
+cd apps/backend
+cp .env.example .env
+```
+
+编辑 `.env` 文件，配置：
+- `DATABASE_URL`: MySQL连接字符串
+- `REDIS_URL`: Redis连接字符串
+- `BAIDU_OCR_API_KEY`: 百度OCR API密钥
+- `BAIDU_OCR_SECRET_KEY`: 百度OCR密钥
+- `LLM_API_KEY`: DeepSeek API密钥
+- `LLM_BASE_URL`: DeepSeek API地址
+- `LLM_MAX_TOKENS`: 建议2000（太小会导致JSON截断）
+
+### 3. 初始化数据库
+
+```bash
 pnpm --filter backend prisma:generate
-
-# 可选：初始化测试账号（仅本地）
-# 在 apps/backend/.env 中设置 SEED_USERS=true 后执行
-pnpm --filter backend exec prisma db seed
-
-# 启动后台 API（需要 MySQL/Redis）
-pnpm --filter backend start:dev
-
-# 启动 Worker（监听 BullMQ grading 队列）
-pnpm --filter backend start:worker:dev
-
-# 启动前端（开发模式）
-pnpm --filter frontend dev
+pnpm --filter backend prisma:db:push
+pnpm --filter backend prisma:db:seed
 ```
 
-## 本地前后端 + Docker 依赖服务（推荐）
-前后端都在本地运行，MySQL/Redis/MinIO/OCR 在 Docker 中运行；前端通过 Nginx 反向代理访问，避免直接暴露开发端口。
+### 4. 启动后端服务
+
+**重要：需要启动两个独立进程**
+
+启动API服务器（终端1）：
+```bash
+cd apps/backend
+npm run start:dev
+# 或执行 start-api.bat
+```
+
+启动Worker进程（终端2）：
+```bash
+cd apps/backend
+npm run start:worker:dev
+# 或执行 start-worker.bat
+```
+
+### 5. 启动前端
 
 ```bash
-# 1) 启动依赖服务（在仓库根目录）
-docker compose -f deploy/docker-compose.yml up -d mysql redis minio ocr-service
-
-# 2) 启动后端（宿主机）
-pnpm --filter backend start:dev
-pnpm --filter backend start:worker:dev
-
-# 3) 启动前端（宿主机）
-# 通过 Nginx 反代到本地 API
-# Windows CMD: set VITE_API_BASE_URL=/api
-# PowerShell:  $env:VITE_API_BASE_URL="/api"
-# macOS/Linux: export VITE_API_BASE_URL=/api
-pnpm --filter frontend dev
-
-# 4) 启动 Nginx（容器）
-docker compose -f deploy/docker-compose.yml up -d nginx
+cd apps/frontend
+npm run dev
 ```
 
-访问：
-- 前端：`http://localhost/`
-- API：`http://localhost:3000/api`
-- OCR：`http://localhost:8000`
-- MinIO 控制台：`http://localhost:9001`
+### 6. 访问应用
 
-说明：Nginx 现在会代理前端到本地 `http://host.docker.internal:3001`（Vite dev）。若你不希望 3001 暴露到局域网，请配合系统防火墙限制。
+- **前端**: http://localhost/
+- **API**: http://localhost/api/*
+- **MinIO控制台**: http://localhost:9001
 
-## Docker + Nginx（前端构建部署）
-如果需要用 Nginx 提供前端静态资源：
+### 默认测试账号
+
+| 角色 | 账号 | 密码 |
+|------|------|------|
+| 管理员 | admin | Test1234 |
+| 教师 | teacher01 | Test1234 |
+| 学生 | student01 | Test1234 |
+
+## 批改流程
+
+```
+学生上传图片
+    ↓
+API保存提交 (状态: QUEUED)
+    ↓
+入队BullMQ
+    ↓
+Worker处理任务
+    ↓
+百度OCR识别
+    ↓
+DeepSeek LLM批改
+    ↓
+保存结果 (状态: DONE / FAILED)
+```
+
+## 环境变量说明
+
+### 后端 (.env)
 
 ```bash
-# 构建前端并启动 Nginx
-# 建议设置 VITE_API_BASE_URL=/api 走 Nginx 反代
-# Windows CMD: set VITE_API_BASE_URL=/api
-# PowerShell:  $env:VITE_API_BASE_URL="/api"
-# macOS/Linux: export VITE_API_BASE_URL=/api
-pnpm --filter frontend build
-docker compose -f deploy/docker-compose.yml up -d nginx
+# 数据库
+DATABASE_URL=mysql://root:root@localhost:3306/homework_ai
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT
+JWT_SECRET=your-secret-key
+
+# MinIO存储
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=submissions
+
+# 百度OCR
+BAIDU_OCR_API_KEY=your-api-key
+BAIDU_OCR_SECRET_KEY=your-secret-key
+
+# DeepSeek LLM
+LLM_PROVIDER=deepseek
+LLM_API_KEY=your-api-key
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-chat
+LLM_MAX_TOKENS=2000
+LLM_TEMPERATURE=0.2
+LLM_MAX_INPUT_CHARS=6000
+LLM_DAILY_CALL_LIMIT=400
+
+# Worker
+WORKER_CONCURRENCY=5
+
+# 数据保留
+RETENTION_DAYS=7
+RETENTION_DRY_RUN=false
 ```
 
-访问：
-- 前端：`http://localhost/`
-- API：`http://localhost/api`
+### 前端 (.env)
 
-## 关键功能与现状
-- API 健康检查：`GET /api/health` 返回 `{ status: 'ok' }`
-- 队列 demo：`POST /api/queue/demo` body `{ "message": "hi" }` ➜ 投递到 BullMQ `grading` 队列，由 worker 处理并打印耗时
-- Prisma 模型：用户/班级/作业/提交等核心表已在 `apps/backend/prisma/schema.prisma` 定义
-- 前端路由：`/login`，学生（作业列表/提交/结果/报告）、老师（班级/作业/提交详情/报告）、管理员（配置）页面骨架已就绪
-- OCR：`POST /ocr` 接收 `image_url` 或 `image_base64`，返回 mock 文本与置信度
+```bash
+VITE_API_BASE_URL=/api
+```
 
-## 环境变量
-- 后端示例：`apps/backend/.env.example`（包含 `DATABASE_URL`、`REDIS_URL`、`MINIO_*`、`OCR_BASE_URL`、`LLM_*`、`WORKER_CONCURRENCY` 等）
-- 前端示例：`apps/frontend/.env.example`（`VITE_API_BASE_URL`）
+## 常见问题
 
-## Documentation
-- 项目概览：`docs/PROJECT_OVERVIEW.md`
+### 1. 提交后状态一直是QUEUED
 
-## 后续扩展指引（按 Phase 路线）
-1. 完善 Auth + RBAC，接入 Prisma 迁移与 JWT
-2. 实现提交上传 ➜ MinIO/S3 存储封装 ➜ 队列状态机
-3. 接入真实 OCR（PaddleOCR）与 LLM 结构化 JSON 校验
-4. 报表/ECharts、PDF 导出、7 天清理任务等增量能力
+**原因**: Worker进程没有运行
 
-若需功能细化，可参考 `worktotal.markdown` 中的分阶段需求列表。
+**解决**: 确保启动了Worker进程 (`npm run start:worker:dev`)
+
+### 2. 批改失败，显示MAX_RETRIES_EXCEEDED
+
+**原因**: `LLM_MAX_TOKENS` 设置太小，导致AI响应JSON被截断
+
+**解决**: 将 `.env` 中的 `LLM_MAX_TOKENS` 改为 2000，然后重启Worker
+
+### 3. 前端显示502错误
+
+**原因**: 后端API或Worker没有运行
+
+**解决**: 检查并启动API服务器和Worker进程
+
+## Docker部署
+
+### 一键启动（仅依赖服务）
+
+```bash
+cd deploy
+docker-compose up -d mysql redis minio nginx
+```
+
+### 完整部署（包含后端）
+
+```bash
+cd deploy
+docker-compose up -d --build
+```
+
+## 文档
+
+- [项目概览](docs/PROJECT_OVERVIEW.md)
+- [架构说明](docs/ARCH.md)
+- [运维手册](docs/RUNBOOK.md)
+- [API文档](docs/OPENAPI.md)
+- [开发路线图](docs/future-roadmap.md)
+
+## 许可
+
+MIT License

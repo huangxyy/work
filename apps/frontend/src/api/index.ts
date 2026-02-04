@@ -98,6 +98,8 @@ export type TeacherSubmissionRow = {
   studentAccount: string;
   status: string;
   totalScore?: number | null;
+  errorCode?: string | null;
+  errorMsg?: string | null;
   updatedAt?: string;
 };
 
@@ -342,12 +344,20 @@ export const createHomework = async (payload: {
 export const createSubmission = async (payload: {
   homeworkId: string;
   files: File[];
+  mode?: 'cheap' | 'quality';
+  needRewrite?: boolean;
 }) => {
   const formData = new FormData();
   formData.append('homeworkId', payload.homeworkId);
   payload.files.forEach((file) => {
     formData.append('images', file);
   });
+  if (payload.mode !== undefined) {
+    formData.append('mode', payload.mode);
+  }
+  if (payload.needRewrite !== undefined) {
+    formData.append('needRewrite', String(payload.needRewrite));
+  }
   const response = await api.post('/submissions', formData);
   return response.data as { submissionId: string; status: string };
 };
@@ -394,6 +404,8 @@ export const fetchStudentSubmissions = async (params?: {
     homeworkTitle: string;
     status: 'QUEUED' | 'PROCESSING' | 'DONE' | 'FAILED';
     totalScore?: number | null;
+    errorCode?: string | null;
+    errorMsg?: string | null;
     updatedAt?: string;
   }>;
 };
@@ -911,6 +923,8 @@ export const fetchTeacherBatchUploadDetail = async (batchId: string) => {
       studentAccount: string;
       status: string;
       totalScore?: number | null;
+      errorCode?: string | null;
+      errorMsg?: string | null;
       updatedAt?: string;
     }>;
   };

@@ -46,9 +46,14 @@ export class GradingService {
   }
 
   async grade(text: string, options: GradeOptions = {}) {
+    // Validate input is not null or undefined
+    if (text == null) {
+      throw new GradingError('LLM_SCHEMA_INVALID', 'OCR text is null or undefined');
+    }
+
     const trimmed = text.trim();
     if (!trimmed) {
-      throw new GradingError('LLM_SCHEMA_INVALID', 'OCR text is empty');
+      throw new GradingError('LLM_SCHEMA_INVALID', 'OCR text is empty after trimming');
     }
 
     const rubric = options.rubric || DEFAULT_RUBRIC;
@@ -60,7 +65,12 @@ export class GradingService {
 
     let inputText = trimmed;
     if (trimmed.length > this.maxInputChars) {
-      inputText = trimmed.slice(0, this.maxInputChars);
+      // Smart truncation: keep beginning and end to preserve context
+      // This prevents cutting off conclusions or important ending content
+      const keepStart = Math.floor(this.maxInputChars * 0.7); // 70% from start
+      const keepEnd = Math.floor(this.maxInputChars * 0.25);  // 25% from end
+      const ellipsis = '... [content truncated]... ';
+      inputText = trimmed.slice(0, keepStart) + ellipsis + trimmed.slice(-keepEnd);
       degraded = true;
       degradeReason = 'INPUT_TOO_LONG';
     }
@@ -75,8 +85,12 @@ export class GradingService {
     };
 
     let attemptCount = 0;
+    const MAX_RETRY_ATTEMPTS = 3;
     const runAttempt = async (params: GradeEssayParams): Promise<AttemptOutcome> => {
       attemptCount += 1;
+      if (attemptCount > MAX_RETRY_ATTEMPTS) {
+        throw new GradingError('MAX_RETRIES_EXCEEDED', `Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) exceeded`);
+      }
       return this.invokeModel(params);
     };
 
@@ -113,9 +127,10 @@ export class GradingService {
           }
         } else if (error instanceof GradingError && error.code === 'LLM_SCHEMA_INVALID') {
           try {
+            // Retry with lower temperature and increased maxTokens for better schema compliance
             const outcome = await runAttempt({
               ...baseParams,
-              maxTokens: this.defaultMaxTokens,
+              maxTokens: Math.max(this.defaultMaxTokens, this.retryMaxTokens),
               strictJson: true,
               temperature: 0,
             });
@@ -232,6 +247,8 @@ export class GradingService {
     if (!trimmed) {
       throw new GradingError('LLM_SCHEMA_INVALID', 'Empty LLM response');
     }
+    // Debug: log raw response
+    this.logger.debug(`LLM raw response (first 500 chars): ${trimmed.slice(0, 500)}`);
     const candidates = this.buildJsonCandidates(trimmed);
     for (const candidate of candidates) {
       const parsed = this.tryParseJson(candidate);

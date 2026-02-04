@@ -1,5 +1,4 @@
 import { Type } from 'class-transformer';
-import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
@@ -7,6 +6,8 @@ import {
   IsOptional,
   IsString,
   ValidateNested,
+  Min,
+  Max,
 } from 'class-validator';
 
 export class LlmConfigDto {
@@ -37,31 +38,43 @@ export class LlmConfigDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(1)
+  @Max(32000)
   maxTokens?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(0)
+  @Max(2)
   temperature?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(0)
+  @Max(1)
   topP?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(-2)
+  @Max(2)
   presencePenalty?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(-2)
+  @Max(2)
   frequencyPenalty?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(1000)
+  @Max(120000)
   timeoutMs?: number;
 
   @IsOptional()
@@ -154,12 +167,11 @@ export class LlmProviderConfigDto {
 export class OcrConfigDto {
   @IsOptional()
   @IsString()
-  baseUrl?: string;
+  apiKey?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  timeoutMs?: number;
+  @IsString()
+  secretKey?: string;
 }
 
 export class BudgetConfigDto {

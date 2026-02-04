@@ -22,7 +22,7 @@ const emptySvg = encodeURIComponent(`
 const image = `data:image/svg+xml;utf8,${emptySvg}`;
 
 export const SoftEmpty = ({ description, imageHeight = 96, children }: SoftEmptyProps) => (
-  <Empty className="soft-empty" image={image} imageStyle={{ height: imageHeight }} description={description}>
+  <Empty className="soft-empty" image={image} styles={{ image: { height: imageHeight } }} description={description}>
     {children}
   </Empty>
 );

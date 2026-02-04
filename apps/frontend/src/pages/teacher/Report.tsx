@@ -2,7 +2,7 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { Alert, Button, InputNumber, List, Select, Space, Typography, message } from 'antd';
+import { Alert, Button, InputNumber, List, Select, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -14,6 +14,7 @@ import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { useMessage } from '../../hooks/useMessage';
 
 type ReportSummary = {
   avg: number;
@@ -63,6 +64,7 @@ type ClassReport = {
 
 export const TeacherReportPage = () => {
   const { t, language } = useI18n();
+  const message = useMessage();
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [rangeDays, setRangeDays] = useState<number>(7);
   const [exporting, setExporting] = useState(false);
