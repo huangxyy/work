@@ -93,6 +93,14 @@ export const TeacherHomeworkDetailPage = () => {
       NON_IMAGE: t('teacher.batchUpload.reason.nonImage'),
       ACCOUNT_NOT_FOUND: t('teacher.batchUpload.reason.accountNotFound'),
       STUDENT_NOT_FOUND: t('teacher.batchUpload.reason.studentNotFound'),
+      OCR_EMPTY: t('teacher.batchUpload.reason.ocrEmpty'),
+      OCR_FAILED: t('teacher.batchUpload.reason.ocrFailed'),
+      AI_NO_MATCH: t('teacher.batchUpload.reason.aiNoMatch'),
+      AI_AMBIGUOUS: t('teacher.batchUpload.reason.aiAmbiguous'),
+      AI_PARSE_FAILED: t('teacher.batchUpload.reason.aiParseFailed'),
+      AI_NOT_CONFIGURED: t('teacher.batchUpload.reason.aiNotConfigured'),
+      AI_FAILED: t('teacher.batchUpload.reason.aiFailed'),
+      OVERRIDE_NOT_FOUND: t('teacher.batchUpload.reason.overrideNotFound'),
     }),
     [t],
   );
@@ -803,6 +811,12 @@ export const TeacherHomeworkDetailPage = () => {
                                   <Typography.Text type="secondary">
                                     {reasonLabels[item.reason as keyof typeof reasonLabels] || item.reason}
                                   </Typography.Text>
+                                  {item.analysisZh || item.analysisEn ? (
+                                    <Typography.Text type="secondary">
+                                      {item.analysisZh}
+                                      {item.analysisEn ? ` / ${item.analysisEn}` : ''}
+                                    </Typography.Text>
+                                  ) : null}
                                 </Space>
                                 <Select
                                   style={{ minWidth: 200 }}
@@ -870,10 +884,18 @@ export const TeacherHomeworkDetailPage = () => {
                           pagination={{ pageSize: 6 }}
                           renderItem={(item) => (
                             <List.Item>
-                              <Typography.Text>{item.file}</Typography.Text>
-                              <Typography.Text type="secondary">
-                                {reasonLabels[item.reason as keyof typeof reasonLabels] || item.reason}
-                              </Typography.Text>
+                              <Space direction="vertical" size={0}>
+                                <Typography.Text>{item.file}</Typography.Text>
+                                <Typography.Text type="secondary">
+                                  {reasonLabels[item.reason as keyof typeof reasonLabels] || item.reason}
+                                </Typography.Text>
+                                {item.analysisZh || item.analysisEn ? (
+                                  <Typography.Text type="secondary">
+                                    {item.analysisZh}
+                                    {item.analysisEn ? ` / ${item.analysisEn}` : ''}
+                                  </Typography.Text>
+                                ) : null}
+                              </Space>
                             </List.Item>
                           )}
                         />

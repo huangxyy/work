@@ -2,9 +2,12 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { Role, SubmissionStatus } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { GradingPolicyService } from '../grading-policy/grading-policy.service';
+import { BaiduOcrService } from '../ocr/baidu-ocr.service';
+import { LlmConfigService } from '../llm/llm-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 import { StorageService } from '../storage/storage.service';
+import { SystemConfigService } from '../system-config/system-config.service';
 import { SubmissionsService } from './submissions.service';
 
 describe('SubmissionsService', () => {
@@ -13,6 +16,9 @@ describe('SubmissionsService', () => {
   let storageService: jest.Mocked<StorageService>;
   let queueService: jest.Mocked<QueueService>;
   let gradingPolicyService: jest.Mocked<GradingPolicyService>;
+  let ocrService: jest.Mocked<BaiduOcrService>;
+  let systemConfigService: jest.Mocked<SystemConfigService>;
+  let llmConfigService: jest.Mocked<LlmConfigService>;
 
   const mockStudent: AuthUser = {
     id: 'student-1',
@@ -98,11 +104,31 @@ describe('SubmissionsService', () => {
       }),
     } as unknown as jest.Mocked<GradingPolicyService>;
 
+    ocrService = {
+      recognize: jest.fn(),
+    } as unknown as jest.Mocked<BaiduOcrService>;
+
+    systemConfigService = {
+      getValue: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<SystemConfigService>;
+
+    llmConfigService = {
+      resolveRuntimeConfig: jest.fn().mockResolvedValue({
+        providerName: 'llm',
+        baseUrl: '',
+        headers: {},
+        prices: {},
+      }),
+    } as unknown as jest.Mocked<LlmConfigService>;
+
     service = new SubmissionsService(
       prismaService,
       storageService,
       queueService,
       gradingPolicyService,
+      ocrService,
+      systemConfigService,
+      llmConfigService,
     );
   });
 

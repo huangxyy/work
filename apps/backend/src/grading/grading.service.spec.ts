@@ -20,7 +20,7 @@ describe('GradingService', () => {
       coherence: 15,
     },
     errors: [],
-    suggestions: { low: [], mid: [], high: [] },
+    suggestions: { low: [], mid: [], high: [], sampleEssay: 'Sample essay.' },
     summary: 'Good work.',
     nextSteps: ['Keep practicing.'],
   });
@@ -225,7 +225,7 @@ describe('GradingService', () => {
           coherence: 15,
         },
         errors: [],
-        suggestions: { low: [], mid: [], high: [] },
+        suggestions: { low: [], mid: [], high: [], sampleEssay: 'Sample essay.' },
         summary: 'Good work.',
         nextSteps: ['Keep practicing.'],
       }).replace('}', ',}');

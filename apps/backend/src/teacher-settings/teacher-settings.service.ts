@@ -138,8 +138,8 @@ export class TeacherSettingsService {
         : Promise.resolve([]),
     ]);
 
-    const countMap = new Map(
-      submissionCounts.map((item) => [item.homeworkId as string, item._count._all]),
+    const countMap = new Map<string, number>(
+      submissionCounts.map((item): [string, number] => [item.homeworkId as string, item._count._all]),
     );
     const lastStatusMap = new Map<string, { status: string; updatedAt: Date }>();
     for (const submission of recentSubmissions) {

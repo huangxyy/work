@@ -108,7 +108,16 @@ export type TeacherBatchUploadResult = {
   totalImages: number;
   acceptedImages: number;
   createdSubmissions: number;
-  skipped: Array<{ file: string; reason: string }>;
+  skipped: Array<{
+    file: string;
+    reason: string;
+    fileKey?: string;
+    analysisZh?: string;
+    analysisEn?: string;
+    confidence?: number;
+    matchedAccount?: string | null;
+    matchedBy?: string;
+  }>;
   submissions: Array<{
     submissionId: string;
     studentAccount: string;
@@ -116,6 +125,17 @@ export type TeacherBatchUploadResult = {
     imageCount: number;
   }>;
   batchId?: string;
+  matchResults?: Array<{
+    file: string;
+    fileKey: string;
+    matchedAccount?: string | null;
+    matchedName?: string | null;
+    matchedBy?: string;
+    confidence?: number;
+    analysisZh?: string;
+    analysisEn?: string;
+    reason?: string;
+  }>;
 };
 
 export type TeacherBatchPreviewResult = {
@@ -124,15 +144,92 @@ export type TeacherBatchPreviewResult = {
   matchedImages: number;
   unmatchedCount: number;
   groups: Array<{ account: string; name: string; imageCount: number }>;
-  unmatched: Array<{ file: string; reason: string; fileKey?: string }>;
-  skipped: Array<{ file: string; reason: string; fileKey?: string }>;
+  unmatched: Array<{
+    file: string;
+    reason: string;
+    fileKey?: string;
+    analysisZh?: string;
+    analysisEn?: string;
+    confidence?: number;
+    matchedAccount?: string | null;
+    matchedBy?: string;
+  }>;
+  skipped: Array<{
+    file: string;
+    reason: string;
+    fileKey?: string;
+    analysisZh?: string;
+    analysisEn?: string;
+    confidence?: number;
+    matchedAccount?: string | null;
+    matchedBy?: string;
+  }>;
+  matchResults?: Array<{
+    file: string;
+    fileKey: string;
+    matchedAccount?: string | null;
+    matchedName?: string | null;
+    matchedBy?: string;
+    confidence?: number;
+    analysisZh?: string;
+    analysisEn?: string;
+    reason?: string;
+  }>;
 };
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
 });
 
+type RequestMeta = { requestKey?: string };
+type ConfigWithMeta = {
+  metadata?: RequestMeta;
+} & {
+  method?: string;
+  baseURL?: string;
+  url?: string;
+  params?: unknown;
+  signal?: AbortSignal;
+  headers?: unknown;
+};
+
+const pendingRequests = new Map<string, AbortController>();
+
+const buildRequestKey = (config: ConfigWithMeta) => {
+  if (!config.method || !config.url) {
+    return null;
+  }
+  const method = config.method.toLowerCase();
+  if (method !== 'get') {
+    return null;
+  }
+  const base = config.baseURL ?? '';
+  const url = `${base}${config.url}`;
+  let params = '';
+  if (config.params) {
+    try {
+      params = JSON.stringify(config.params);
+    } catch {
+      params = '';
+    }
+  }
+  return `${method}:${url}:${params}`;
+};
+
 api.interceptors.request.use((config) => {
+  const configWithMeta = config as ConfigWithMeta;
+  const requestKey = buildRequestKey(configWithMeta);
+  if (requestKey && !configWithMeta.signal) {
+    const previous = pendingRequests.get(requestKey);
+    if (previous) {
+      previous.abort();
+    }
+    const controller = new AbortController();
+    configWithMeta.signal = controller.signal;
+    pendingRequests.set(requestKey, controller);
+    configWithMeta.metadata = { requestKey };
+  }
+
   const token = localStorage.getItem('auth_token');
   if (token) {
     const headers = (config.headers || {}) as AxiosRequestHeaders;
@@ -141,6 +238,25 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => {
+    const configWithMeta = response.config as ConfigWithMeta;
+    const requestKey = configWithMeta.metadata?.requestKey;
+    if (requestKey) {
+      pendingRequests.delete(requestKey);
+    }
+    return response;
+  },
+  (error) => {
+    const configWithMeta = (error?.config ?? {}) as ConfigWithMeta;
+    const requestKey = configWithMeta.metadata?.requestKey;
+    if (requestKey) {
+      pendingRequests.delete(requestKey);
+    }
+    return Promise.reject(error);
+  },
+);
 
 export const authStore = {
   getToken: () => localStorage.getItem('auth_token'),
@@ -897,7 +1013,16 @@ export const fetchTeacherBatchUploads = async (homeworkId: string) => {
     matchedImages: number;
     unmatchedCount: number;
     createdSubmissions: number;
-    skipped?: Array<{ file: string; reason: string; fileKey?: string }> | null;
+    skipped?: Array<{
+      file: string;
+      reason: string;
+      fileKey?: string;
+      analysisZh?: string;
+      analysisEn?: string;
+      confidence?: number;
+      matchedAccount?: string | null;
+      matchedBy?: string;
+    }> | null;
     mode?: string | null;
     needRewrite: boolean;
     createdAt: string;
@@ -916,7 +1041,16 @@ export const fetchTeacherBatchUploadDetail = async (batchId: string) => {
     matchedImages: number;
     unmatchedCount: number;
     createdSubmissions: number;
-    skipped?: Array<{ file: string; reason: string; fileKey?: string }> | null;
+    skipped?: Array<{
+      file: string;
+      reason: string;
+      fileKey?: string;
+      analysisZh?: string;
+      analysisEn?: string;
+      confidence?: number;
+      matchedAccount?: string | null;
+      matchedBy?: string;
+    }> | null;
     mode?: string | null;
     needRewrite: boolean;
     createdAt: string;

@@ -141,7 +141,7 @@ export class CheapProvider implements LlmProvider {
 
   private extractContent(data: {
     choices?: Array<{ message?: { content?: string }; text?: string }>;
-  }): string {
+  } | null): string {
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text;
     if (!content) {
       this.logger.warn('LLM response missing content');

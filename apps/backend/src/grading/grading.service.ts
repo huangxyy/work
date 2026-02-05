@@ -91,7 +91,14 @@ export class GradingService {
       if (attemptCount > MAX_RETRY_ATTEMPTS) {
         throw new GradingError('MAX_RETRIES_EXCEEDED', `Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) exceeded`);
       }
-      return this.invokeModel(params);
+      try {
+        return await this.invokeModel(params);
+      } catch (error) {
+        if (attemptCount >= MAX_RETRY_ATTEMPTS) {
+          throw new GradingError('MAX_RETRIES_EXCEEDED', `Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) exceeded`);
+        }
+        throw error;
+      }
     };
 
     if (!degraded) {

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
@@ -14,9 +15,13 @@ import { Readable } from 'stream';
 import * as unzipper from 'unzipper';
 import { AuthUser } from '../auth/auth.types';
 import { GradingPolicyService } from '../grading-policy/grading-policy.service';
+import { BaiduOcrService } from '../ocr/baidu-ocr.service';
+import { BaiduOcrConfig } from '../ocr/ocr.types';
+import { LlmConfigService, type LlmRuntimeConfig } from '../llm/llm-config.service';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { SystemConfigService } from '../system-config/system-config.service';
 import { CreateBatchSubmissionsDto } from './dto/create-batch-submissions.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { RegradeHomeworkSubmissionsDto } from './dto/regrade-homework-submissions.dto';
@@ -34,6 +39,39 @@ type BatchSkip = {
   file: string;
   reason: string;
   fileKey?: string;
+  analysisZh?: string;
+  analysisEn?: string;
+  confidence?: number;
+  matchedAccount?: string | null;
+  matchedBy?: string;
+};
+
+type BatchMatchResult = {
+  file: string;
+  fileKey: string;
+  matchedAccount?: string | null;
+  matchedName?: string | null;
+  matchedBy?: string;
+  confidence?: number;
+  analysisZh?: string;
+  analysisEn?: string;
+  reason?: string;
+};
+
+type MatchOutcome = {
+  account: string | null;
+  matchedBy?: 'override' | 'filename' | 'ocr' | 'ai';
+  confidence?: number;
+  analysisZh?: string;
+  analysisEn?: string;
+  reason?: string;
+};
+
+type StudentCandidate = {
+  id: string;
+  account: string;
+  name: string;
+  normalized: string;
 };
 
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff']);
@@ -55,11 +93,16 @@ const MAX_ZIP_ENTRY_BYTES = Number.isFinite(Number(process.env.BATCH_ZIP_MAX_ENT
 
 @Injectable()
 export class SubmissionsService {
+  private readonly logger = new Logger(SubmissionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly queueService: QueueService,
     private readonly gradingPolicyService: GradingPolicyService,
+    private readonly baiduOcrService: BaiduOcrService,
+    private readonly systemConfigService: SystemConfigService,
+    private readonly llmConfigService: LlmConfigService,
   ) {}
 
   async createSubmission(
@@ -105,7 +148,7 @@ export class SubmissionsService {
       },
     });
 
-    const images = [];
+    const images: Array<{ submissionId: string; objectKey: string }> = [];
 
     for (const file of files) {
       const objectKey = `submissions/${submission.id}/${randomUUID()}.jpg`;
@@ -779,10 +822,18 @@ export class SubmissionsService {
       include: { student: { select: { id: true, account: true, name: true } } },
     });
 
-    const accountMap = new Map(
-      enrollments.map((enrollment) => [enrollment.student.account, enrollment.student]),
-    );
-    const accountList = Array.from(accountMap.keys()).sort((a, b) => b.length - a.length);
+    const candidates: StudentCandidate[] = enrollments
+      .map((enrollment) => enrollment.student)
+      .filter((student) => student.account)
+      .map((student) => ({
+        id: student.id,
+        account: student.account,
+        name: student.name,
+        normalized: this.normalizeAccountValue(student.account),
+      }))
+      .filter((student) => student.normalized);
+    const accountMap = new Map(candidates.map((student) => [student.account, student]));
+    const accountList = candidates.map((student) => student.account).sort((a, b) => b.length - a.length);
 
     const mappingOverrides = this.parseMappingOverrides(dto.mappingOverrides);
     const dryRun = Boolean(dto.dryRun);
@@ -841,25 +892,55 @@ export class SubmissionsService {
 
       const grouped = new Map<string, BatchImage[]>();
       const unmatched: BatchSkip[] = [];
+      const matchResults: BatchMatchResult[] = [];
+      const ocrConfig = await this.getOcrConfig();
+      const llmRuntime = await this.llmConfigService.resolveRuntimeConfig();
       let matchedImages = 0;
       for (const image of images) {
-        const resolved = this.resolveAccountWithOverrides(
+        const outcome = await this.resolveAccountForImage({
           image,
+          candidates,
           accountMap,
           accountList,
-          mappingOverrides,
-        );
-        if (!resolved) {
-          unmatched.push({ file: image.filename, reason: 'ACCOUNT_NOT_FOUND', fileKey: image.fileKey });
+          overrides: mappingOverrides,
+          ocrConfig,
+          llmRuntime,
+        });
+        const matchedStudent = outcome.account ? accountMap.get(outcome.account) : undefined;
+        matchResults.push({
+          file: image.filename,
+          fileKey: image.fileKey,
+          matchedAccount: outcome.account,
+          matchedName: matchedStudent?.name,
+          matchedBy: outcome.matchedBy,
+          confidence: outcome.confidence,
+          analysisZh: outcome.analysisZh,
+          analysisEn: outcome.analysisEn,
+          reason: outcome.reason,
+        });
+        if (!outcome.account || !matchedStudent) {
+          unmatched.push({
+            file: image.filename,
+            reason: outcome.reason || 'ACCOUNT_NOT_FOUND',
+            fileKey: image.fileKey,
+            analysisZh: outcome.analysisZh,
+            analysisEn: outcome.analysisEn,
+            confidence: outcome.confidence,
+            matchedAccount: outcome.account,
+            matchedBy: outcome.matchedBy,
+          });
           continue;
         }
-        const bucket = grouped.get(resolved);
+        const bucket = grouped.get(outcome.account);
         if (bucket) {
           bucket.push(image);
         } else {
-          grouped.set(resolved, [image]);
+          grouped.set(outcome.account, [image]);
         }
         matchedImages += 1;
+        if (dryRun && image.buffer) {
+          image.buffer = undefined;
+        }
       }
 
       if (dryRun) {
@@ -879,6 +960,7 @@ export class SubmissionsService {
           groups,
           unmatched,
           skipped,
+          matchResults,
         };
       }
 
@@ -934,7 +1016,7 @@ export class SubmissionsService {
           },
         });
 
-        const imageRecords = [];
+        const imageRecords: Array<{ submissionId: string; objectKey: string }> = [];
 
         for (const image of batchImages) {
           const buffer = await this.loadImageBuffer(image);
@@ -976,6 +1058,7 @@ export class SubmissionsService {
         skipped: skippedForRecord,
         submissions,
         batchId: batch.id,
+        matchResults,
       };
     } finally {
       await this.cleanupTempFiles(tempPaths);
@@ -1035,9 +1118,20 @@ export class SubmissionsService {
     };
   }
 
+  private async getOcrConfig(): Promise<Partial<BaiduOcrConfig>> {
+    const stored = await this.systemConfigService.getValue<{
+      apiKey?: string;
+      secretKey?: string;
+    }>('ocr');
+    return {
+      apiKey: stored?.apiKey?.trim(),
+      secretKey: stored?.secretKey?.trim(),
+    };
+  }
+
   private resolveAccount(
     filename: string,
-    accountMap: Map<string, { id: string; account: string; name: string }>,
+    accountMap: Map<string, StudentCandidate>,
     accounts: string[],
   ): string | null {
     const normalized = filename.replace(/\\/g, '/');
@@ -1068,7 +1162,7 @@ export class SubmissionsService {
 
   private resolveAccountWithOverrides(
     image: BatchImage,
-    accountMap: Map<string, { id: string; account: string; name: string }>,
+    accountMap: Map<string, StudentCandidate>,
     accounts: string[],
     overrides: Map<string, string> | null,
   ): string | null {
@@ -1079,6 +1173,452 @@ export class SubmissionsService {
       }
     }
     return this.resolveAccount(image.filename, accountMap, accounts);
+  }
+
+  private normalizeAccountValue(value: string): string {
+    return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  private buildMatchAnalysis(analysisZh: string, analysisEn: string) {
+    return { analysisZh, analysisEn };
+  }
+
+  private selectLongestMatches(matches: StudentCandidate[]): StudentCandidate[] {
+    if (!matches.length) {
+      return [];
+    }
+    const maxLength = Math.max(...matches.map((match) => match.normalized.length));
+    return matches.filter((match) => match.normalized.length === maxLength);
+  }
+
+  private findAccountMatches(text: string, candidates: StudentCandidate[]): StudentCandidate[] {
+    const normalizedText = this.normalizeAccountValue(text);
+    if (!normalizedText) {
+      return [];
+    }
+    return candidates.filter((candidate) => candidate.normalized && normalizedText.includes(candidate.normalized));
+  }
+
+  private async resolveAccountForImage(params: {
+    image: BatchImage;
+    candidates: StudentCandidate[];
+    accountMap: Map<string, StudentCandidate>;
+    accountList: string[];
+    overrides: Map<string, string> | null;
+    ocrConfig: Partial<BaiduOcrConfig>;
+    llmRuntime: LlmRuntimeConfig;
+  }): Promise<MatchOutcome> {
+    const { image, candidates, accountMap, accountList, overrides, ocrConfig, llmRuntime } = params;
+    if (!candidates.length) {
+      return {
+        account: null,
+        reason: 'ACCOUNT_NOT_FOUND',
+        ...this.buildMatchAnalysis('未找到班级学生名单，无法匹配学号。', 'No student roster available; unable to match.'),
+      };
+    }
+
+    if (overrides && overrides.size) {
+      const override = overrides.get(image.fileKey);
+      if (override) {
+        if (accountMap.has(override)) {
+          return {
+            account: override,
+            matchedBy: 'override',
+            confidence: 1,
+            ...this.buildMatchAnalysis(
+              `已使用老师手动指定的学生账号 ${override}。`,
+              `Used teacher override to assign account ${override}.`,
+            ),
+          };
+        }
+        return {
+          account: null,
+          reason: 'OVERRIDE_NOT_FOUND',
+          ...this.buildMatchAnalysis(
+            `手动指定的账号 ${override} 不在班级学生名单内。`,
+            `Override account ${override} is not in the class roster.`,
+          ),
+        };
+      }
+    }
+
+    const filenameMatch = this.resolveAccount(image.filename, accountMap, accountList);
+    if (filenameMatch) {
+      return {
+        account: filenameMatch,
+        matchedBy: 'filename',
+        confidence: 0.9,
+        ...this.buildMatchAnalysis(
+          `从文件名或文件夹识别到学号 ${filenameMatch}。`,
+          `Matched account ${filenameMatch} from filename or folder.`,
+        ),
+      };
+    }
+
+    const ocrResult = await this.extractOcrText(image, ocrConfig);
+    if (!ocrResult.text) {
+      if (ocrResult.error) {
+        return {
+          account: null,
+          reason: 'OCR_FAILED',
+          ...this.buildMatchAnalysis('OCR 识别失败，无法匹配学号。', 'OCR failed; unable to match an account.'),
+        };
+      }
+      return {
+        account: null,
+        reason: 'OCR_EMPTY',
+        ...this.buildMatchAnalysis('OCR 文本为空，无法匹配学号。', 'OCR text is empty; unable to match an account.'),
+      };
+    }
+
+    const directMatches = this.findAccountMatches(ocrResult.text, candidates);
+    if (directMatches.length) {
+      const bestMatches = this.selectLongestMatches(directMatches);
+      if (bestMatches.length === 1) {
+        return {
+          account: bestMatches[0].account,
+          matchedBy: 'ocr',
+          confidence: 0.9,
+          ...this.buildMatchAnalysis(
+            `OCR 文本中识别到学号 ${bestMatches[0].account}。`,
+            `Detected account ${bestMatches[0].account} in OCR text.`,
+          ),
+        };
+      }
+    }
+
+    return this.matchWithLlm({
+      text: ocrResult.text,
+      candidates: directMatches.length ? this.selectLongestMatches(directMatches) : candidates,
+      accountMap,
+      llmRuntime,
+    });
+  }
+
+  private async extractOcrText(image: BatchImage, ocrConfig: Partial<BaiduOcrConfig>): Promise<{
+    text?: string;
+    error?: string;
+  }> {
+    try {
+      const buffer = await this.loadImageBuffer(image);
+      const result = await this.baiduOcrService.recognize(buffer, ocrConfig);
+      const text = result.text?.trim() || '';
+      return { text };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown OCR error';
+      this.logger.warn(`OCR failed for ${image.filename}: ${message}`);
+      return { text: '', error: message };
+    }
+  }
+
+  private async matchWithLlm(params: {
+    text: string;
+    candidates: StudentCandidate[];
+    accountMap: Map<string, StudentCandidate>;
+    llmRuntime: LlmRuntimeConfig;
+  }): Promise<MatchOutcome> {
+    const { text, candidates, accountMap, llmRuntime } = params;
+    if (!llmRuntime.baseUrl || !llmRuntime.model) {
+      return {
+        account: null,
+        reason: 'AI_NOT_CONFIGURED',
+        ...this.buildMatchAnalysis('未配置 AI 模型，无法进一步匹配。', 'LLM is not configured; unable to match further.'),
+      };
+    }
+
+    const prompt = this.buildMatchPrompt(text, candidates);
+    const payload: Record<string, unknown> = {
+      model: llmRuntime.model,
+      messages: [
+        { role: 'system', content: this.buildMatchSystemPrompt() },
+        { role: 'user', content: prompt },
+      ],
+      max_tokens: Math.min(llmRuntime.maxTokens ?? 400, 500),
+      temperature: 0,
+    };
+
+    const topP = llmRuntime.topP;
+    const presencePenalty = llmRuntime.presencePenalty;
+    const frequencyPenalty = llmRuntime.frequencyPenalty;
+    const stop = llmRuntime.stop;
+
+    if (typeof topP === 'number') {
+      payload.top_p = topP;
+    }
+    if (typeof presencePenalty === 'number') {
+      payload.presence_penalty = presencePenalty;
+    }
+    if (typeof frequencyPenalty === 'number') {
+      payload.frequency_penalty = frequencyPenalty;
+    }
+    if (stop?.length) {
+      payload.stop = stop;
+    }
+
+    payload.response_format = { type: 'json_object' };
+
+    const apiUrl = this.resolveLlmApiUrl(llmRuntime);
+    let response: {
+      ok: boolean;
+      status: number;
+      errorText: string;
+      data: { choices?: Array<{ message?: { content?: string }; text?: string }> } | null;
+    };
+    try {
+      response = await this.fetchCompletion(apiUrl, payload, llmRuntime);
+      if (!response.ok && this.isResponseFormatUnsupported(response.status, response.errorText)) {
+        const fallbackPayload = { ...payload };
+        delete (fallbackPayload as { response_format?: unknown }).response_format;
+        response = await this.fetchCompletion(apiUrl, fallbackPayload, llmRuntime);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown LLM error';
+      this.logger.warn(`LLM match request failed: ${message}`);
+      return {
+        account: null,
+        reason: 'AI_FAILED',
+        ...this.buildMatchAnalysis('AI 请求失败，无法匹配学号。', 'AI request failed; unable to match an account.'),
+      };
+    }
+
+    if (!response.ok) {
+      this.logger.warn(`LLM match failed: ${response.status} ${response.errorText}`);
+      return {
+        account: null,
+        reason: 'AI_FAILED',
+        ...this.buildMatchAnalysis('AI 请求失败，无法匹配学号。', 'AI request failed; unable to match an account.'),
+      };
+    }
+
+    let content = '';
+    try {
+      content = this.extractLlmContent(response.data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'LLM response missing content';
+      this.logger.warn(`LLM match parse failed: ${message}`);
+      return {
+        account: null,
+        reason: 'AI_PARSE_FAILED',
+        ...this.buildMatchAnalysis('AI 返回内容为空或缺失。', 'AI response content is missing.'),
+      };
+    }
+
+    const parsed = this.parseMatchResponse(content);
+    if (!parsed) {
+      return {
+        account: null,
+        reason: 'AI_PARSE_FAILED',
+        ...this.buildMatchAnalysis('AI 返回格式无法解析。', 'AI response format could not be parsed.'),
+      };
+    }
+
+    const account = typeof parsed.matchedAccount === 'string' ? parsed.matchedAccount.trim() : null;
+    const confidence = this.normalizeConfidence(parsed.confidence);
+    const analysisZh = typeof parsed.analysisZh === 'string' ? parsed.analysisZh.trim() : '';
+    const analysisEn = typeof parsed.analysisEn === 'string' ? parsed.analysisEn.trim() : '';
+    const fallbackAnalysis = this.buildMatchAnalysis(
+      account ? `AI 识别结果：${account}。` : 'AI 未能确定学号，建议人工指定。',
+      account ? `AI matched account ${account}.` : 'AI could not determine the account; manual assignment recommended.',
+    );
+    const mergedAnalysis = {
+      analysisZh: analysisZh || fallbackAnalysis.analysisZh,
+      analysisEn: analysisEn || fallbackAnalysis.analysisEn,
+    };
+
+    if (account && accountMap.has(account)) {
+      if (confidence !== undefined && confidence < 0.6) {
+        return {
+          account: null,
+          reason: 'AI_AMBIGUOUS',
+          confidence,
+          ...mergedAnalysis,
+        };
+      }
+      return {
+        account,
+        matchedBy: 'ai',
+        confidence,
+        ...mergedAnalysis,
+      };
+    }
+
+    return {
+      account: null,
+      reason: 'AI_NO_MATCH',
+      confidence,
+      ...mergedAnalysis,
+    };
+  }
+
+  private buildMatchSystemPrompt() {
+    return [
+      'You are a careful assistant that matches student accounts from OCR text.',
+      'Return ONLY valid JSON with keys: matchedAccount, confidence, analysisZh, analysisEn.',
+      'If you are not confident, set matchedAccount to null and confidence to 0.',
+      'analysisZh must be Chinese, analysisEn must be English.',
+    ].join('\n');
+  }
+
+  private buildMatchPrompt(text: string, candidates: StudentCandidate[]) {
+    const snippet = text.length > 2000 ? `${text.slice(0, 2000)}...` : text;
+    const candidateLines = candidates.map((candidate, index) => {
+      const name = candidate.name || candidate.account;
+      return `${index + 1}. ${candidate.account} - ${name}`;
+    });
+    return [
+      'OCR TEXT:',
+      snippet,
+      '',
+      'STUDENT CANDIDATES (account - name):',
+      ...candidateLines,
+    ].join('\n');
+  }
+
+  private normalizeConfidence(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.min(1, Math.max(0, value));
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      if (Number.isFinite(parsed)) {
+        return Math.min(1, Math.max(0, parsed));
+      }
+    }
+    return undefined;
+  }
+
+  private parseMatchResponse(raw: string): {
+    matchedAccount?: unknown;
+    confidence?: unknown;
+    analysisZh?: unknown;
+    analysisEn?: unknown;
+  } | null {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const fenced = this.extractCodeFence(trimmed);
+    const candidates = [trimmed, fenced].filter((candidate): candidate is string => Boolean(candidate));
+    for (const candidate of candidates) {
+      const parsed = this.tryParseJson(candidate);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as {
+          matchedAccount?: unknown;
+          confidence?: unknown;
+          analysisZh?: unknown;
+          analysisEn?: unknown;
+        };
+      }
+    }
+    return null;
+  }
+
+  private extractCodeFence(input: string): string | null {
+    const match = input.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (!match) {
+      return null;
+    }
+    return match[1].trim();
+  }
+
+  private tryParseJson(input: string): unknown | null {
+    try {
+      return JSON.parse(input);
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveLlmApiUrl(runtime: LlmRuntimeConfig): string {
+    const base = (runtime.baseUrl || '').replace(/\/$/, '');
+    if (base.endsWith('/chat/completions') || base.endsWith('/v1/chat/completions')) {
+      return base;
+    }
+    const customPath = this.normalizeText(runtime.path || '');
+    if (customPath) {
+      if (customPath.startsWith('http://') || customPath.startsWith('https://')) {
+        return customPath;
+      }
+      return `${base}${customPath.startsWith('/') ? '' : '/'}${customPath}`;
+    }
+    return `${base}/v1/chat/completions`;
+  }
+
+  private async fetchCompletion(
+    url: string,
+    payload: Record<string, unknown>,
+    runtime: LlmRuntimeConfig,
+  ): Promise<{
+    ok: boolean;
+    status: number;
+    errorText: string;
+    data: {
+      choices?: Array<{ message?: { content?: string }; text?: string }>;
+    } | null;
+  }> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...runtime.headers,
+    };
+    if (runtime.apiKey) {
+      headers.Authorization = `Bearer ${runtime.apiKey}`;
+    }
+
+    const response = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    }, runtime.timeoutMs ?? 20000);
+
+    const text = await response.text();
+    if (!response.ok) {
+      return { ok: false, status: response.status, errorText: text, data: null };
+    }
+
+    let data: { choices?: Array<{ message?: { content?: string }; text?: string }> } | null = null;
+    try {
+      data = text ? (JSON.parse(text) as typeof data) : null;
+    } catch {
+      data = null;
+    }
+    return { ok: true, status: response.status, errorText: '', data };
+  }
+
+  private async fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs: number,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private extractLlmContent(data: {
+    choices?: Array<{ message?: { content?: string }; text?: string }>;
+  } | null): string {
+    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text;
+    if (!content) {
+      throw new Error('LLM response missing content');
+    }
+    return content.trim();
+  }
+
+  private isResponseFormatUnsupported(status: number, errorText: string): boolean {
+    if (status !== 400 && status !== 422) {
+      return false;
+    }
+    const text = errorText.toLowerCase();
+    return text.includes('response_format') || text.includes('json_object') || text.includes('unsupported');
+  }
+
+  private normalizeText(value?: string) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : '';
   }
 
   private parseMappingOverrides(raw?: string): Map<string, string> | null {
@@ -1197,21 +1737,16 @@ export class SubmissionsService {
       }
 
       if (options.dryRun) {
-        const entrySize =
-          declaredSize !== null
-            ? declaredSize
-            : await this.drainEntry(entry, MAX_ZIP_ENTRY_BYTES);
-        options.totalUncompressed.value += entrySize;
+        const buffer = await this.readEntryBuffer(entry, MAX_ZIP_ENTRY_BYTES);
+        options.totalUncompressed.value += buffer.length;
         if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
           throw new BadRequestException('Zip exceeds uncompressed size limit');
-        }
-        if (declaredSize !== null) {
-          entry.autodrain();
         }
         options.images.push({
           fileKey,
           filename: entryName,
           mimeType: this.mapImageMimeType(extension),
+          buffer,
         });
         continue;
       }

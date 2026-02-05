@@ -21,7 +21,7 @@ export type GradingSuggestions = {
   mid: string[];
   high: string[];
   rewrite?: string;
-  sampleEssay?: string;
+  sampleEssay: string;
 };
 
 export type GradingResult = {

@@ -19,7 +19,12 @@ export const LoginPage = () => {
   const { data: overview } = useQuery({
     queryKey: ['public-overview', 7],
     queryFn: () => fetchPublicOverview(7),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    retry: 1,
+    retryDelay: 3000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
   const completionRateValue =
     typeof overview?.completionRate === 'number'

@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
@@ -34,6 +36,12 @@ const buildRedisConnection = (redisUrl: string) => {
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60,
+        limit: 120,
+      },
+    ]),
     PrismaModule,
     ScheduleModule.forRoot(),
     BullModule.forRootAsync({
@@ -57,6 +65,12 @@ const buildRedisConnection = (redisUrl: string) => {
     PublicModule,
     TeacherSettingsModule,
     OcrModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
