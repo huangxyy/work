@@ -8,6 +8,9 @@ import { StudentLayout } from '../layouts/StudentLayout';
 import { useI18n } from '../i18n';
 
 const LoginPage = lazy(() => import('../pages/Login').then((module) => ({ default: module.LoginPage })));
+const LandingPage = lazy(() =>
+  import('../pages/Landing').then((module) => ({ default: module.LandingPage })),
+);
 const AdminDashboardPage = lazy(() =>
   import('../pages/admin/Dashboard').then((module) => ({ default: module.AdminDashboardPage })),
 );
@@ -107,7 +110,8 @@ const NotFoundPage = () => {
 };
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/login" replace /> },
+  { path: '/', element: withSuspense(<LandingPage />) },
+  { path: '/landing', element: withSuspense(<LandingPage />) },
   { path: '/login', element: withSuspense(<LoginPage />) },
   {
     path: '/student',
