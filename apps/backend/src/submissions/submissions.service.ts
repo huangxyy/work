@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
-import AdmZip from 'adm-zip';
+import AdmZip = require('adm-zip');
 import { randomUUID } from 'crypto';
 import { createReadStream, promises as fs } from 'fs';
 import type { Express } from 'express';
