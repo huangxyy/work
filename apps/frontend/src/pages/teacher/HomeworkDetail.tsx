@@ -520,7 +520,7 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('common.status'),
       dataIndex: 'status',
-      renderText: (value) => value || '--',
+      renderText: (value) => (value ? t(`status.${value.toLowerCase()}`) : '--'),
       width: 140,
     },
     {
@@ -532,7 +532,11 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('common.lastUpdated'),
       dataIndex: 'updatedAt',
-      renderText: (value) => value || '--',
+      renderText: (value) => {
+        if (!value) return '--';
+        const d = new Date(value);
+        return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+      },
       width: 200,
     },
     {
@@ -696,7 +700,7 @@ export const TeacherHomeworkDetailPage = () => {
                   <Descriptions column={1} bordered>
                     <Descriptions.Item label={t('common.title')}>{homework.title}</Descriptions.Item>
                     <Descriptions.Item label={t('common.dueDate')}>
-                      {homework.dueAt ? new Date(homework.dueAt).toLocaleString() : t('status.noDue')}
+                      {homework.dueAt ? (() => { const d = new Date(homework.dueAt); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; })() : t('status.noDue')}
                     </Descriptions.Item>
                     <Descriptions.Item label={t('common.description')}>
                       {homework.desc ? (

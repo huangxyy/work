@@ -235,6 +235,255 @@ h6,
   color: var(--color-neutral-500);
 }
 
+/* ── Table row interactions ── */
+.ant-table-tbody > tr.ant-table-row {
+  transition: background-color var(--motion-fast) var(--ease-emphasis),
+    box-shadow var(--motion-fast) var(--ease-emphasis);
+}
+
+.ant-table-tbody > tr.ant-table-row:hover > td {
+  background: rgba(62, 110, 230, 0.04) !important;
+}
+
+.ant-table-tbody > tr.ant-table-row:hover > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-brand-500);
+}
+
+.ant-table-cell {
+  transition: background-color var(--motion-fast) var(--ease-emphasis);
+}
+
+/* ── List item interactions ── */
+.ant-list-item {
+  transition: transform var(--motion-fast) var(--ease-emphasis),
+    background-color var(--motion-fast) var(--ease-emphasis),
+    box-shadow var(--motion-fast) var(--ease-emphasis);
+  border-radius: var(--radius-8);
+  padding-inline: 12px !important;
+}
+
+.ant-list-item:hover {
+  transform: translateX(3px);
+  background: rgba(62, 110, 230, 0.03);
+}
+
+/* ── Status tag polish ── */
+.ant-tag {
+  animation: tagPop 0.3s var(--ease-emphasis) backwards;
+  border-radius: 999px;
+  padding-inline: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: transform var(--motion-fast) var(--ease-emphasis),
+    box-shadow var(--motion-fast) var(--ease-emphasis);
+}
+
+.ant-tag:hover {
+  transform: scale(1.04);
+}
+
+.ant-tag-success {
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.15);
+}
+
+.ant-tag-error {
+  box-shadow: 0 0 0 1px rgba(217, 75, 61, 0.15);
+}
+
+.ant-tag-processing {
+  box-shadow: 0 0 0 1px rgba(62, 110, 230, 0.15);
+}
+
+/* ── Progress bar animation ── */
+.ant-progress-bg {
+  transition: width 0.6s var(--ease-emphasis) !important;
+  background: linear-gradient(90deg, var(--color-brand-600), var(--color-brand-400)) !important;
+  border-radius: 999px !important;
+}
+
+.ant-progress-inner {
+  border-radius: 999px !important;
+}
+
+/* ── Empty state enhancement ── */
+.ant-empty {
+  animation: softBounce 0.5s var(--ease-emphasis);
+}
+
+.soft-empty {
+  animation: softBounce 0.5s var(--ease-emphasis);
+  padding: 32px 16px;
+}
+
+/* ── Steps component polish ── */
+.ant-steps-item-process .ant-steps-item-icon {
+  animation: pulseDot 2s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(62, 110, 230, 0.12);
+}
+
+.ant-steps-item-finish .ant-steps-item-icon {
+  animation: successPulse 1.5s ease-out 1;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
+}
+
+.ant-steps-item-tail::after {
+  transition: background-color 0.4s var(--ease-emphasis) !important;
+}
+
+/* ── Tabs content transition ── */
+.ant-tabs-tabpane-active {
+  animation: fadeUp 0.28s var(--ease-emphasis);
+}
+
+.ant-tabs-tab {
+  transition: color var(--motion-fast) var(--ease-emphasis),
+    font-weight var(--motion-fast) var(--ease-emphasis) !important;
+}
+
+.ant-tabs-tab:hover {
+  color: var(--color-brand-600) !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  font-weight: 600;
+}
+
+/* ── Collapse/accordion enhancement ── */
+.ant-collapse-item {
+  transition: border-color var(--motion-fast) var(--ease-emphasis);
+}
+
+.ant-collapse > .ant-collapse-item > .ant-collapse-header {
+  transition: background-color var(--motion-fast) var(--ease-emphasis),
+    color var(--motion-fast) var(--ease-emphasis);
+  border-radius: var(--radius-8);
+}
+
+.ant-collapse > .ant-collapse-item > .ant-collapse-header:hover {
+  background: rgba(62, 110, 230, 0.03);
+}
+
+.ant-collapse-content {
+  animation: fadeUp 0.25s var(--ease-emphasis);
+}
+
+/* ── Card stagger entries ── */
+.app-motion .ant-pro-card:nth-child(1) { animation-delay: 0ms; }
+.app-motion .ant-pro-card:nth-child(2) { animation-delay: 60ms; }
+.app-motion .ant-pro-card:nth-child(3) { animation-delay: 120ms; }
+.app-motion .ant-pro-card:nth-child(4) { animation-delay: 180ms; }
+.app-motion .ant-pro-card:nth-child(5) { animation-delay: 240ms; }
+.app-motion .ant-pro-card:nth-child(6) { animation-delay: 300ms; }
+
+.app-motion .ant-pro-card {
+  animation: fadeUp var(--motion-slow) var(--ease-emphasis) backwards;
+}
+
+/* ── Drawer/modal entrance ── */
+.ant-drawer-content {
+  animation: slideInRight 0.32s var(--ease-emphasis);
+}
+
+.ant-modal-content {
+  animation: scaleIn 0.24s var(--ease-emphasis);
+}
+
+/* ── Form section polish ── */
+.ant-form-item-label > label {
+  transition: color var(--motion-fast) var(--ease-emphasis);
+}
+
+.ant-form-item:focus-within .ant-form-item-label > label {
+  color: var(--color-brand-600);
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-select-selector:hover,
+.ant-input-number:hover {
+  border-color: var(--color-brand-400) !important;
+}
+
+/* ── Tooltip & popover polish ── */
+.ant-tooltip-inner {
+  border-radius: var(--radius-8);
+  box-shadow: var(--shadow-sm);
+}
+
+.ant-popconfirm .ant-popover-inner {
+  animation: scaleIn 0.2s var(--ease-emphasis);
+  border-radius: var(--radius-12);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Skeleton loading shimmer ── */
+.ant-skeleton-content .ant-skeleton-paragraph > li,
+.ant-skeleton-content .ant-skeleton-title {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Badge polish ── */
+.ant-badge-count {
+  animation: tagPop 0.3s var(--ease-emphasis);
+  box-shadow: 0 2px 6px rgba(217, 75, 61, 0.25);
+}
+
+/* ── Notification entrance ── */
+.ant-notification-notice {
+  animation: slideInRight 0.32s var(--ease-emphasis);
+}
+
+/* ── Descriptions component hover ── */
+.ant-descriptions-item-label {
+  transition: color var(--motion-fast) var(--ease-emphasis);
+}
+
+.ant-descriptions-row:hover .ant-descriptions-item-label {
+  color: var(--color-brand-600);
+}
+
+/* ── Upload dragger hover ── */
+.ant-upload-drag {
+  transition: border-color var(--motion-medium) var(--ease-emphasis),
+    background-color var(--motion-medium) var(--ease-emphasis),
+    box-shadow var(--motion-medium) var(--ease-emphasis) !important;
+}
+
+.ant-upload-drag:hover,
+.ant-upload-drag.ant-upload-drag-hover {
+  border-color: var(--color-brand-500) !important;
+  background: rgba(62, 110, 230, 0.03) !important;
+  box-shadow: 0 0 0 3px rgba(62, 110, 230, 0.08);
+}
+
+.ant-upload-drag .ant-upload-drag-icon .anticon {
+  transition: transform var(--motion-medium) var(--ease-emphasis),
+    color var(--motion-medium) var(--ease-emphasis);
+}
+
+.ant-upload-drag:hover .ant-upload-drag-icon .anticon {
+  transform: scale(1.1) translateY(-2px);
+  color: var(--color-brand-500);
+}
+
+/* ── Statistic number alignment ── */
+.ant-statistic-content-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Descriptions component border ── */
+.ant-descriptions-bordered .ant-descriptions-item-label {
+  background: rgba(62, 110, 230, 0.03);
+}
+
 .app-motion .ant-page-header,
 .app-motion .ant-pro-page-container-children-container > * {
   animation: fadeUp var(--motion-slow) var(--ease-emphasis);
@@ -675,6 +924,36 @@ h6,
 .dashboard-clean .ant-list-item:hover {
   background: rgba(62, 110, 230, 0.04);
   transform: translateX(2px);
+}
+
+.dashboard-clean .ant-pro-card:hover,
+.dashboard-clean .ant-card:hover {
+  filter: brightness(1.015);
+}
+
+.dashboard-clean .ant-progress-bg {
+  background: linear-gradient(90deg, var(--color-brand-600), #0d9488) !important;
+}
+
+.dashboard-clean .ant-statistic-content-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.dashboard-clean .ant-tag-success {
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.18), 0 1px 4px rgba(34, 197, 94, 0.12);
+}
+
+.dashboard-clean .ant-tag-error {
+  box-shadow: 0 0 0 1px rgba(217, 75, 61, 0.18), 0 1px 4px rgba(217, 75, 61, 0.12);
+}
+
+.dashboard-clean .ant-steps-item-process .ant-steps-item-icon {
+  box-shadow: 0 0 0 5px rgba(62, 110, 230, 0.1);
+}
+
+.dashboard-clean .ant-collapse > .ant-collapse-item > .ant-collapse-header:hover {
+  background: rgba(62, 110, 230, 0.04);
 }
 
 .login-dashboard {
@@ -1471,6 +1750,36 @@ h6,
   transform: translateX(2px);
 }
 
+.teacher-soft .ant-pro-card:hover,
+.teacher-soft .ant-card:hover {
+  filter: brightness(1.01);
+  border-color: rgba(120, 109, 94, 0.18);
+}
+
+.teacher-soft .ant-progress-bg {
+  background: linear-gradient(90deg, #e58a1f, #f8bb64) !important;
+}
+
+.teacher-soft .ant-table-tbody > tr:nth-child(even) > td {
+  background: rgba(120, 109, 94, 0.02);
+}
+
+.teacher-soft .ant-table-tbody > tr:hover > td:first-child {
+  box-shadow: inset 3px 0 0 #e58a1f;
+}
+
+.teacher-soft .ant-collapse > .ant-collapse-item > .ant-collapse-header:hover {
+  background: rgba(120, 109, 94, 0.04);
+}
+
+.teacher-soft .ant-steps-item-process .ant-steps-item-icon {
+  box-shadow: 0 0 0 5px rgba(29, 78, 216, 0.08);
+}
+
+.teacher-soft .ant-descriptions-bordered .ant-descriptions-item-label {
+  background: rgba(120, 109, 94, 0.04);
+}
+
 .admin-blueprint {
   position: relative;
   isolation: isolate;
@@ -1519,6 +1828,32 @@ h6,
 .admin-blueprint .ant-list-item:hover {
   background: rgba(29, 78, 216, 0.04);
   transform: translateX(2px);
+}
+
+.admin-blueprint .ant-table-tbody > tr:hover > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-brand-500);
+}
+
+.admin-blueprint .ant-pro-card:hover .ant-pro-card-title::before {
+  animation: pulseDot 1.5s ease-in-out infinite;
+}
+
+.admin-blueprint .ant-progress-bg {
+  background: linear-gradient(90deg, var(--color-brand-700), var(--color-brand-400)) !important;
+}
+
+.admin-blueprint .ant-form-item-label > label {
+  font-family: var(--admin-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.admin-blueprint .ant-collapse > .ant-collapse-item > .ant-collapse-header:hover {
+  background: rgba(29, 78, 216, 0.03);
+}
+
+.admin-blueprint .ant-steps-item-process .ant-steps-item-icon {
+  box-shadow: 0 0 0 5px rgba(29, 78, 216, 0.1);
 }
 
 .stat-chip {
@@ -1725,6 +2060,97 @@ h6,
   }
 }
 
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes successPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes tagPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  70% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes progressFill {
+  from {
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  to {
+    transform: scaleX(1);
+    transform-origin: left center;
+  }
+}
+
+@keyframes softBounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(8px);
+  }
+  60% {
+    transform: scale(1.03) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes rowHighlight {
+  from {
+    background-color: rgba(62, 110, 230, 0.08);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-clean::before,
   .dashboard-clean::after,
@@ -1785,6 +2211,24 @@ h6,
   .app-motion .ant-pro-page-container-children-container > *,
   .app-motion .ant-btn-primary,
   .landing-feature-panel {
+    animation: none;
+  }
+
+  .ant-tag,
+  .ant-empty,
+  .soft-empty,
+  .ant-badge-count,
+  .ant-notification-notice,
+  .ant-drawer-content,
+  .ant-modal-content,
+  .ant-popconfirm .ant-popover-inner,
+  .ant-collapse-content,
+  .ant-tabs-tabpane-active,
+  .ant-steps-item-process .ant-steps-item-icon,
+  .ant-steps-item-finish .ant-steps-item-icon,
+  .ant-skeleton-content .ant-skeleton-paragraph > li,
+  .ant-skeleton-content .ant-skeleton-title,
+  .app-motion .ant-pro-card {
     animation: none;
   }
 }
