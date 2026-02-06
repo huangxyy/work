@@ -1,12 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { HealthService } from './health.service';
 
 @Controller()
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly healthService: HealthService) {}
 
   @Get('health')
   async health() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    return this.healthService.getHealth();
   }
 }

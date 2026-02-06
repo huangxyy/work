@@ -328,11 +328,11 @@ export class SubmissionsService {
         submission.id,
         submission.homework.id,
         submission.homework.title,
-        submission.status,
+        this.getStatusLabel(submission.status, query.lang),
         submission.totalScore ?? '',
         submission.errorCode ?? '',
         submission.errorMsg ?? '',
-        submission.updatedAt.toISOString(),
+        this.formatDateShort(submission.updatedAt),
       ]);
     }
 
@@ -412,16 +412,13 @@ export class SubmissionsService {
         submission.student.id,
         submission.student.name,
         submission.student.account,
-        submission.status,
+        this.getStatusLabel(submission.status, lang),
         submission.totalScore ?? '',
         submission.errorCode ?? '',
         submission.errorMsg ?? '',
         extracted.errorCount,
         extracted.summary,
-        extracted.nextSteps.join('; '),
-        extracted.rewrite,
-        extracted.sampleEssay,
-        submission.updatedAt.toISOString(),
+        this.formatDateShort(submission.updatedAt),
       ]);
     }
 
@@ -1882,6 +1879,27 @@ export class SubmissionsService {
     return (lang || '').toLowerCase().startsWith('zh');
   }
 
+  // 状态中英文映射
+  private getStatusLabel(status: SubmissionStatus, lang?: string): string {
+    const isZh = this.isZhLang(lang);
+    const statusMap: Record<SubmissionStatus, { zh: string; en: string }> = {
+      QUEUED: { zh: '排队中', en: 'Queued' },
+      PROCESSING: { zh: '进行中', en: 'Processing' },
+      DONE: { zh: '完成', en: 'Done' },
+      FAILED: { zh: '失败', en: 'Failed' },
+    };
+    const label = statusMap[status];
+    return isZh ? label.zh : label.en;
+  }
+
+  // 日期格式化为 YYYY.M.D
+  private formatDateShort(date: Date): string {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${year}.${month}.${day}`;
+  }
+
   private getStudentExportHeaders(lang?: string): string[] {
     if (this.isZhLang(lang)) {
       return ['提交ID', '作业ID', '作业标题', '状态', '总分', '错误码', '错误信息', '更新时间'];
@@ -1915,9 +1933,6 @@ export class SubmissionsService {
         '错误信息',
         '错误数',
         '总结',
-        '下一步建议',
-        '改写建议',
-        '范文参考',
         '更新时间',
       ];
     }
@@ -1936,9 +1951,6 @@ export class SubmissionsService {
       'errorMsg',
       'errorCount',
       'summary',
-      'nextSteps',
-      'rewrite',
-      'sampleEssay',
       'updatedAt',
     ];
   }

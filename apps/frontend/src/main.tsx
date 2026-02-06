@@ -10,7 +10,21 @@ import { router } from './routes/router';
 import 'antd/dist/reset.css';
 import './styles.css';
 
-const queryClient = new QueryClient();
+// Configure React Query with proper cache strategies
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Default stale time for all queries
+      staleTime: 60 * 1000, // 1 minute
+      // Cache time (gcTime in v5) - how long unused data stays in cache
+      gcTime: 5 * 60 * 1000, // 5 minutes
+      // Retry failed queries once
+      retry: 1,
+      // Don't refetch on window focus by default
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 const themeToken = {
   colorPrimary: '#1d4ed8',
   colorInfo: '#1d4ed8',

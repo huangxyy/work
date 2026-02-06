@@ -174,8 +174,8 @@ export class ReportsService {
         submission.homework.id,
         submission.homework.title,
         submission.totalScore ?? '',
-        submission.status,
-        submission.createdAt.toISOString(),
+        this.getStatusLabel(submission.status, query.lang),
+        this.formatDateShort(submission.createdAt),
       ]);
     }
 
@@ -662,6 +662,25 @@ export class ReportsService {
 
   private isZhLang(lang?: string) {
     return (lang || '').toLowerCase().startsWith('zh');
+  }
+
+  private getStatusLabel(status: string, lang?: string): string {
+    const isZh = this.isZhLang(lang);
+    const statusMap: Record<string, { zh: string; en: string }> = {
+      QUEUED: { zh: '排队中', en: 'Queued' },
+      PROCESSING: { zh: '进行中', en: 'Processing' },
+      DONE: { zh: '完成', en: 'Done' },
+      FAILED: { zh: '失败', en: 'Failed' },
+    };
+    const label = statusMap[status];
+    return label ? (isZh ? label.zh : label.en) : status;
+  }
+
+  private formatDateShort(date: Date): string {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${year}.${month}.${day}`;
   }
 
   private getClassReportHeaders(lang?: string): string[] {

@@ -47,6 +47,7 @@ import {
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { formatDateShort } from '../../utils/dateFormat';
 
 type HomeworkItem = {
   id: string;
@@ -481,7 +482,15 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('common.status'),
       dataIndex: 'status',
-      renderText: (value) => value || '--',
+      render: (_, item) => {
+        const statusMap: Record<string, string> = {
+          QUEUED: t('status.queued'),
+          PROCESSING: t('status.processing'),
+          DONE: t('status.done'),
+          FAILED: t('status.failed'),
+        };
+        return <Tag color={item.status === 'DONE' ? 'success' : item.status === 'FAILED' ? 'error' : item.status === 'PROCESSING' ? 'processing' : 'default'}>{statusMap[item.status] || item.status}</Tag>;
+      },
       width: 140,
     },
     {
@@ -493,7 +502,7 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('common.lastUpdated'),
       dataIndex: 'updatedAt',
-      renderText: (value) => value || '--',
+      renderText: (value) => formatDateShort(value),
       width: 200,
     },
     {
@@ -539,8 +548,7 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('teacher.batchUpload.historyCreatedAt'),
       dataIndex: 'createdAt',
-      render: (value: string) =>
-        value ? new Date(value).toLocaleString() : '--',
+      render: (value: string) => formatDateShort(value),
       width: 180,
     },
     {
@@ -657,7 +665,7 @@ export const TeacherHomeworkDetailPage = () => {
                   <Descriptions column={1} bordered>
                     <Descriptions.Item label={t('common.title')}>{homework.title}</Descriptions.Item>
                     <Descriptions.Item label={t('common.dueDate')}>
-                      {homework.dueAt ? new Date(homework.dueAt).toLocaleString() : t('status.noDue')}
+                      {homework.dueAt ? formatDateShort(homework.dueAt) : t('status.noDue')}
                     </Descriptions.Item>
                     <Descriptions.Item label={t('common.description')}>
                       {homework.desc ? (

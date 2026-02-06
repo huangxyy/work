@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchTeacherBatchUploadDetail } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
+import { formatDateShort } from '../../utils/dateFormat';
 import { useI18n } from '../../i18n';
 
 type BatchSubmissionRow = {
@@ -192,7 +193,7 @@ export const TeacherBatchUploadDetailPage = () => {
                 {
                   title: t('common.lastUpdated'),
                   dataIndex: 'updatedAt',
-                  renderText: (value) => value || '--',
+                  render: (_, record) => formatDateShort(record.updatedAt),
                   width: 200,
                 },
                 {

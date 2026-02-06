@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -17,6 +17,8 @@ import { AdminModule } from './admin/admin.module';
 import { PublicModule } from './public/public.module';
 import { TeacherSettingsModule } from './teacher-settings/teacher-settings.module';
 import { OcrModule } from './ocr/ocr.module';
+import { LoggerModule } from './common/logger';
+import { PerformanceInterceptor } from './common/interceptors';
 
 const buildRedisConnection = (redisUrl: string) => {
   try {
@@ -36,6 +38,7 @@ const buildRedisConnection = (redisUrl: string) => {
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    LoggerModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60,
@@ -70,6 +73,10 @@ const buildRedisConnection = (redisUrl: string) => {
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PerformanceInterceptor,
     },
   ],
 })

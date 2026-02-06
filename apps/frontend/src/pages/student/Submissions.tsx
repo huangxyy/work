@@ -9,6 +9,7 @@ import { downloadStudentSubmissionsCsv, fetchStudentSubmissions } from '../../ap
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { formatDateShort } from '../../utils/dateFormat';
 import { getErrorMessage } from '../../utils/errorHandler';
 
 type SubmissionRow = {
@@ -137,7 +138,7 @@ export const StudentSubmissionsPage = () => {
     {
       title: t('common.lastUpdated'),
       dataIndex: 'updatedAt',
-      renderText: (value) => value || '--',
+      renderText: (value) => formatDateShort(value),
       width: 200,
     },
     {
