@@ -10,6 +10,7 @@ import {
   Input,
   InputNumber,
   List,
+  Popconfirm,
   Progress,
   Select,
   Space,
@@ -20,12 +21,15 @@ import {
   Upload,
 } from 'antd';
 import type { RcFile, UploadFile } from 'antd/es/upload/interface';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import type { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   createTeacherBatchSubmissions,
+  deleteHomework,
+  fetchHomeworkDeletePreview,
   fetchClassStudents,
   fetchTeacherHomeworkSubmissions,
   fetchTeacherBatchUploads,
@@ -36,6 +40,7 @@ import {
   downloadTeacherHomeworkImagesZip,
   downloadTeacherHomeworkRemindersCsv,
   retryTeacherBatchUploads,
+  updateHomeworkLateSubmission,
   type TeacherBatchUploadResult,
   type TeacherBatchPreviewResult,
 } from '../../api';
@@ -48,6 +53,7 @@ type HomeworkItem = {
   title: string;
   desc?: string | null;
   dueAt?: string | null;
+  allowLateSubmission?: boolean;
 };
 
 type SubmissionRow = {
@@ -65,9 +71,11 @@ export const TeacherHomeworkDetailPage = () => {
   const location = useLocation();
   const { t, language } = useI18n();
   const message = useMessage();
+  const queryClient = useQueryClient();
   const state = location.state as { homework?: HomeworkItem; classId?: string | null } | undefined;
   const homework = state?.homework;
   const classId = state?.classId || '';
+  const [allowLateSubmission, setAllowLateSubmission] = useState(Boolean(homework?.allowLateSubmission));
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploadPercent, setUploadPercent] = useState(0);
   const [batchResult, setBatchResult] = useState<TeacherBatchUploadResult | null>(null);
@@ -79,10 +87,28 @@ export const TeacherHomeworkDetailPage = () => {
   const [scoreMax, setScoreMax] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
+  const resolveApiErrorMessage = (error: unknown, fallback: string) => {
+    if (!isAxiosError(error)) {
+      return fallback;
+    }
+    const rawMessage = (error.response?.data as { message?: string | string[] } | undefined)?.message;
+    if (Array.isArray(rawMessage)) {
+      return rawMessage.join('; ');
+    }
+    if (typeof rawMessage === 'string' && rawMessage.trim()) {
+      return rawMessage;
+    }
+    return fallback;
+  };
+
   useEffect(() => {
     setPreviewResult(null);
     setMappingOverrides({});
   }, [fileList]);
+
+  useEffect(() => {
+    setAllowLateSubmission(Boolean(homework?.allowLateSubmission));
+  }, [homework?.allowLateSubmission, homework?.id]);
 
   const uploadTips = useMemo(
     () => [t('teacher.batchUpload.tip1'), t('teacher.batchUpload.tip2'), t('teacher.batchUpload.tip3')],
@@ -120,6 +146,12 @@ export const TeacherHomeworkDetailPage = () => {
   const batchesQuery = useQuery({
     queryKey: ['batch-uploads', id],
     queryFn: () => fetchTeacherBatchUploads(id || ''),
+    enabled: !!id,
+  });
+
+  const deletePreviewQuery = useQuery({
+    queryKey: ['homework-delete-preview', id],
+    queryFn: () => fetchHomeworkDeletePreview(id || ''),
     enabled: !!id,
   });
 
@@ -193,9 +225,9 @@ export const TeacherHomeworkDetailPage = () => {
       submissionsQuery.refetch();
       batchesQuery.refetch();
     },
-    onError: () => {
+    onError: (error: unknown) => {
       setUploadPercent(0);
-      message.error(t('teacher.batchUpload.failed'));
+      message.error(resolveApiErrorMessage(error, t('teacher.batchUpload.failed')));
     },
   });
 
@@ -206,7 +238,38 @@ export const TeacherHomeworkDetailPage = () => {
       setMappingOverrides({});
       message.success(t('teacher.batchUpload.previewSuccess'));
     },
-    onError: () => message.error(t('teacher.batchUpload.previewFailed')),
+    onError: (error: unknown) =>
+      message.error(resolveApiErrorMessage(error, t('teacher.batchUpload.previewFailed'))),
+  });
+
+  const updateLateSubmissionMutation = useMutation({
+    mutationFn: (allow: boolean) => updateHomeworkLateSubmission(id || '', allow),
+    onSuccess: async (data) => {
+      setAllowLateSubmission(data.allowLateSubmission);
+      message.success(
+        data.allowLateSubmission
+          ? t('teacher.homeworkDetail.lateSubmissionOpened')
+          : t('teacher.homeworkDetail.lateSubmissionClosed'),
+      );
+      if (classId) {
+        await queryClient.invalidateQueries({ queryKey: ['homeworks-summary', classId] });
+      }
+    },
+    onError: (error: unknown) =>
+      message.error(resolveApiErrorMessage(error, t('teacher.homeworkDetail.updateLateSubmissionFailed'))),
+  });
+
+  const deleteHomeworkMutation = useMutation({
+    mutationFn: () => deleteHomework(id || ''),
+    onSuccess: async () => {
+      message.success(t('teacher.homeworks.deleted'));
+      if (classId) {
+        await queryClient.invalidateQueries({ queryKey: ['homeworks-summary', classId] });
+      }
+      navigate('/teacher/homeworks');
+    },
+    onError: (error: unknown) =>
+      message.error(resolveApiErrorMessage(error, t('teacher.homeworks.deleteFailed'))),
   });
 
   const regradeFailedMutation = useMutation({
@@ -561,6 +624,11 @@ export const TeacherHomeworkDetailPage = () => {
     },
   ];
 
+  const isOverdue = Boolean(homework?.dueAt && new Date(homework.dueAt).getTime() < Date.now());
+  const lateSubmissionTag = allowLateSubmission
+    ? t('teacher.homeworkDetail.lateSubmissionEnabled')
+    : t('teacher.homeworkDetail.lateSubmissionDisabled');
+
   return (
     <PageContainer
       title={t('teacher.homeworkDetail.title')}
@@ -600,6 +668,53 @@ export const TeacherHomeworkDetailPage = () => {
                     </Descriptions.Item>
                     <Descriptions.Item label={t('teacher.homeworkDetail.classReference')}>
                       {state?.classId ? state.classId : t('teacher.homeworkDetail.notSpecified')}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('teacher.homeworkDetail.lateSubmission')}>
+                      <Space direction="vertical" size={4}>
+                        <Tag color={allowLateSubmission ? 'success' : isOverdue ? 'error' : 'default'}>
+                          {lateSubmissionTag}
+                        </Tag>
+                        {isOverdue && !allowLateSubmission ? (
+                          <Typography.Text type="secondary">
+                            {t('teacher.homeworkDetail.lateSubmissionHint')}
+                          </Typography.Text>
+                        ) : null}
+                      </Space>
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('common.action')}>
+                      <Space wrap>
+                        <Button
+                          loading={updateLateSubmissionMutation.isPending}
+                          onClick={() =>
+                            updateLateSubmissionMutation.mutate(!allowLateSubmission)
+                          }
+                        >
+                          {allowLateSubmission
+                            ? t('teacher.homeworkDetail.closeLateSubmission')
+                            : t('teacher.homeworkDetail.openLateSubmission')}
+                        </Button>
+                        <Popconfirm
+                          title={t('teacher.homeworkDetail.deleteConfirmTitle')}
+                          description={
+                            <Space direction="vertical" size={0}>
+                              <Typography.Text>{t('teacher.homeworkDetail.deleteConfirmDesc')}</Typography.Text>
+                              <Typography.Text type="secondary">
+                                {deletePreviewQuery.isLoading
+                                  ? t('teacher.homeworkDetail.deletePreviewLoading')
+                                  : deletePreviewQuery.isError
+                                    ? t('teacher.homeworkDetail.deletePreviewFailed')
+                                    : `${t('teacher.homeworkDetail.deleteWillRemove')} ${deletePreviewQuery.data?.submissionCount || 0} ${t('teacher.homeworkDetail.deleteSubmissionsUnit')}，${deletePreviewQuery.data?.imageCount || 0} ${t('teacher.homeworkDetail.deleteImagesUnit')}`}
+                              </Typography.Text>
+                            </Space>
+                          }
+                          onConfirm={() => deleteHomeworkMutation.mutate()}
+                          okButtonProps={{ loading: deleteHomeworkMutation.isPending }}
+                        >
+                          <Button danger loading={deleteHomeworkMutation.isPending}>
+                            {t('teacher.homeworkDetail.deleteHomework')}
+                          </Button>
+                        </Popconfirm>
+                      </Space>
                     </Descriptions.Item>
                   </Descriptions>
                 </ProCard>

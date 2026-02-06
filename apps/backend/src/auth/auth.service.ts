@@ -44,13 +44,13 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
-      data: {
-        account: dto.account,
-        name: dto.name,
-        role: dto.role ?? Role.STUDENT,
-        passwordHash,
-      },
-    });
+        data: {
+          account: dto.account,
+          name: dto.name,
+          role: Role.STUDENT,
+          passwordHash,
+        },
+      });
 
     const token = this.signToken(user);
     return { token, user: this.sanitizeUser(user) };

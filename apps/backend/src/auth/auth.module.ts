@@ -14,10 +14,17 @@ import { JwtStrategy } from './jwt.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'dev-secret',
-        signOptions: { expiresIn: '7d' },
-      }),
+      useFactory: async (config: ConfigService) => {
+        const jwtSecret = config.get<string>('JWT_SECRET')?.trim();
+        if (!jwtSecret) {
+          throw new Error('JWT_SECRET must be configured');
+        }
+
+        return {
+          secret: jwtSecret,
+          signOptions: { expiresIn: '7d' },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

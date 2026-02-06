@@ -35,4 +35,19 @@ export class SystemConfigService {
     });
     this.cache.set(key, { value, fetchedAt: Date.now() });
   }
+
+  async deleteValue(key: string): Promise<void> {
+    await this.prisma.systemConfig.delete({ where: { key } }).catch((error: unknown) => {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: string }).code === 'P2025'
+      ) {
+        return;
+      }
+      throw error;
+    });
+    this.cache.delete(key);
+  }
 }

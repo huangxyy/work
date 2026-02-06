@@ -1,5 +1,6 @@
+import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Button, Descriptions, Divider, Select, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Descriptions, Divider, Select, Space, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -106,8 +107,19 @@ export const TeacherSettingsGradingPage = () => {
     [t],
   );
 
+  type PolicyPreviewRow = {
+    homeworkId: string;
+    title: string;
+    dueAt?: string | null;
+    submissionCount: number;
+    lastStatus?: string | null;
+    lastUpdatedAt?: string | null;
+    effective: { mode: 'cheap' | 'quality'; needRewrite: boolean };
+    source: { mode: 'default' | 'class' | 'homework'; needRewrite: 'default' | 'class' | 'homework' };
+  };
+
   const previewColumns = useMemo(
-    () => [
+    (): ProColumns<PolicyPreviewRow>[] => [
       {
         title: t('common.homework'),
         dataIndex: 'title',
@@ -128,7 +140,7 @@ export const TeacherSettingsGradingPage = () => {
       {
         title: t('teacher.settings.effectiveMode'),
         dataIndex: 'effective',
-        render: (_: unknown, row: { effective: { mode: 'cheap' | 'quality' } }) => (
+        render: (_: unknown, row: PolicyPreviewRow) => (
           <Tag>{row.effective.mode}</Tag>
         ),
         width: 140,
@@ -136,7 +148,7 @@ export const TeacherSettingsGradingPage = () => {
       {
         title: t('teacher.settings.effectiveRewrite'),
         dataIndex: 'effective',
-        render: (_: unknown, row: { effective: { needRewrite: boolean } }) => (
+        render: (_: unknown, row: PolicyPreviewRow) => (
           <Tag>{row.effective.needRewrite ? t('common.enabled') : t('common.disabled')}</Tag>
         ),
         width: 140,
@@ -164,7 +176,7 @@ export const TeacherSettingsGradingPage = () => {
       {
         title: t('teacher.settings.policySource'),
         dataIndex: 'source',
-        render: (_: unknown, row: { source: { mode: string; needRewrite: string } }) => {
+        render: (_: unknown, row: PolicyPreviewRow) => {
           const modeSource = row.source.mode;
           const rewriteSource = row.source.needRewrite;
           if (modeSource === rewriteSource) {
@@ -283,6 +295,17 @@ export const TeacherSettingsGradingPage = () => {
       </ProCard>
       <ProCard bordered title={t('teacher.settings.policyTitle')} style={{ marginTop: 16 }}>
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert
+            showIcon
+            type="info"
+            message={t('teacher.settings.policyModeTipsTitle')}
+            description={
+              <Space direction="vertical" size={0}>
+                <Typography.Text>{t('teacher.settings.policyModeTipsCheap')}</Typography.Text>
+                <Typography.Text>{t('teacher.settings.policyModeTipsQuality')}</Typography.Text>
+              </Space>
+            }
+          />
           <Space wrap>
             <Select
               style={{ minWidth: 220 }}

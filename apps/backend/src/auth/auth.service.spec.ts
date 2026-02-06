@@ -45,7 +45,6 @@ describe('AuthService', () => {
         account: 'testuser',
         name: 'Test User',
         password: 'password123',
-        role: Role.STUDENT,
       });
 
       expect(result.token).toBe('mock-jwt-token');
@@ -61,7 +60,6 @@ describe('AuthService', () => {
           account: 'testuser',
           name: 'Test User',
           password: 'password123',
-          role: Role.STUDENT,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -74,7 +72,6 @@ describe('AuthService', () => {
         account: 'testuser',
         name: 'Test User',
         password: 'password123',
-        role: Role.STUDENT,
       });
 
       expect(prismaService.user.create).toHaveBeenCalledWith(
@@ -86,22 +83,21 @@ describe('AuthService', () => {
       );
     });
 
-    it('should use specified role when provided', async () => {
-      const teacherUser = { ...mockUser, role: Role.TEACHER };
+    it('should always create student role', async () => {
+      const createdUser = { ...mockUser, role: Role.STUDENT };
       prismaService.user.findUnique = jest.fn().mockResolvedValue(null);
-      prismaService.user.create = jest.fn().mockResolvedValue(teacherUser);
+      prismaService.user.create = jest.fn().mockResolvedValue(createdUser);
 
       await authService.register({
         account: 'teacher1',
         name: 'Teacher One',
         password: 'password123',
-        role: Role.TEACHER,
       });
 
       expect(prismaService.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            role: Role.TEACHER,
+            role: Role.STUDENT,
           }),
         }),
       );

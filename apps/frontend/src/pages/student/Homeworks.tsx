@@ -13,15 +13,19 @@ type HomeworkItem = {
   title: string;
   desc?: string | null;
   dueAt?: string | null;
+  allowLateSubmission?: boolean;
   class: { id: string; name: string };
 };
 
-const getStatus = (t: (key: string) => string, dueAt?: string | null) => {
+const getStatus = (t: (key: string) => string, dueAt?: string | null, allowLateSubmission?: boolean) => {
   if (!dueAt) {
     return { key: 'nodue', label: t('status.noDue'), color: 'default' as const };
   }
   const dueDate = new Date(dueAt);
   if (dueDate.getTime() < Date.now()) {
+    if (allowLateSubmission) {
+      return { key: 'lateOpen', label: t('status.lateOpen'), color: 'warning' as const };
+    }
     return { key: 'overdue', label: t('status.overdue'), color: 'error' as const };
   }
   return { key: 'open', label: t('status.open'), color: 'success' as const };
@@ -41,7 +45,7 @@ export const StudentHomeworksPage = () => {
   const filteredData = useMemo(() => {
     const list = data || [];
     return list.filter((item) => {
-      const status = getStatus(t, item.dueAt).key;
+      const status = getStatus(t, item.dueAt, item.allowLateSubmission).key;
       if (statusFilter !== 'all' && status !== statusFilter) {
         return false;
       }
@@ -74,7 +78,7 @@ export const StudentHomeworksPage = () => {
       title: t('common.due'),
       dataIndex: 'dueAt',
       render: (_, item) => {
-        const status = getStatus(t, item.dueAt);
+        const status = getStatus(t, item.dueAt, item.allowLateSubmission);
         return (
           <Space direction="vertical" size={0}>
             <Tag color={status.color}>{status.label}</Tag>
@@ -95,14 +99,22 @@ export const StudentHomeworksPage = () => {
     {
       title: t('common.action'),
       valueType: 'option',
-      render: (_, item) => [
-        <Button key="view" onClick={() => navigate(`/student/homeworks/${item.id}`)}>
-          {t('common.view')}
-        </Button>,
-        <Button key="submit" type="primary" onClick={() => navigate(`/student/submit/${item.id}`)}>
-          {t('common.submit')}
-        </Button>,
-      ],
+      render: (_, item) => {
+        const canSubmit = getStatus(t, item.dueAt, item.allowLateSubmission).key !== 'overdue';
+        return [
+          <Button key="view" onClick={() => navigate(`/student/homeworks/${item.id}`)}>
+            {t('common.view')}
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            disabled={!canSubmit}
+            onClick={() => navigate(`/student/submit/${item.id}`)}
+          >
+            {canSubmit ? t('common.submit') : t('student.homeworks.submitClosed')}
+          </Button>,
+        ];
+      },
     },
   ];
 
@@ -163,6 +175,7 @@ export const StudentHomeworksPage = () => {
               options={[
                 { label: t('common.allStatuses'), value: 'all' },
                 { label: t('status.open'), value: 'open' },
+                { label: t('status.lateOpen'), value: 'lateOpen' },
                 { label: t('status.overdue'), value: 'overdue' },
                 { label: t('status.noDue'), value: 'nodue' },
               ]}

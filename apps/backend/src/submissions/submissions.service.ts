@@ -15,6 +15,7 @@ import { Readable } from 'stream';
 import * as unzipper from 'unzipper';
 import { AuthUser } from '../auth/auth.types';
 import { GradingPolicyService } from '../grading-policy/grading-policy.service';
+import { lateSubmissionConfigKey } from '../homeworks/homework.constants';
 import { BaiduOcrService } from '../ocr/baidu-ocr.service';
 import { BaiduOcrConfig } from '../ocr/ocr.types';
 import { LlmConfigService, type LlmRuntimeConfig } from '../llm/llm-config.service';
@@ -138,6 +139,15 @@ export class SubmissionsService {
 
     if (!homework) {
       throw new NotFoundException('Homework not found or no access');
+    }
+
+    if (homework.dueAt && homework.dueAt.getTime() < Date.now()) {
+      const allowLateSubmission = await this.isLateSubmissionAllowed(homework.id);
+      if (!allowLateSubmission) {
+        throw new BadRequestException(
+          'Homework is overdue and submission is closed. Ask your teacher to allow late submission.',
+        );
+      }
     }
 
     const submission = await this.prisma.submission.create({
@@ -854,7 +864,15 @@ export class SubmissionsService {
         }
         const fileKey = `image:${index}:${file.originalname}`;
         if (!file.mimetype?.startsWith('image/')) {
-          skipped.push({ file: file.originalname, reason: 'NON_IMAGE', fileKey });
+          skipped.push({
+            file: file.originalname,
+            reason: 'NON_IMAGE',
+            fileKey,
+            ...this.buildMatchAnalysis(
+              `文件类型不支持（${file.mimetype || 'unknown'}），请上传 JPG/PNG/WebP/TIFF 或 ZIP。`,
+              `Unsupported file type (${file.mimetype || 'unknown'}). Please upload JPG/PNG/WebP/TIFF or ZIP.`,
+            ),
+          });
           continue;
         }
         images.push({
@@ -1129,6 +1147,11 @@ export class SubmissionsService {
     };
   }
 
+  private async isLateSubmissionAllowed(homeworkId: string): Promise<boolean> {
+    const value = await this.systemConfigService.getValue<boolean>(lateSubmissionConfigKey(homeworkId));
+    return value === true;
+  }
+
   private resolveAccount(
     filename: string,
     accountMap: Map<string, StudentCandidate>,
@@ -1258,10 +1281,16 @@ export class SubmissionsService {
     const ocrResult = await this.extractOcrText(image, ocrConfig);
     if (!ocrResult.text) {
       if (ocrResult.error) {
+        const detail = ocrResult.error.length > 160
+          ? `${ocrResult.error.slice(0, 160)}...`
+          : ocrResult.error;
         return {
           account: null,
           reason: 'OCR_FAILED',
-          ...this.buildMatchAnalysis('OCR 识别失败，无法匹配学号。', 'OCR failed; unable to match an account.'),
+          ...this.buildMatchAnalysis(
+            `OCR 识别失败：${detail}，无法匹配学号。`,
+            `OCR failed: ${detail}; unable to match an account.`,
+          ),
         };
       }
       return {
@@ -1374,19 +1403,28 @@ export class SubmissionsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown LLM error';
       this.logger.warn(`LLM match request failed: ${message}`);
+      const detail = message.length > 160 ? `${message.slice(0, 160)}...` : message;
       return {
         account: null,
         reason: 'AI_FAILED',
-        ...this.buildMatchAnalysis('AI 请求失败，无法匹配学号。', 'AI request failed; unable to match an account.'),
+        ...this.buildMatchAnalysis(
+          `AI 请求失败：${detail}，无法匹配学号。`,
+          `AI request failed: ${detail}; unable to match an account.`,
+        ),
       };
     }
 
     if (!response.ok) {
       this.logger.warn(`LLM match failed: ${response.status} ${response.errorText}`);
+      const detail = `${response.status} ${response.errorText || ''}`.trim();
+      const brief = detail.length > 160 ? `${detail.slice(0, 160)}...` : detail;
       return {
         account: null,
         reason: 'AI_FAILED',
-        ...this.buildMatchAnalysis('AI 请求失败，无法匹配学号。', 'AI request failed; unable to match an account.'),
+        ...this.buildMatchAnalysis(
+          `AI 请求失败：${brief || 'unknown error'}，无法匹配学号。`,
+          `AI request failed: ${brief || 'unknown error'}; unable to match an account.`,
+        ),
       };
     }
 
@@ -1713,7 +1751,15 @@ export class SubmissionsService {
       const fileKey = `zip:${entryName}`;
       const extension = extname(entryName).toLowerCase();
       if (!ALLOWED_IMAGE_EXTS.has(extension)) {
-        options.skipped.push({ file: entryName, reason: 'NON_IMAGE', fileKey });
+        options.skipped.push({
+          file: entryName,
+          reason: 'NON_IMAGE',
+          fileKey,
+          ...this.buildMatchAnalysis(
+            `压缩包内文件格式 ${extension || 'unknown'} 不支持，仅支持 JPG/PNG/WebP/TIFF。`,
+            `Unsupported zip entry format ${extension || 'unknown'}. Supported: JPG/PNG/WebP/TIFF.`,
+          ),
+        });
         entry.autodrain();
         continue;
       }

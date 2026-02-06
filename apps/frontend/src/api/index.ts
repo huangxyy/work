@@ -288,6 +288,7 @@ export const fetchStudentHomeworks = async () => {
     title: string;
     desc?: string | null;
     dueAt?: string | null;
+    allowLateSubmission?: boolean;
     class: { id: string; name: string };
   }>;
 };
@@ -314,6 +315,7 @@ export const fetchHomeworksByClass = async (classId: string) => {
     title: string;
     desc?: string | null;
     dueAt?: string | null;
+    allowLateSubmission?: boolean;
   }>;
 };
 
@@ -324,6 +326,7 @@ export const fetchHomeworksSummaryByClass = async (classId: string) => {
     title: string;
     desc?: string | null;
     dueAt?: string | null;
+    allowLateSubmission?: boolean;
     createdAt: string;
     totalStudents: number;
     submittedStudents: number;
@@ -458,9 +461,39 @@ export const createHomework = async (payload: {
   title: string;
   desc?: string;
   dueAt?: string;
+  allowLateSubmission?: boolean;
 }) => {
   const response = await api.post('/homeworks', payload);
   return response.data;
+};
+
+export const updateHomeworkLateSubmission = async (
+  homeworkId: string,
+  allowLateSubmission: boolean,
+) => {
+  const response = await api.patch(`/homeworks/${homeworkId}/late-submission`, {
+    allowLateSubmission,
+  });
+  return response.data as { homeworkId: string; allowLateSubmission: boolean };
+};
+
+export const fetchHomeworkDeletePreview = async (homeworkId: string) => {
+  const response = await api.get(`/homeworks/${homeworkId}/delete-preview`);
+  return response.data as {
+    homeworkId: string;
+    submissionCount: number;
+    imageCount: number;
+  };
+};
+
+export const deleteHomework = async (homeworkId: string) => {
+  const response = await api.delete(`/homeworks/${homeworkId}`);
+  return response.data as {
+    homeworkId: string;
+    deleted: boolean;
+    removedObjects: number;
+    failedObjectDeletes: number;
+  };
 };
 
 export const createSubmission = async (payload: {
@@ -625,7 +658,7 @@ export type PublicLandingPayload = {
 };
 
 export const fetchPublicLanding = async () => {
-  const response = await api.get('/public/landing');
+  const response = await api.get('/public/landing', { timeout: 8000 });
   return response.data as PublicLandingPayload;
 };
 

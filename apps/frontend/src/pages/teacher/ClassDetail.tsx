@@ -11,6 +11,7 @@ import {
   Typography,
 } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -72,7 +73,7 @@ export const TeacherClassDetailPage = () => {
       await queryClient.invalidateQueries({ queryKey: ['class-students', id] });
 
       const { created, existing, failed, enrolled } = data;
-      let messageText = t('teacher.classDetail.importSuccess', { enrolled });
+      let messageText = `${t('teacher.classDetail.importSuccess')}: ${enrolled}`;
 
       if (created.length > 0) {
         messageText += `\n${t('teacher.classDetail.importCreated')}: ${created.length}`;
@@ -82,6 +83,13 @@ export const TeacherClassDetailPage = () => {
       }
       if (failed.length > 0) {
         messageText += `\n${t('teacher.classDetail.importFailed')}: ${failed.length}`;
+        const failedDetails = failed
+          .slice(0, 3)
+          .map((item) => `${item.name || item.account}: ${item.error}`)
+          .join('\n');
+        if (failedDetails) {
+          messageText += `\n${t('teacher.classDetail.importFailedDetails')}\n${failedDetails}`;
+        }
       }
 
       if (failed.length === 0) {
@@ -90,7 +98,13 @@ export const TeacherClassDetailPage = () => {
         message.warning(messageText);
       }
     },
-    onError: () => message.error(t('teacher.classDetail.importFailed')),
+    onError: (error: unknown) => {
+      const apiMessage = isAxiosError(error)
+        ? (error.response?.data as { message?: string | string[] } | undefined)?.message
+        : undefined;
+      const detail = Array.isArray(apiMessage) ? apiMessage.join('; ') : apiMessage;
+      message.error(detail || t('teacher.classDetail.importFailed'));
+    },
   });
 
   const handleDownloadStudentReport = (studentId: string) => {

@@ -8,11 +8,17 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Alert, Button, Select, Skeleton, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Modal, Select, Skeleton, Space, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createHomework, fetchClasses, fetchHomeworksSummaryByClass } from '../../api';
+import {
+  createHomework,
+  deleteHomework,
+  fetchClasses,
+  fetchHomeworkDeletePreview,
+  fetchHomeworksSummaryByClass,
+} from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
@@ -22,6 +28,7 @@ type HomeworkItem = {
   title: string;
   desc?: string | null;
   dueAt?: string | null;
+  allowLateSubmission?: boolean;
   totalStudents: number;
   submittedStudents: number;
   pendingStudents: number;
@@ -41,6 +48,7 @@ export const TeacherHomeworksPage = () => {
   const message = useMessage();
   const queryClient = useQueryClient();
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [deletingHomeworkId, setDeletingHomeworkId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { t } = useI18n();
 
@@ -82,6 +90,46 @@ export const TeacherHomeworksPage = () => {
     onError: () => message.error(t('teacher.homeworks.createFailed')),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (homeworkId: string) => {
+      setDeletingHomeworkId(homeworkId);
+      return deleteHomework(homeworkId);
+    },
+    onSuccess: async () => {
+      if (selectedClassId) {
+        await queryClient.invalidateQueries({ queryKey: ['homeworks-summary', selectedClassId] });
+      }
+      message.success(t('teacher.homeworks.deleted'));
+    },
+    onError: () => message.error(t('teacher.homeworks.deleteFailed')),
+    onSettled: () => setDeletingHomeworkId(null),
+  });
+
+  const handleDeleteHomework = async (homeworkId: string) => {
+    try {
+      const preview = await fetchHomeworkDeletePreview(homeworkId);
+      Modal.confirm({
+        title: t('teacher.homeworkDetail.deleteConfirmTitle'),
+        content: (
+          <Space direction="vertical" size={0}>
+            <Typography.Text>{t('teacher.homeworkDetail.deleteConfirmDesc')}</Typography.Text>
+            <Typography.Text type="secondary">
+              {`${t('teacher.homeworkDetail.deleteWillRemove')} ${preview.submissionCount} ${t('teacher.homeworkDetail.deleteSubmissionsUnit')}，${preview.imageCount} ${t('teacher.homeworkDetail.deleteImagesUnit')}`}
+            </Typography.Text>
+          </Space>
+        ),
+        okText: t('teacher.homeworkDetail.deleteHomework'),
+        okType: 'danger',
+        cancelText: t('common.close'),
+        onOk: async () => {
+          await deleteMutation.mutateAsync(homeworkId);
+        },
+      });
+    } catch {
+      message.error(t('teacher.homeworkDetail.deletePreviewFailed'));
+    }
+  };
+
   const columns: ProColumns<HomeworkItem>[] = [
     {
       title: t('common.title'),
@@ -96,6 +144,18 @@ export const TeacherHomeworksPage = () => {
       title: t('common.due'),
       dataIndex: 'dueAt',
       renderText: (value) => (value ? new Date(value).toLocaleString() : t('status.noDue')),
+    },
+    {
+      title: t('teacher.homeworkDetail.lateSubmission'),
+      dataIndex: 'allowLateSubmission',
+      render: (_, item) => (
+        <Tag color={item.allowLateSubmission ? 'success' : 'default'}>
+          {item.allowLateSubmission
+            ? t('teacher.homeworkDetail.lateSubmissionEnabled')
+            : t('teacher.homeworkDetail.lateSubmissionDisabled')}
+        </Tag>
+      ),
+      width: 150,
     },
     {
       title: t('teacher.homeworks.submissionRate'),
@@ -154,6 +214,14 @@ export const TeacherHomeworksPage = () => {
           }
         >
           {t('common.view')}
+        </Button>,
+        <Button
+          key="delete"
+          danger
+          loading={deleteMutation.isPending && deletingHomeworkId === item.id}
+          onClick={() => handleDeleteHomework(item.id)}
+        >
+          {t('teacher.homeworkDetail.deleteHomework')}
         </Button>,
       ],
     },

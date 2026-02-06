@@ -1,4 +1,4 @@
-import { Button, Form, Input, Modal, Segmented, Typography } from 'antd';
+import { Button, Collapse, Form, Input, Modal, Segmented, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -157,18 +157,40 @@ const DEFAULT_LANDING_PAYLOAD: PublicLandingPayload = {
   },
 };
 
+type LandingVariant = 'narrative' | 'dashboard';
+
 export const LandingPage = () => {
   const navigate = useNavigate();
   const { language } = useI18n();
   const message = useMessage();
+  const [variant, setVariant] = useState<LandingVariant>(() => {
+    if (typeof window === 'undefined') {
+      return 'narrative';
+    }
+    const fromQuery = new URLSearchParams(window.location.search).get('variant');
+    if (fromQuery === 'b' || fromQuery === 'dashboard') {
+      return 'dashboard';
+    }
+    if (fromQuery === 'a' || fromQuery === 'narrative') {
+      return 'narrative';
+    }
+    const stored = window.localStorage.getItem('landing-variant');
+    return stored === 'dashboard' ? 'dashboard' : 'narrative';
+  });
   const [consultOpen, setConsultOpen] = useState(false);
   const [loaderVisible, setLoaderVisible] = useState(true);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [activeSection, setActiveSection] = useState('features');
+  const [activeSection, setActiveSection] = useState('scenes');
   const [activeFeatureKey, setActiveFeatureKey] = useState('grading');
   const [compareValue, setCompareValue] = useState(50);
+  const [demoMode, setDemoMode] = useState<'quick' | 'quality'>('quality');
+  const [demoRunning, setDemoRunning] = useState(false);
+  const [demoProgress, setDemoProgress] = useState(0);
+  const [demoStepIndex, setDemoStepIndex] = useState(0);
+  const [faqQuery, setFaqQuery] = useState('');
   const [form] = Form.useForm();
   const scrollFrameRef = useRef<number | null>(null);
+  const demoFrameRef = useRef<number | null>(null);
 
   const landingQuery = useQuery({
     queryKey: ['public-landing'],
@@ -183,16 +205,52 @@ export const LandingPage = () => {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem('landing-variant', variant);
+  }, [variant]);
+
   const languageKey: 'zh' | 'en' = language.startsWith('zh') ? 'zh' : 'en';
   const landing = landingQuery.data ?? DEFAULT_LANDING_PAYLOAD;
   const fallbackContent = DEFAULT_LANDING_PAYLOAD.content[languageKey];
   const content = landing.content[languageKey] ?? fallbackContent;
   const theme = DEFAULT_LANDING_PAYLOAD.theme;
-  const showLoader = loaderVisible || (landingQuery.isLoading && !landingQuery.data);
+  const showLoader = loaderVisible;
+
+  const variantOptions = useMemo(
+    () =>
+      languageKey === 'zh'
+        ? [
+            { label: 'A 叙事版', value: 'narrative' },
+            { label: 'B 仪表版', value: 'dashboard' },
+          ]
+        : [
+            { label: 'A Narrative', value: 'narrative' },
+            { label: 'B Dashboard', value: 'dashboard' },
+          ],
+    [languageKey],
+  );
 
   const themeStyle = useMemo(
-    () =>
-      ({
+    () => {
+      const overrides =
+        variant === 'dashboard'
+          ? {
+              '--landing-bg': 'linear-gradient(138deg, #fff7ed 0%, #ecfeff 46%, #eff6ff 100%)',
+              '--landing-surface': 'rgba(255, 255, 255, 0.78)',
+              '--landing-surface-strong': 'rgba(255, 255, 255, 0.95)',
+              '--landing-accent': '#b45309',
+              '--landing-accent-alt': '#0c4a6e',
+              '--landing-glow': 'rgba(14, 116, 144, 0.22)',
+              '--landing-orb-1': 'rgba(251, 191, 36, 0.25)',
+              '--landing-orb-2': 'rgba(34, 211, 238, 0.24)',
+              '--landing-orb-3': 'rgba(14, 116, 144, 0.18)',
+            }
+          : {};
+
+      const styleVars: Record<string, string> = {
         '--landing-bg': theme.background,
         '--landing-surface': theme.surface,
         '--landing-surface-strong': theme.surfaceStrong,
@@ -206,8 +264,11 @@ export const LandingPage = () => {
         '--landing-orb-2': theme.orb2,
         '--landing-orb-3': theme.orb3,
         '--landing-noise': String(theme.noiseOpacity ?? 0.12),
-      }) as CSSProperties,
-    [theme],
+        ...overrides,
+      };
+      return styleVars as unknown as CSSProperties;
+    },
+    [theme, variant],
   );
 
   const heroStats = useMemo(() => {
@@ -266,6 +327,7 @@ export const LandingPage = () => {
   }, [languageKey]);
 
   const workflowBadgeLabel = languageKey === 'zh' ? '阶段' : 'Step';
+  const compareInsight = Math.max(0, Math.min(100, Math.round(((compareValue - 20) / 60) * 100)));
   const workflowChips = useMemo(() => {
     if (languageKey === 'zh') {
       return [
@@ -283,7 +345,163 @@ export const LandingPage = () => {
     ];
   }, [languageKey]);
 
-  const sectionIds = useMemo(() => ['features', 'compare', 'workflow', 'insight', 'faq'], []);
+  const sectionMeta = useMemo(
+    () => [
+      { id: 'scenes', label: languageKey === 'zh' ? '场景' : 'Scenes' },
+      { id: 'demo', label: languageKey === 'zh' ? '演示' : 'Demo' },
+      { id: 'features', label: languageKey === 'zh' ? '功能' : 'Features' },
+      { id: 'compare', label: languageKey === 'zh' ? '对比' : 'Compare' },
+      { id: 'workflow', label: languageKey === 'zh' ? '流程' : 'Workflow' },
+      { id: 'insight', label: languageKey === 'zh' ? '洞察' : 'Insight' },
+      { id: 'faq', label: 'FAQ' },
+    ],
+    [languageKey],
+  );
+
+  const sectionIds = useMemo(() => sectionMeta.map((item) => item.id), [sectionMeta]);
+
+  const sceneCards = useMemo(() => {
+    if (languageKey === 'zh') {
+      return [
+        {
+          title: '课堂后 10 分钟',
+          desc: '老师拍照上传，系统完成识别和归档，直接进入待批改队列。',
+          tag: '高频场景',
+        },
+        {
+          title: '晚自习讲评前',
+          desc: '批改结果自动汇总成错因分布，讲评内容更聚焦。',
+          tag: '教学复盘',
+        },
+        {
+          title: '月度教研会',
+          desc: '按班级对比趋势与能力项变化，快速定位共性问题。',
+          tag: '数据洞察',
+        },
+      ];
+    }
+    return [
+      {
+        title: '10 minutes after class',
+        desc: 'Teachers upload photos, OCR and filing finish automatically, and grading starts.',
+        tag: 'Daily flow',
+      },
+      {
+        title: 'Before review session',
+        desc: 'Error patterns are summarized so review time focuses on key gaps.',
+        tag: 'Class review',
+      },
+      {
+        title: 'Monthly teaching meeting',
+        desc: 'Compare class trends and rubric dimensions to find shared issues fast.',
+        tag: 'Insight',
+      },
+    ];
+  }, [languageKey]);
+
+  const marqueeItems = useMemo(
+    () => [...content.capabilities, ...content.workflow].map((item) => item.title).filter(Boolean),
+    [content.capabilities, content.workflow],
+  );
+
+  const processingSignals = useMemo(() => {
+    if (languageKey === 'zh') {
+      return [
+        { label: '识别队列', value: '实时' },
+        { label: '批改吞吐', value: '稳定' },
+        { label: '反馈生成', value: '结构化' },
+      ];
+    }
+    return [
+      { label: 'OCR queue', value: 'Live' },
+      { label: 'Grading throughput', value: 'Stable' },
+      { label: 'Feedback output', value: 'Structured' },
+    ];
+  }, [languageKey]);
+
+  const demoModeOptions = useMemo(
+    () =>
+      languageKey === 'zh'
+        ? [
+            { label: '快速模式', value: 'quick' },
+            { label: '高质量模式', value: 'quality' },
+          ]
+        : [
+            { label: 'Quick Mode', value: 'quick' },
+            { label: 'Quality Mode', value: 'quality' },
+          ],
+    [languageKey],
+  );
+
+  const demoStages = useMemo(() => {
+    if (languageKey === 'zh') {
+      return [
+        { title: '上传校验', detail: '接收 3 张图片并完成格式检查', log: 'images accepted (3/3)' },
+        { title: 'OCR 识别', detail: '提取正文并识别关键信息', log: 'ocr text extracted (468 chars)' },
+        { title: '学生匹配', detail: '通过学号/姓名匹配学生档案', log: 'student matched: class-7a / student03' },
+        { title: 'AI 批改', detail: '按评分策略生成分项得分和建议', log: 'grading model completed with rubric' },
+        { title: '反馈生成', detail: '输出讲评要点与改写方向', log: 'feedback package generated' },
+      ];
+    }
+    return [
+      { title: 'Upload check', detail: 'Validate 3 images and file quality', log: 'images accepted (3/3)' },
+      { title: 'OCR extraction', detail: 'Extract essay content and key markers', log: 'ocr text extracted (468 chars)' },
+      { title: 'Student match', detail: 'Resolve account by id/name cues', log: 'student matched: class-7a / student03' },
+      { title: 'AI grading', detail: 'Run rubric scoring with writing analysis', log: 'grading model completed with rubric' },
+      { title: 'Feedback package', detail: 'Generate actionable classroom feedback', log: 'feedback package generated' },
+    ];
+  }, [languageKey]);
+
+  const demoOutcome = useMemo(() => {
+    if (languageKey === 'zh') {
+      return demoMode === 'quality'
+        ? {
+            score: '92',
+            duration: '31s',
+            feedback: '12条建议',
+            hint: '高质量模式：反馈更细，适合讲评前使用。',
+            bullets: ['结构完整，论据更充分', '语法错误 3 处，已定位', '推荐改写段落 2 段'],
+          }
+        : {
+            score: '86',
+            duration: '18s',
+            feedback: '6条建议',
+            hint: '快速模式：响应更快，适合课堂随堂批改。',
+            bullets: ['核心问题已提取', '语法错误 2 处', '给出简短改进路径'],
+          };
+    }
+    return demoMode === 'quality'
+      ? {
+          score: '92',
+          duration: '31s',
+          feedback: '12 tips',
+          hint: 'Quality mode gives richer feedback for review sessions.',
+          bullets: ['Strong structure with clearer argument depth', '3 grammar errors auto-located', '2 rewrite-focused paragraph suggestions'],
+        }
+      : {
+          score: '86',
+          duration: '18s',
+          feedback: '6 tips',
+          hint: 'Quick mode is optimized for in-class fast grading.',
+          bullets: ['Core issues extracted instantly', '2 grammar errors highlighted', 'Short next-step guidance included'],
+        };
+  }, [demoMode, languageKey]);
+
+  const faqQuickFilters = useMemo(
+    () =>
+      languageKey === 'zh'
+        ? ['纸质作业', '评分标准', '数据安全']
+        : ['Paper essays', 'Rubric', 'Data security'],
+    [languageKey],
+  );
+
+  const filteredFaq = useMemo(() => {
+    const query = faqQuery.trim().toLowerCase();
+    if (!query) {
+      return content.faq;
+    }
+    return content.faq.filter((item) => `${item.question} ${item.answer}`.toLowerCase().includes(query));
+  }, [content.faq, faqQuery]);
 
   const featureTabs = useMemo(() => {
     const highlight0 = content.highlights[0] ?? fallbackContent.highlights[0];
@@ -342,6 +560,45 @@ export const LandingPage = () => {
       setActiveFeatureKey(featureTabs[0].key);
     }
   }, [activeFeatureKey, featureTabs]);
+
+  useEffect(() => {
+    setDemoRunning(false);
+    setDemoProgress(0);
+    setDemoStepIndex(0);
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (!demoRunning) {
+      return undefined;
+    }
+    const duration = demoMode === 'quality' ? 6400 : 4600;
+    const stageCount = demoStages.length;
+    const startedAt = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startedAt;
+      const ratio = Math.min(1, elapsed / duration);
+      const nextProgress = Math.round(ratio * 100);
+      setDemoProgress(nextProgress);
+      setDemoStepIndex(Math.min(stageCount - 1, Math.floor(ratio * stageCount)));
+
+      if (ratio >= 1) {
+        setDemoRunning(false);
+        demoFrameRef.current = null;
+        return;
+      }
+      demoFrameRef.current = window.requestAnimationFrame(animate);
+    };
+
+    demoFrameRef.current = window.requestAnimationFrame(animate);
+
+    return () => {
+      if (demoFrameRef.current !== null) {
+        window.cancelAnimationFrame(demoFrameRef.current);
+        demoFrameRef.current = null;
+      }
+    };
+  }, [demoMode, demoRunning, demoStages.length]);
 
   useEffect(() => {
     const updateProgress = () => {
@@ -406,6 +663,18 @@ export const LandingPage = () => {
     setActiveSection(targetId);
   };
 
+  const startDemo = () => {
+    if (demoFrameRef.current !== null) {
+      window.cancelAnimationFrame(demoFrameRef.current);
+      demoFrameRef.current = null;
+    }
+    setDemoProgress(0);
+    setDemoStepIndex(0);
+    setDemoRunning(true);
+  };
+
+  const demoCompleted = demoProgress >= 100;
+
   const handleConsultSubmit = async (values: Record<string, string>) => {
     if (!values) {
       return;
@@ -416,7 +685,7 @@ export const LandingPage = () => {
   };
 
   return (
-    <div className="landing-shell" style={themeStyle}>
+    <div className={`landing-shell landing-shell--${variant}`} style={themeStyle}>
       <div className={`landing-loader${showLoader ? '' : ' is-hidden'}`} aria-hidden={!showLoader}>
         <div className="landing-loader__ripple" />
         <div className="landing-loader__ripple landing-loader__ripple--alt" />
@@ -439,43 +708,25 @@ export const LandingPage = () => {
           <span className="landing-brand__tagline">{content.brand.tagline}</span>
         </div>
         <nav className="landing-nav">
-          <button
-            type="button"
-            onClick={() => scrollTo('features')}
-            className={`landing-nav__link${activeSection === 'features' ? ' is-active' : ''}`}
-          >
-            {languageKey === 'zh' ? '功能' : 'Features'}
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollTo('compare')}
-            className={`landing-nav__link${activeSection === 'compare' ? ' is-active' : ''}`}
-          >
-            {languageKey === 'zh' ? '对比' : 'Compare'}
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollTo('workflow')}
-            className={`landing-nav__link${activeSection === 'workflow' ? ' is-active' : ''}`}
-          >
-            {languageKey === 'zh' ? '流程' : 'Workflow'}
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollTo('insight')}
-            className={`landing-nav__link${activeSection === 'insight' ? ' is-active' : ''}`}
-          >
-            {languageKey === 'zh' ? '洞察' : 'Insight'}
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollTo('faq')}
-            className={`landing-nav__link${activeSection === 'faq' ? ' is-active' : ''}`}
-          >
-            FAQ
-          </button>
+          {sectionMeta.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => scrollTo(item.id)}
+              className={`landing-nav__link${activeSection === item.id ? ' is-active' : ''}`}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
         <div className="landing-actions">
+          <Segmented
+            className="landing-variant-switch"
+            size="small"
+            value={variant}
+            onChange={(value) => setVariant(value as LandingVariant)}
+            options={variantOptions}
+          />
           <LanguageSwitcher />
           <Button className="landing-button landing-button--ghost" onClick={() => setConsultOpen(true)}>
             {content.hero.secondaryCta}
@@ -558,6 +809,165 @@ export const LandingPage = () => {
                 </div>
               ))}
             </div>
+            <div className="landing-hero__pulse">
+              <div className="landing-hero__pulse-title">
+                {languageKey === 'zh' ? '教学流程状态' : 'Teaching Flow Status'}
+              </div>
+              <div className="landing-hero__pulse-list">
+                {processingSignals.map((item) => (
+                  <div key={item.label} className="landing-hero__pulse-item">
+                    <span className="landing-hero__pulse-dot" aria-hidden="true" />
+                    <span className="landing-hero__pulse-label">{item.label}</span>
+                    <strong className="landing-hero__pulse-value">{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="landing-hero__pulse-foot">
+                {languageKey === 'zh' ? '当前浏览模块' : 'Current section'}: {sectionMeta.find((item) => item.id === activeSection)?.label || '--'}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="landing-marquee landing-container" aria-label={languageKey === 'zh' ? '能力标签' : 'Capability tags'}>
+          <div className="landing-marquee__track">
+            {[...marqueeItems, ...marqueeItems].map((item, index) => (
+              <span key={`${item}-${index}`} className="landing-marquee__item">
+                {item}
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <section
+          id="scenes"
+          className={`landing-section landing-container${activeSection === 'scenes' ? ' is-active' : ''}`}
+        >
+          <div className="landing-section__header">
+            <Typography.Title level={3}>{languageKey === 'zh' ? '典型落地场景' : 'Real Classroom Scenarios'}</Typography.Title>
+            <Typography.Text className="landing-section__subtitle">
+              {languageKey === 'zh'
+                ? '围绕老师真实节奏设计，让 AI 更自然地进入教学流程。'
+                : 'Designed for real teacher rhythms so AI fits naturally into class operations.'}
+            </Typography.Text>
+          </div>
+          <div className="landing-scene-grid">
+            {sceneCards.map((item) => (
+              <article key={item.title} className="landing-scene-card">
+                <span className="landing-scene-card__tag">{item.tag}</span>
+                <h4 className="landing-scene-card__title">{item.title}</h4>
+                <p className="landing-scene-card__desc">{item.desc}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section
+          id="demo"
+          className={`landing-section landing-container${activeSection === 'demo' ? ' is-active' : ''}`}
+        >
+          <div className="landing-section__header">
+            <Typography.Title level={3}>{languageKey === 'zh' ? '交互式批改演示' : 'Interactive Grading Demo'}</Typography.Title>
+            <Typography.Text className="landing-section__subtitle">
+              {languageKey === 'zh'
+                ? '点击开始，查看一次从上传到反馈的完整模拟流程。'
+                : 'Run a simulated flow from upload to actionable feedback in one click.'}
+            </Typography.Text>
+          </div>
+          <div className="landing-demo-grid">
+            <div className="landing-demo-panel">
+              <div className="landing-demo-toolbar">
+                <Segmented
+                  className="landing-demo-mode"
+                  value={demoMode}
+                  onChange={(value) => setDemoMode(value as 'quick' | 'quality')}
+                  options={demoModeOptions}
+                />
+                <Button
+                  type="primary"
+                  className="landing-button landing-button--primary"
+                  onClick={startDemo}
+                  loading={demoRunning}
+                >
+                  {demoRunning
+                    ? languageKey === 'zh'
+                      ? '演示进行中'
+                      : 'Running Demo'
+                    : languageKey === 'zh'
+                      ? '开始演示'
+                      : 'Start Demo'}
+                </Button>
+              </div>
+              <div className="landing-demo-progress">
+                <div className="landing-demo-progress__label">
+                  {languageKey === 'zh' ? '处理进度' : 'Pipeline Progress'}
+                </div>
+                <div className="landing-demo-progress__bar" aria-hidden="true">
+                  <span style={{ width: `${demoProgress}%` }} />
+                </div>
+                <div className="landing-demo-progress__value">{demoProgress}%</div>
+              </div>
+              <div className="landing-demo-steps">
+                {demoStages.map((stage, index) => {
+                  const isDone = demoCompleted ? index <= demoStepIndex : index < demoStepIndex;
+                  const isActive = !demoCompleted && demoRunning && index === demoStepIndex;
+                  return (
+                    <div
+                      key={stage.title}
+                      className={`landing-demo-step${isDone ? ' is-done' : ''}${isActive ? ' is-active' : ''}`}
+                    >
+                      <span className="landing-demo-step__index">{String(index + 1).padStart(2, '0')}</span>
+                      <div className="landing-demo-step__content">
+                        <div className="landing-demo-step__title">{stage.title}</div>
+                        <div className="landing-demo-step__desc">{stage.detail}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <aside className="landing-demo-console">
+              <div className="landing-demo-console__head">
+                {languageKey === 'zh' ? '模拟结果快照' : 'Simulation Snapshot'}
+              </div>
+              <div className="landing-demo-console__stats">
+                <div className="landing-demo-console__stat">
+                  <span>{languageKey === 'zh' ? '总分' : 'Score'}</span>
+                  <strong>{demoOutcome.score}</strong>
+                </div>
+                <div className="landing-demo-console__stat">
+                  <span>{languageKey === 'zh' ? '耗时' : 'Duration'}</span>
+                  <strong>{demoOutcome.duration}</strong>
+                </div>
+                <div className="landing-demo-console__stat">
+                  <span>{languageKey === 'zh' ? '反馈量' : 'Feedback'}</span>
+                  <strong>{demoOutcome.feedback}</strong>
+                </div>
+              </div>
+              <div className="landing-demo-console__logs">
+                {demoStages.map((stage, index) => {
+                  const state = demoCompleted
+                    ? 'done'
+                    : index < demoStepIndex
+                      ? 'done'
+                      : demoRunning && index === demoStepIndex
+                        ? 'active'
+                        : 'wait';
+                  return (
+                    <div key={`${stage.title}-log`} className={`landing-demo-log landing-demo-log--${state}`}>
+                      <span className="landing-demo-log__dot" aria-hidden="true" />
+                      <span className="landing-demo-log__text">{stage.log}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="landing-demo-console__hint">{demoOutcome.hint}</div>
+              <ul className="landing-demo-console__bullets">
+                {demoOutcome.bullets.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </aside>
           </div>
         </section>
 
@@ -623,6 +1033,10 @@ export const LandingPage = () => {
           </div>
           <div className="landing-compare">
             <div className="landing-compare__frame">
+              <div className="landing-compare__meter" aria-hidden="true">
+                <span>{languageKey === 'zh' ? 'AI 增益感知' : 'AI Impact'}</span>
+                <strong>{compareInsight}%</strong>
+              </div>
               <div className="landing-compare__overlay" style={{ width: `${compareValue}%` }} />
               <div className="landing-compare__cards">
                 <div className="landing-compare__card landing-compare__card--before">
@@ -745,14 +1159,52 @@ export const LandingPage = () => {
               {languageKey === 'zh' ? '常见问题快速解答' : 'Quick answers before you start'}
             </Typography.Text>
           </div>
-          <div className="landing-faq">
-            {content.faq.map((item) => (
-              <div key={item.question} className="landing-faq__item">
-                <div className="landing-faq__question">{item.question}</div>
-                <div className="landing-faq__answer">{item.answer}</div>
-              </div>
-            ))}
+          <div className="landing-faq-tools">
+            <Input.Search
+              allowClear
+              value={faqQuery}
+              placeholder={languageKey === 'zh' ? '搜索问题或答案' : 'Search questions or answers'}
+              onChange={(event) => setFaqQuery(event.target.value)}
+              className="landing-faq-tools__search"
+            />
+            <div className="landing-faq-tools__chips">
+              {faqQuickFilters.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`landing-faq-tools__chip${faqQuery === item ? ' is-active' : ''}`}
+                  onClick={() => setFaqQuery(item)}
+                >
+                  {item}
+                </button>
+              ))}
+              {faqQuery ? (
+                <button type="button" className="landing-faq-tools__chip" onClick={() => setFaqQuery('')}>
+                  {languageKey === 'zh' ? '清空' : 'Clear'}
+                </button>
+              ) : null}
+            </div>
+            <Typography.Text className="landing-faq-tools__count">
+              {languageKey === 'zh'
+                ? `匹配 ${filteredFaq.length} / ${content.faq.length}`
+                : `${filteredFaq.length} of ${content.faq.length} matched`}
+            </Typography.Text>
           </div>
+          {filteredFaq.length ? (
+            <Collapse
+              className="landing-faq-collapse"
+              ghost
+              items={filteredFaq.map((item) => ({
+                key: item.question,
+                label: item.question,
+                children: <div className="landing-faq-collapse__answer">{item.answer}</div>,
+              }))}
+            />
+          ) : (
+            <div className="landing-faq-empty">
+              {languageKey === 'zh' ? '未找到相关问题，换个关键词试试。' : 'No FAQ found. Try another keyword.'}
+            </div>
+          )}
         </section>
 
         <section className="landing-cta landing-container">

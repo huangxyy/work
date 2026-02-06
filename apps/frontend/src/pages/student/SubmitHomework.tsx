@@ -10,9 +10,11 @@ import {
   Upload,
 } from 'antd';
 import type { RcFile, UploadFile } from 'antd/es/upload/interface';
+import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { createSubmission } from '../../api';
+import { createSubmission, fetchStudentHomeworks } from '../../api';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
 
@@ -24,6 +26,18 @@ export const SubmitHomeworkPage = () => {
   const [uploadPercent, setUploadPercent] = useState(0);
   const navigate = useNavigate();
   const { homeworkId } = useParams();
+
+  const homeworksQuery = useQuery({
+    queryKey: ['student-homeworks'],
+    queryFn: fetchStudentHomeworks,
+  });
+
+  const homework = useMemo(
+    () => (homeworksQuery.data || []).find((item) => item.id === homeworkId),
+    [homeworksQuery.data, homeworkId],
+  );
+  const isOverdue = Boolean(homework?.dueAt && new Date(homework.dueAt).getTime() < Date.now());
+  const canSubmit = !isOverdue || Boolean(homework?.allowLateSubmission);
 
   // Maximum file size: 10MB
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -48,6 +62,11 @@ export const SubmitHomeworkPage = () => {
       return;
     }
 
+    if (!canSubmit) {
+      message.warning(t('submit.closedByDue'));
+      return;
+    }
+
     if (files.length > 3) {
       message.warning(t('submit.uploadLimit'));
       return;
@@ -69,7 +88,11 @@ export const SubmitHomeworkPage = () => {
       message.success(t('submit.created'));
       navigate(`/student/submission/${result.submissionId}`);
     } catch (error) {
-      message.error(t('submit.failed'));
+      const apiMessage = isAxiosError(error)
+        ? (error.response?.data as { message?: string | string[] } | undefined)?.message
+        : undefined;
+      const detail = Array.isArray(apiMessage) ? apiMessage.join('; ') : apiMessage;
+      message.error(detail || t('submit.failed'));
       setUploadPercent(0);
     } finally {
       setSubmitting(false);
@@ -98,6 +121,13 @@ export const SubmitHomeworkPage = () => {
           }
           style={{ marginBottom: 16 }}
         />
+      ) : !canSubmit ? (
+        <Alert
+          type="warning"
+          message={t('submit.closedByDue')}
+          description={t('submit.closedByDueHint')}
+          style={{ marginBottom: 16 }}
+        />
       ) : null}
       <ProCard gutter={16} wrap>
         <ProCard bordered title={t('submit.uploadTitle')} colSpan={{ xs: 24, lg: 16 }}>
@@ -106,7 +136,7 @@ export const SubmitHomeworkPage = () => {
             beforeUpload={() => false}
             fileList={fileList}
             maxCount={3}
-            disabled={submitting}
+            disabled={submitting || !canSubmit}
             onChange={({ fileList: newList }) => {
               if (newList.length > 3) {
                 message.warning(t('submit.onlyThree'));
@@ -122,7 +152,12 @@ export const SubmitHomeworkPage = () => {
             <Typography.Text type="secondary">{t('submit.draggerHint')}</Typography.Text>
           </Upload.Dragger>
           <Space style={{ marginTop: 16 }}>
-            <Button type="primary" onClick={handleSubmit} loading={submitting} disabled={submitting}>
+            <Button
+              type="primary"
+              onClick={handleSubmit}
+              loading={submitting}
+              disabled={submitting || !canSubmit}
+            >
               {t('common.submit')}
             </Button>
             <Button onClick={() => setFileList([])} disabled={submitting}>

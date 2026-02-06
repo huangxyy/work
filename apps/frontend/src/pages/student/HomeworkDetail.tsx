@@ -41,11 +41,15 @@ export const StudentHomeworkDetailPage = () => {
   const dueAtLabel = homework?.dueAt
     ? new Date(homework.dueAt).toLocaleString()
     : t('student.homeworkDetail.flexible');
-  const dueTag = homework?.dueAt
-    ? new Date(homework.dueAt).getTime() < Date.now()
-      ? t('status.overdue')
-      : t('status.open')
-    : t('status.noDue');
+  const isOverdue = Boolean(homework?.dueAt && new Date(homework.dueAt).getTime() < Date.now());
+  const canSubmit = !isOverdue || Boolean(homework?.allowLateSubmission);
+  const dueTag = !homework?.dueAt
+    ? t('status.noDue')
+    : isOverdue
+      ? homework.allowLateSubmission
+        ? t('status.lateOpen')
+        : t('status.overdue')
+      : t('status.open');
 
   return (
     <PageContainer
@@ -83,19 +87,30 @@ export const StudentHomeworkDetailPage = () => {
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <ProCard
             bordered
-            title={homework.title}
-            extra={
-              <Button type="primary" onClick={() => navigate(`/student/submit/${homework.id}`)}>
-                {t('student.homeworkDetail.submitHomework')}
+              title={homework.title}
+              extra={
+              <Button
+                type="primary"
+                disabled={!canSubmit}
+                onClick={() => navigate(`/student/submit/${homework.id}`)}
+              >
+                {canSubmit ? t('student.homeworkDetail.submitHomework') : t('student.homeworks.submitClosed')}
               </Button>
-            }
-          >
+              }
+            >
             <Descriptions column={1} bordered>
               <Descriptions.Item label={t('common.class')}>{homework.class.name}</Descriptions.Item>
               <Descriptions.Item label={t('common.dueDate')}>{dueAtLabel}</Descriptions.Item>
               <Descriptions.Item label={t('common.status')}>
                 <Tag>{dueTag}</Tag>
               </Descriptions.Item>
+              {!canSubmit ? (
+                <Descriptions.Item label={t('common.action')}>
+                  <Typography.Text type="secondary">
+                    {t('student.homeworkDetail.submitClosedHint')}
+                  </Typography.Text>
+                </Descriptions.Item>
+              ) : null}
               <Descriptions.Item label={t('common.description')}>
                 {homework.desc ? (
                   <Typography.Paragraph style={{ margin: 0 }}>{homework.desc}</Typography.Paragraph>

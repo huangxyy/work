@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import pinyin from 'pinyin';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -84,24 +85,36 @@ export class ClassesService {
     });
   }
 
-  private parseStudentText(text: string): StudentInputDto[] {
+  private parseStudentText(text: string): {
+    students: StudentInputDto[];
+    invalid: Array<{ account: string; name: string; error: string }>;
+  } {
     const lines = text
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
 
     const result: StudentInputDto[] = [];
+    const invalid: Array<{ account: string; name: string; error: string }> = [];
 
     for (const line of lines) {
       const parts = line.split(/[\t,，\s]+/).filter(Boolean);
-      if (parts.length === 0) continue;
+      if (parts.length === 0) {
+        continue;
+      }
 
       let account: string | undefined;
       let name: string | undefined;
 
       if (parts.length === 1) {
-        name = parts[0];
-        account = this.generateAccountFromName(name);
+        const token = parts[0].trim();
+        if (this.looksLikeAccount(token)) {
+          account = token;
+          name = token;
+        } else {
+          name = token;
+          account = this.generateAccountFromName(token);
+        }
       } else if (parts.length === 2) {
         const [part1, part2] = parts;
         if (this.looksLikeAccount(part1) && !this.looksLikeAccount(part2)) {
@@ -115,23 +128,52 @@ export class ClassesService {
           name = part2;
         }
       } else {
-        account = parts[0];
-        name = parts.slice(1).join(' ');
+        const hasAccountLike = parts.some((part) => this.looksLikeAccount(part));
+        if (!hasAccountLike) {
+          name = parts.join(' ');
+          account = this.generateAccountFromName(name);
+        } else {
+          account = parts[0];
+          name = parts.slice(1).join(' ');
+        }
       }
 
-      if (account && name) {
-        result.push({ account: account.trim(), name: name.trim() });
+      const normalizedAccount = this.normalizeAccount(account || '');
+      const normalizedName = (name || '').trim();
+      if (!normalizedName) {
+        invalid.push({ account: normalizedAccount || '-', name: '-', error: `Invalid line: ${line}` });
+        continue;
       }
+      if (!normalizedAccount || !this.looksLikeAccount(normalizedAccount)) {
+        invalid.push({
+          account: normalizedAccount || '-',
+          name: normalizedName,
+          error: `Cannot resolve a valid account from line: ${line}`,
+        });
+        continue;
+      }
+      result.push({ account: normalizedAccount, name: normalizedName });
     }
 
-    return result;
+    return { students: result, invalid };
   }
 
   private generateAccountFromName(name: string): string {
-    const pinyin = require('pinyin');
-    const nameWithoutSpaces = name.replace(/\s+/g, '');
-    const pinyinArray = pinyin(nameWithoutSpaces, { style: 'normal' });
-    return pinyinArray.map((item: string[]) => item[0]).join('');
+    const source = name.replace(/\s+/g, '').trim();
+    if (!source) {
+      return '';
+    }
+    try {
+      const pinyinArray = pinyin(source, { style: 'normal' });
+      const merged = pinyinArray.map((item: string[]) => item[0] || '').join('');
+      return this.normalizeAccount(merged);
+    } catch {
+      return this.normalizeAccount(source);
+    }
+  }
+
+  private normalizeAccount(value: string): string {
+    return value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   }
 
   private looksLikeAccount(str: string): boolean {
@@ -163,12 +205,14 @@ export class ClassesService {
   async importStudents(classId: string, dto: ImportStudentsDto, user: AuthUser) {
     await this.ensureClassAccess(classId, user);
 
+    const parsedText = dto.text ? this.parseStudentText(dto.text) : { students: [], invalid: [] };
+
     const students = [
       ...(dto.students || []),
-      ...(dto.text ? this.parseStudentText(dto.text) : []),
+      ...parsedText.students,
     ];
 
-    if (students.length === 0) {
+    if (students.length === 0 && parsedText.invalid.length === 0) {
       throw new BadRequestException('No students provided');
     }
 
@@ -176,39 +220,60 @@ export class ClassesService {
 
     const studentIds: string[] = [];
     const result = {
-      total: students.length,
+      total: students.length + parsedText.invalid.length,
       created: [] as Array<{ account: string; name: string }>,
       existing: [] as Array<{ account: string; name: string }>,
       failed: [] as Array<{ account: string; name: string; error: string }>,
       enrolled: 0,
     };
 
+    if (parsedText.invalid.length) {
+      result.failed.push(...parsedText.invalid);
+    }
+
     for (const student of students) {
+      const account = this.normalizeAccount(student.account || '');
+      const name = (student.name || '').trim();
+
+      if (!name) {
+        result.failed.push({ account: account || '-', name: '-', error: 'Student name is required' });
+        continue;
+      }
+
+      if (!account || !this.looksLikeAccount(account)) {
+        result.failed.push({
+          account: account || '-',
+          name,
+          error: 'Account must contain only letters, numbers, or underscore',
+        });
+        continue;
+      }
+
       try {
         const existing = await this.prisma.user.findUnique({
-          where: { account: student.account },
+          where: { account },
         });
 
         if (existing) {
           studentIds.push(existing.id);
-          result.existing.push({ account: student.account, name: student.name });
+          result.existing.push({ account, name });
           continue;
         }
 
         const passwordHash = await bcrypt.hash(defaultPassword, 10);
         const created = await this.prisma.user.create({
           data: {
-            account: student.account,
-            name: student.name,
+            account,
+            name,
             role: Role.STUDENT,
             passwordHash,
           },
         });
         studentIds.push(created.id);
-        result.created.push({ account: student.account, name: student.name });
+        result.created.push({ account, name });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        result.failed.push({ account: student.account, name: student.name, error: errorMessage });
+        result.failed.push({ account, name, error: errorMessage });
       }
     }
 

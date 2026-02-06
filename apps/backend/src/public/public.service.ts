@@ -342,17 +342,17 @@ export class PublicService {
   }
 
   private mergeTextBlock<T extends Record<string, string>>(base: T, incoming?: Partial<T>): T {
-    const result = { ...base };
+    const result: Record<string, string> = { ...base };
     if (!incoming) {
-      return result;
+      return result as T;
     }
     (Object.keys(base) as Array<keyof T>).forEach((key) => {
       const value = incoming[key];
       if (typeof value === 'string' && value.trim()) {
-        result[key] = value.trim();
+        result[key as string] = value.trim();
       }
     });
-    return result;
+    return result as T;
   }
 
   private mergeList<T>(base: T[], incoming?: unknown): T[] {
