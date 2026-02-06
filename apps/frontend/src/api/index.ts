@@ -1195,3 +1195,25 @@ export const downloadTeacherHomeworkRemindersCsv = async (homeworkId: string, la
   });
   return response.data as Blob;
 };
+
+export const downloadTeacherHomeworkPrintPacket = async (
+  homeworkId: string,
+  options?: { lang?: string; submissionIds?: string[] },
+) => {
+  const response = await api.get('/teacher/submissions/print', {
+    params: {
+      homeworkId,
+      lang: options?.lang,
+      submissionIds: options?.submissionIds?.length ? options.submissionIds.join(',') : undefined,
+    },
+    responseType: 'blob',
+  });
+
+  return {
+    blob: response.data as Blob,
+    mimeType: String(response.headers['content-type'] || ''),
+    fileName: String(response.headers['content-disposition'] || ''),
+    files: Number(response.headers['x-print-packet-files'] || 1),
+    totalStudents: Number(response.headers['x-print-packet-students'] || 0),
+  };
+};

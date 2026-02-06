@@ -14,13 +14,13 @@ export class TeacherSettingsController {
   constructor(private readonly teacherSettingsService: TeacherSettingsService) {}
 
   @Get('grading')
-  @Roles(Role.TEACHER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   async getGradingSettings() {
     return this.teacherSettingsService.getGradingSettings();
   }
 
   @Get('grading/policies')
-  @Roles(Role.TEACHER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   async getGradingPolicies(
     @Query() query: GradingPolicyQueryDto,
     @Req() req: { user: AuthUser },
@@ -29,7 +29,7 @@ export class TeacherSettingsController {
   }
 
   @Get('grading/policies/preview')
-  @Roles(Role.TEACHER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   async getPolicyPreview(
     @Query() query: GradingPolicyQueryDto,
     @Req() req: { user: AuthUser },
@@ -38,7 +38,7 @@ export class TeacherSettingsController {
   }
 
   @Put('grading/policies/class/:classId')
-  @Roles(Role.TEACHER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   async upsertClassPolicy(
     @Param('classId') classId: string,
     @Body() body: GradingPolicyUpdateDto,
@@ -48,7 +48,7 @@ export class TeacherSettingsController {
   }
 
   @Put('grading/policies/homework/:homeworkId')
-  @Roles(Role.TEACHER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   async upsertHomeworkPolicy(
     @Param('homeworkId') homeworkId: string,
     @Body() body: GradingPolicyUpdateDto,
@@ -58,13 +58,13 @@ export class TeacherSettingsController {
   }
 
   @Delete('grading/policies/class/:classId')
-  @Roles(Role.TEACHER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   async clearClassPolicy(@Param('classId') classId: string, @Req() req: { user: AuthUser }) {
     return this.teacherSettingsService.clearClassPolicy(classId, req.user);
   }
 
   @Delete('grading/policies/homework/:homeworkId')
-  @Roles(Role.TEACHER, Role.ADMIN)
+  @Roles(Role.ADMIN)
   async clearHomeworkPolicy(
     @Param('homeworkId') homeworkId: string,
     @Req() req: { user: AuthUser },

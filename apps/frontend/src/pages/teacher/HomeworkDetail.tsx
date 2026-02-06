@@ -38,6 +38,7 @@ import {
   regradeHomeworkSubmissions,
   downloadTeacherHomeworkSubmissionsCsv,
   downloadTeacherHomeworkImagesZip,
+  downloadTeacherHomeworkPrintPacket,
   downloadTeacherHomeworkRemindersCsv,
   retryTeacherBatchUploads,
   updateHomeworkLateSubmission,
@@ -310,6 +311,22 @@ export const TeacherHomeworkDetailPage = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const parseFilenameFromDisposition = (raw: string | undefined, fallback: string) => {
+    if (!raw) {
+      return fallback;
+    }
+    const utf8Match = raw.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        return utf8Match[1];
+      }
+    }
+    const plainMatch = raw.match(/filename="?([^";]+)"?/i);
+    return plainMatch?.[1] || fallback;
+  };
+
   const handleExportCsv = async () => {
     if (!id) {
       return;
@@ -341,6 +358,28 @@ export const TeacherHomeworkDetailPage = () => {
     try {
       const blob = await downloadTeacherHomeworkRemindersCsv(id, language);
       downloadBlob(blob, `homework-${id}-reminders.csv`);
+    } catch {
+      message.error(t('teacher.homeworkDetail.exportFailed'));
+    }
+  };
+
+  const handleExportPrintPacket = async () => {
+    if (!id) {
+      return;
+    }
+    try {
+      const exported = await downloadTeacherHomeworkPrintPacket(id, { lang: language });
+      const fallbackName = exported.mimeType.includes('zip')
+        ? `homework-${id}-print-packets.zip`
+        : `homework-${id}-print-packet.pdf`;
+      const filename = parseFilenameFromDisposition(exported.fileName, fallbackName);
+      downloadBlob(exported.blob, filename);
+
+      if (exported.files > 1) {
+        message.info(
+          `${t('teacher.homeworkDetail.printPacketSplitHint')} ${exported.files} ${t('teacher.homeworkDetail.printPacketSplitUnit')}`,
+        );
+      }
     } catch {
       message.error(t('teacher.homeworkDetail.exportFailed'));
     }
@@ -818,6 +857,9 @@ export const TeacherHomeworkDetailPage = () => {
                         </Button>,
                         <Button key="export-csv" onClick={handleExportCsv}>
                           {t('teacher.homeworkDetail.exportCsv')}
+                        </Button>,
+                        <Button key="export-print-packet" onClick={handleExportPrintPacket}>
+                          {t('teacher.homeworkDetail.exportPrintPacket')}
                         </Button>,
                         <Button key="export-images" onClick={handleExportImages}>
                           {t('teacher.homeworkDetail.exportImages')}

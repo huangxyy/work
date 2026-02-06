@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   Res,
+  StreamableFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -25,6 +26,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
 import { CreateBatchSubmissionsDto } from './dto/create-batch-submissions.dto';
+import { ExportHomeworkPrintQueryDto } from './dto/export-homework-print-query.dto';
 import { ListHomeworkSubmissionsQueryDto } from './dto/list-homework-submissions-query.dto';
 import { RegradeHomeworkSubmissionsDto } from './dto/regrade-homework-submissions.dto';
 import { SubmissionsService } from './submissions.service';
@@ -120,6 +122,36 @@ export class TeacherSubmissionsController {
       `attachment; filename="homework-${query.homeworkId}-images.zip"`,
     );
     return zip;
+  }
+
+  @Get('print')
+  async exportPrintPacket(
+    @Query() query: ExportHomeworkPrintQueryDto,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const submissionIds = query.submissionIds
+      ? query.submissionIds
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : undefined;
+
+    const exported = await this.submissionsService.exportHomeworkPrintPacket(
+      query.homeworkId,
+      req.user,
+      {
+        lang: query.lang,
+        submissionIds,
+      },
+    );
+
+    res.setHeader('Content-Type', exported.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
+    res.setHeader('Content-Length', exported.buffer.length);
+    res.setHeader('X-Print-Packet-Files', String(exported.files));
+    res.setHeader('X-Print-Packet-Students', String(exported.totalStudents));
+    return new StreamableFile(exported.buffer);
   }
 
   @Get('reminders')

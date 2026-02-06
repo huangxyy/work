@@ -3,8 +3,6 @@ import {
   BookOutlined,
   ClusterOutlined,
   DashboardOutlined,
-  SettingOutlined,
-  SlidersOutlined,
 } from '@ant-design/icons';
 import { ProLayout } from '@ant-design/pro-components';
 import type { ProLayoutProps } from '@ant-design/pro-components';
@@ -41,18 +39,6 @@ export const TeacherLayout = () => {
           path: '/teacher/reports',
           name: t('nav.reports'),
           icon: <BarChartOutlined />,
-        },
-        {
-          path: '/teacher/settings',
-          name: t('nav.settings'),
-          icon: <SettingOutlined />,
-          routes: [
-            {
-              path: '/teacher/settings/grading',
-              name: t('nav.grading'),
-              icon: <SlidersOutlined />,
-            },
-          ],
         },
       ],
     }),
