@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchSubmission } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
-import { useI18n } from '../../i18n';
+import { useI18n, localizeErrorType } from '../../i18n';
 
 type GradingResult = {
   totalScore: number;
@@ -150,7 +150,7 @@ export const SubmissionResultPage = () => {
             renderItem={(item) => (
               <List.Item>
                 <Typography.Text>
-                  {item.type}: {item.message} ({item.original} → {item.suggestion})
+                  {localizeErrorType(item.type)}: {item.message} ({item.original} → {item.suggestion})
                 </Typography.Text>
               </List.Item>
             )}

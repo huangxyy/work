@@ -11,6 +11,30 @@ import { ReportRangeQueryDto } from './dto/report-range-query.dto';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// 统一的错误类型中文映射表（与前端保持一致）
+const ERROR_TYPE_ZH_MAP: Record<string, string> = {
+  grammar: '语法',
+  punctuation: '标点',
+  spelling: '拼写',
+  vocabulary: '词汇',
+  coherence: '连贯性',
+  structure: '结构',
+  content: '内容',
+  style: '风格',
+  clarity: '清晰度',
+  other: '其他',
+};
+
+/**
+ * 将错误类型英文转换为中文（用于 PDF 导出）
+ */
+function localizeErrorType(type: string, isZh: boolean): string {
+  if (!isZh) {
+    return type;
+  }
+  return ERROR_TYPE_ZH_MAP[type] || type;
+}
+
 type ScoreSummary = {
   avg: number;
   min: number;
@@ -232,7 +256,7 @@ export class ReportsService {
           return;
         }
         report.errorTypes.forEach((item) => {
-          doc.text(`${item.type}: ${item.count} (${this.formatRatio(item.ratio)})`);
+          doc.text(`${localizeErrorType(item.type, isZh)}: ${item.count} (${this.formatRatio(item.ratio)})`);
         });
       });
     });
@@ -318,7 +342,7 @@ export class ReportsService {
           return;
         }
         report.errorTypes.forEach((item) => {
-          doc.text(`${item.type}: ${item.count} (${this.formatRatio(item.ratio)})`);
+          doc.text(`${localizeErrorType(item.type, isZh)}: ${item.count} (${this.formatRatio(item.ratio)})`);
         });
       });
 

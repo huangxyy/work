@@ -31,7 +31,7 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/schedule": "^3.0.0",
-    "@nestjs/throttler": "^5.0.1",
+    "@nestjs/throttler": "^5.2.0",
     "@prisma/client": "^5.9.0",
     "adm-zip": "^0.5.12",
     "ajv": "^8.12.0",

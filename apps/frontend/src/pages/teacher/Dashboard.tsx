@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { fetchClasses, fetchHomeworksSummaryByClass, fetchTeacherClassReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { SoftEmpty } from '../../components/SoftEmpty';
-import { useI18n } from '../../i18n';
+import { useI18n, localizeErrorType } from '../../i18n';
 
 export const TeacherDashboardPage = () => {
   const { t } = useI18n();
@@ -219,7 +219,7 @@ export const TeacherDashboardPage = () => {
                     <List.Item>
                       <Space direction="vertical" style={{ width: '100%' }} size={6}>
                         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                          <Typography.Text>{item.type}</Typography.Text>
+                          <Typography.Text>{localizeErrorType(item.type)}</Typography.Text>
                           <Tag>{item.count}</Tag>
                         </Space>
                         <Progress percent={Math.round(item.ratio * 100)} showInfo={false} />
