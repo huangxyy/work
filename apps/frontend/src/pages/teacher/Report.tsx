@@ -13,7 +13,7 @@ import {
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
-import { useI18n } from '../../i18n';
+import { useI18n, localizeErrorType } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
 
 type ReportSummary = {
@@ -163,7 +163,7 @@ export const TeacherReportPage = () => {
       tooltip: { trigger: 'axis' },
       xAxis: {
         type: 'category',
-        data: data.map((item) => item.type),
+        data: data.map((item) => localizeErrorType(item.type)),
         axisLabel: { interval: 0, rotate: 20, width: 80, overflow: 'truncate' },
       },
       yAxis: { type: 'value' },

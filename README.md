@@ -120,6 +120,10 @@ npm run dev
 - **API**: http://localhost/api/*
 - **MinIO控制台**: http://localhost:9001
 
+### 快速启动（推荐）
+
+双击运行根目录的 `start-all.bat` 即可一键启动所有服务。
+
 ### 默认测试账号
 
 | 角色 | 账号 | 密码 |
@@ -213,6 +217,14 @@ VITE_API_BASE_URL=/api
 **原因**: 后端API或Worker没有运行
 
 **解决**: 检查并启动API服务器和Worker进程
+
+### 4. 页面一直刷新/无法加载
+
+**原因**: Nginx 代理端口与 Vite 实际端口不匹配
+
+**自动修复**: 双击运行 `scripts\check-ports.bat`
+
+**手动修复**: 检查 `pnpm dev` 显示的端口号，修改 `deploy/nginx/nginx.conf` 中的 `proxy_pass` 端口，然后重启 Nginx。
 
 ## Docker部署
 

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchStudentHomeworks, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { SoftEmpty } from '../../components/SoftEmpty';
-import { useI18n } from '../../i18n';
+import { useI18n, localizeErrorType } from '../../i18n';
 
 export const StudentDashboardPage = () => {
   const { t } = useI18n();
@@ -139,7 +139,7 @@ export const StudentDashboardPage = () => {
                   <List.Item>
                     <Space direction="vertical" style={{ width: '100%' }} size={8}>
                       <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                        <Typography.Text>{item.type}</Typography.Text>
+                        <Typography.Text>{localizeErrorType(item.type)}</Typography.Text>
                         <Tag>{item.count}</Tag>
                       </Space>
                       <Progress

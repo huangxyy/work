@@ -1564,3 +1564,26 @@ export const useI18n = () => {
   }
   return context;
 };
+
+// 统一的错误类型中文映射表
+export const ERROR_TYPE_MAP: Record<string, string> = {
+  grammar: '语法',
+  punctuation: '标点',
+  spelling: '拼写',
+  vocabulary: '词汇',
+  coherence: '连贯性',
+  structure: '结构',
+  content: '内容',
+  style: '风格',
+  clarity: '清晰度',
+  other: '其他',
+};
+
+/**
+ * 将错误类型英文转换为中文
+ * @param type - 英文错误类型（如 'grammar', 'vocabulary' 等）
+ * @returns 中文错误类型（如 '语法', '词汇' 等）
+ */
+export function localizeErrorType(type: string): string {
+  return ERROR_TYPE_MAP[type] || type;
+}
