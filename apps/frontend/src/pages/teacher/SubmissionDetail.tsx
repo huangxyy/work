@@ -7,6 +7,7 @@ import { fetchSubmission, regradeSubmission } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { formatDate } from '../../utils/dateFormat';
 
 type GradingResult = {
   totalScore: number;
@@ -210,7 +211,7 @@ export const TeacherSubmissionDetailPage = () => {
                 {typeof data.totalScore === 'number' ? data.totalScore : '--'}
               </Descriptions.Item>
               <Descriptions.Item label={t('common.lastUpdated')}>
-                {data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '--'}
+                {formatDate(data.updatedAt)}
               </Descriptions.Item>
             </Descriptions>
             <Space style={{ marginTop: 16 }} wrap>

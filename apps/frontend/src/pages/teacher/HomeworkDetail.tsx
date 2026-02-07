@@ -4,9 +4,11 @@ import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
+  Checkbox,
   DatePicker,
   Descriptions,
   Divider,
+  Dropdown,
   Input,
   InputNumber,
   List,
@@ -39,6 +41,7 @@ import {
   downloadTeacherHomeworkSubmissionsCsv,
   downloadTeacherHomeworkImagesZip,
   downloadTeacherHomeworkRemindersCsv,
+  downloadTeacherSubmissionsPdf,
   retryTeacherBatchUploads,
   updateHomeworkLateSubmission,
   type TeacherBatchUploadResult,
@@ -87,6 +90,7 @@ export const TeacherHomeworkDetailPage = () => {
   const [scoreMin, setScoreMin] = useState<number | null>(null);
   const [scoreMax, setScoreMax] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
   const resolveApiErrorMessage = (error: unknown, fallback: string) => {
     if (!isAxiosError(error)) {
@@ -110,6 +114,11 @@ export const TeacherHomeworkDetailPage = () => {
   useEffect(() => {
     setAllowLateSubmission(Boolean(homework?.allowLateSubmission));
   }, [homework?.allowLateSubmission, homework?.id]);
+
+  // Reset selection when filtered submissions change
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [keyword, statusFilter, scoreMin, scoreMax, dateRange]);
 
   const uploadTips = useMemo(
     () => [t('teacher.batchUpload.tip1'), t('teacher.batchUpload.tip2'), t('teacher.batchUpload.tip3')],
@@ -311,6 +320,22 @@ export const TeacherHomeworkDetailPage = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRowKeys(filteredSubmissions.filter((s) => s.status === 'DONE').map((s) => s.id));
+    } else {
+      setSelectedRowKeys([]);
+    }
+  };
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedRowKeys([...selectedRowKeys, id]);
+    } else {
+      setSelectedRowKeys(selectedRowKeys.filter((key) => key !== id));
+    }
+  };
+
   const handleExportCsv = async () => {
     if (!id) {
       return;
@@ -342,6 +367,20 @@ export const TeacherHomeworkDetailPage = () => {
     try {
       const blob = await downloadTeacherHomeworkRemindersCsv(id, language);
       downloadBlob(blob, `homework-${id}-reminders.csv`);
+    } catch {
+      message.error(t('teacher.homeworkDetail.exportFailed'));
+    }
+  };
+
+  const handleBatchExportPdf = async () => {
+    if (!selectedRowKeys.length || !id) {
+      return;
+    }
+    try {
+      const submissionIds = selectedRowKeys.join(',');
+      const blob = await downloadTeacherSubmissionsPdf(id, submissionIds, language);
+      downloadBlob(blob, `homework-${id}-grading-sheets.pdf`);
+      message.success(`${t('teacher.homeworkDetail.exportPdfSuccess')} ${selectedRowKeys.length}`);
     } catch {
       message.error(t('teacher.homeworkDetail.exportFailed'));
     }
@@ -469,6 +508,24 @@ export const TeacherHomeworkDetailPage = () => {
   };
 
   const columns: ProColumns<SubmissionRow>[] = [
+    {
+      title: (
+        <Checkbox
+          checked={selectedRowKeys.length === filteredSubmissions.filter((s) => s.status === 'DONE').length && filteredSubmissions.filter((s) => s.status === 'DONE').length > 0}
+          indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < filteredSubmissions.filter((s) => s.status === 'DONE').length}
+          onChange={(e) => handleSelectAll(e.target.checked)}
+        />
+      ),
+      dataIndex: 'id',
+      width: 50,
+      render: (_, record) => (
+        <Checkbox
+          checked={selectedRowKeys.includes(record.id)}
+          onChange={(e) => handleSelectRow(record.id, e.target.checked)}
+          disabled={record.status !== 'DONE'}
+        />
+      ),
+    },
     {
       title: t('common.student'),
       dataIndex: 'studentName',
@@ -824,15 +881,33 @@ export const TeacherHomeworkDetailPage = () => {
                         >
                           {`${t('teacher.homeworkDetail.retryFailed')} ${failedCount || 0}`}
                         </Button>,
-                        <Button key="export-csv" onClick={handleExportCsv}>
-                          {t('teacher.homeworkDetail.exportCsv')}
-                        </Button>,
-                        <Button key="export-images" onClick={handleExportImages}>
-                          {t('teacher.homeworkDetail.exportImages')}
-                        </Button>,
-                        <Button key="export-reminders" onClick={handleExportReminders}>
-                          {t('teacher.homeworkDetail.exportReminders')}
-                        </Button>,
+                        <Dropdown.Button
+                          key="export"
+                          type="primary"
+                          disabled={selectedRowKeys.length === 0 || !id}
+                          onClick={handleBatchExportPdf}
+                          menu={{
+                            items: [
+                              {
+                                key: 'csv',
+                                label: t('teacher.homeworkDetail.exportCsv'),
+                                onClick: handleExportCsv,
+                              },
+                              {
+                                key: 'images',
+                                label: t('teacher.homeworkDetail.exportImages'),
+                                onClick: handleExportImages,
+                              },
+                              {
+                                key: 'reminders',
+                                label: t('teacher.homeworkDetail.exportReminders'),
+                                onClick: handleExportReminders,
+                              },
+                            ],
+                          }}
+                        >
+                          {t('teacher.homeworkDetail.exportPdf')} ({selectedRowKeys.length})
+                        </Dropdown.Button>,
                       ]}
                     />
                   </ProCard>

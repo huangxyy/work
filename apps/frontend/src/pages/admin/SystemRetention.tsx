@@ -6,6 +6,7 @@ import { fetchAdminRetentionStatus, runAdminRetention } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { formatDate } from '../../utils/dateFormat';
 
 export const AdminSystemRetentionPage = () => {
   const { t } = useI18n();
@@ -110,7 +111,7 @@ export const AdminSystemRetentionPage = () => {
         {lastRun ? (
           <Descriptions column={2} bordered>
             <Descriptions.Item label={t('admin.retention.ranAt')}>
-              {new Date(lastRun.ranAt).toLocaleString()}
+              {formatDate(lastRun.ranAt)}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.retention.mode')}>
               {lastRun.dryRun ? t('admin.retention.dryRunMode') : t('admin.retention.liveMode')}
@@ -133,7 +134,7 @@ export const AdminSystemRetentionPage = () => {
             {history.map((entry) => (
               <ProCard key={entry.ranAt} bordered>
                 <Space direction="vertical" size={2}>
-                  <Typography.Text strong>{new Date(entry.ranAt).toLocaleString()}</Typography.Text>
+                  <Typography.Text strong>{formatDate(entry.ranAt)}</Typography.Text>
                   <Typography.Text type="secondary">
                     {entry.dryRun ? t('admin.retention.dryRunMode') : t('admin.retention.liveMode')} ·
                     {t('admin.retention.deleted')} {entry.deleted} ·

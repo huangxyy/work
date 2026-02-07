@@ -2,7 +2,7 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { Alert, Button, InputNumber, List, Select, Space, Typography } from 'antd';
+import { Alert, Button, Dropdown, InputNumber, List, Select, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -277,10 +277,22 @@ export const TeacherReportPage = () => {
             <Typography.Text>{t('teacher.reports.rangeDays')}</Typography.Text>
             <InputNumber min={1} max={30} value={rangeDays} onChange={(value) => setRangeDays(value || 7)} />
           </Space>
-          <Button onClick={handleExportPdf} loading={exporting}>
+          <Dropdown.Button
+            type="primary"
+            onClick={handleExportPdf}
+            loading={exporting}
+            menu={{
+              items: [
+                {
+                  key: 'csv',
+                  label: t('teacher.reports.exportCsv'),
+                  onClick: handleExportCsv,
+                },
+              ],
+            }}
+          >
             {t('teacher.reports.exportPdf')}
-          </Button>
-          <Button onClick={handleExportCsv}>{t('teacher.reports.exportCsv')}</Button>
+          </Dropdown.Button>
         </Space>
       </ProCard>
 

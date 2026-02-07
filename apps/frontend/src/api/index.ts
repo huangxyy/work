@@ -85,6 +85,7 @@ export {
   downloadTeacherHomeworkSubmissionsCsv,
   downloadTeacherHomeworkImagesZip,
   downloadTeacherHomeworkRemindersCsv,
+  downloadTeacherSubmissionsPdf,
   type TeacherSubmissionRow,
   type TeacherBatchUploadResult,
   type TeacherBatchPreviewResult,

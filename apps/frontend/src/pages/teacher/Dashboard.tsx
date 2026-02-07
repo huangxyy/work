@@ -7,6 +7,7 @@ import { fetchClasses, fetchHomeworksSummaryByClass, fetchTeacherClassReportOver
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
+import { formatDate } from '../../utils/dateFormat';
 
 export const TeacherDashboardPage = () => {
   const { t } = useI18n();
@@ -243,7 +244,7 @@ export const TeacherDashboardPage = () => {
                       <Space direction="vertical" size={0}>
                         <Typography.Text>{item.title}</Typography.Text>
                         <Typography.Text type="secondary">
-                          {item.dueAt ? item.dueAt.toLocaleString() : '--'}
+                          {item.dueAt ? formatDate(item.dueAt) : '--'}
                         </Typography.Text>
                       </Space>
                       <Tag>{`${item.pending}/${item.total}`}</Tag>

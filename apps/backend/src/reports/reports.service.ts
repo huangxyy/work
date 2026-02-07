@@ -676,11 +676,14 @@ export class ReportsService {
     return label ? (isZh ? label.zh : label.en) : status;
   }
 
+  // 日期格式化为 YYYY.M.D.H:MM（统一时间格式）
   private formatDateShort(date: Date): string {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
     const day = date.getDate();
-    return `${year}.${month}.${day}`;
+    const hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${year}.${month}.${day}.${hours}:${minutes}`;
   }
 
   private getClassReportHeaders(lang?: string): string[] {
@@ -750,8 +753,9 @@ export class ReportsService {
     });
   }
 
+  // 日期时间格式化为 YYYY.M.D.H:MM（统一时间格式）
   private formatDateTime(date: Date): string {
-    return date.toISOString().replace('T', ' ').slice(0, 19);
+    return this.formatDateShort(date);
   }
 
   private formatRatio(value: number): string {

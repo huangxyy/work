@@ -16,6 +16,7 @@ import {
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { formatDate } from '../../utils/dateFormat';
 import { useMessage } from '../../hooks/useMessage';
 
 export const TeacherSettingsGradingPage = () => {
@@ -128,7 +129,7 @@ export const TeacherSettingsGradingPage = () => {
       {
         title: t('common.dueAt'),
         dataIndex: 'dueAt',
-        render: (value: string | null) => (value ? new Date(value).toLocaleDateString() : '--'),
+        render: (value: string | null) => (value ? formatDate(value) : '--'),
         width: 140,
       },
       {
@@ -170,7 +171,7 @@ export const TeacherSettingsGradingPage = () => {
       {
         title: t('teacher.settings.lastUpdatedAt'),
         dataIndex: 'lastUpdatedAt',
-        render: (value: string | null) => (value ? new Date(value).toLocaleString() : '--'),
+        render: (value: string | null) => (value ? formatDate(value) : '--'),
         width: 180,
       },
       {

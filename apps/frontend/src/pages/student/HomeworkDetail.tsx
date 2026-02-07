@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { fetchStudentHomeworks, fetchStudentSubmissions } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { formatDate } from '../../utils/dateFormat';
 
 export const StudentHomeworkDetailPage = () => {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export const StudentHomeworkDetailPage = () => {
   );
 
   const dueAtLabel = homework?.dueAt
-    ? new Date(homework.dueAt).toLocaleString()
+    ? formatDate(homework.dueAt)
     : t('student.homeworkDetail.flexible');
   const isOverdue = Boolean(homework?.dueAt && new Date(homework.dueAt).getTime() < Date.now());
   const canSubmit = !isOverdue || Boolean(homework?.allowLateSubmission);
@@ -153,7 +154,7 @@ export const StudentHomeworkDetailPage = () => {
                         }
                         description={
                           <Typography.Text type="secondary">
-                            {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '--'}
+                            {item.updatedAt ? formatDate(item.updatedAt) : '--'}
                           </Typography.Text>
                         }
                       />

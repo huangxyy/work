@@ -330,3 +330,15 @@ export const downloadTeacherHomeworkRemindersCsv = async (homeworkId: string, la
   });
   return response.data as Blob;
 };
+
+export const downloadTeacherSubmissionsPdf = async (
+  homeworkId: string,
+  submissionIds: string,
+  lang?: string,
+) => {
+  const response = await api.get('/teacher/submissions/pdf', {
+    params: { homeworkId, submissionIds, lang },
+    responseType: 'blob',
+  });
+  return response.data as Blob;
+};

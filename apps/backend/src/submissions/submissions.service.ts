@@ -7,10 +7,12 @@ import {
 } from '@nestjs/common';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
 import AdmZip = require('adm-zip');
+const PDFDocument = require('pdfkit');
 import { randomUUID } from 'crypto';
+import { existsSync } from 'fs';
 import { createReadStream, promises as fs } from 'fs';
 import type { Express } from 'express';
-import { basename, extname } from 'path';
+import { basename, extname, isAbsolute, resolve } from 'path';
 import { Readable } from 'stream';
 import * as unzipper from 'unzipper';
 import { AuthUser } from '../auth/auth.types';
@@ -27,6 +29,29 @@ import { CreateBatchSubmissionsDto } from './dto/create-batch-submissions.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { RegradeHomeworkSubmissionsDto } from './dto/regrade-homework-submissions.dto';
 import { StudentSubmissionsQueryDto } from './dto/student-submissions-query.dto';
+
+type PDFDocumentInstance = any;
+
+// 错误类型中文映射表
+const ERROR_TYPE_ZH_MAP: Record<string, string> = {
+  grammar: '语法',
+  punctuation: '标点',
+  spelling: '拼写',
+  vocabulary: '词汇',
+  coherence: '连贯性',
+  structure: '结构',
+  content: '内容',
+  style: '风格',
+  clarity: '清晰度',
+  other: '其他',
+};
+
+function localizeErrorType(type: string, isZh: boolean): string {
+  if (!isZh) {
+    return type;
+  }
+  return ERROR_TYPE_ZH_MAP[type] || type;
+}
 
 type BatchImage = {
   fileKey: string;
@@ -1892,12 +1917,14 @@ export class SubmissionsService {
     return isZh ? label.zh : label.en;
   }
 
-  // 日期格式化为 YYYY.M.D
+  // 日期格式化为 YYYY.M.D.H:MM（统一时间格式）
   private formatDateShort(date: Date): string {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
     const day = date.getDate();
-    return `${year}.${month}.${day}`;
+    const hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${year}.${month}.${day}.${hours}:${minutes}`;
   }
 
   private getStudentExportHeaders(lang?: string): string[] {
@@ -1970,6 +1997,293 @@ export class SubmissionsService {
     ];
   }
 
+  async exportHomeworkSubmissionsPdf(
+    homeworkId: string,
+    submissionIds: string[],
+    lang: string | undefined,
+    user: AuthUser,
+  ) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can export');
+    }
+
+    const homework = await this.prisma.homework.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: homeworkId }
+          : { id: homeworkId, class: { teachers: { some: { id: user.id } } } },
+      select: { id: true, title: true, classId: true, class: { select: { id: true, name: true } } },
+    });
+
+    if (!homework) {
+      throw new NotFoundException('Homework not found or no access');
+    }
+
+    const submissions = await this.prisma.submission.findMany({
+      where: {
+        id: { in: submissionIds },
+        homeworkId,
+        status: SubmissionStatus.DONE,
+      },
+      include: {
+        student: { select: { id: true, name: true } },
+        homework: { select: { id: true, title: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!submissions.length) {
+      throw new BadRequestException('No completed submissions to export');
+    }
+
+    const isZh = this.isZhLang(lang);
+    const font = this.resolvePdfFont(lang);
+
+    return this.renderPdf((doc) => {
+      doc.font(font);
+      submissions.forEach((submission, index) => {
+        this.writeSubmissionGradingSheet(doc, submission, homework, isZh, index + 1, submissions.length);
+        if (index < submissions.length - 1) {
+          doc.addPage();
+        }
+      });
+    });
+  }
+
+  private writeSubmissionGradingSheet(
+    doc: PDFDocumentInstance,
+    submission: {
+      id: string;
+      updatedAt: Date;
+      totalScore: number | null;
+      gradingJson: Prisma.JsonValue | null;
+      ocrText: string | null;
+      student: { name: string };
+      homework: { title: string };
+    },
+    homework: { classId: string; class?: { id: string; name: string } },
+    isZh: boolean,
+    currentIndex: number,
+    totalCount: number,
+  ) {
+    const grading = this.asObject(submission.gradingJson);
+    const errors = Array.isArray(grading?.errors) ? grading.errors : [];
+    const suggestions = this.asObject((grading?.suggestions as Prisma.JsonValue | null) ?? null);
+    const sampleEssay = typeof suggestions?.sampleEssay === 'string' ? suggestions.sampleEssay : null;
+    const className = homework?.class?.name ?? '';
+
+    // Header with page number
+    doc.fontSize(9).fillColor('gray').text(
+      `${currentIndex}/${totalCount}`,
+      48,
+      30,
+      { align: 'right', width: 499 },
+    ).fillColor('black');
+
+    // Title
+    doc.fontSize(18).text(isZh ? '得满分英语批改' : 'Grading Sheet', { align: 'center' });
+    doc.moveDown(0.8);
+
+    // Class info row (top)
+    doc.fontSize(11);
+    if (className) {
+      doc.text(`${isZh ? '班级：' : 'Class: '}${className}`, { width: 499 });
+    }
+    doc.moveDown(0.3);
+
+    // Student info row - 使用导出时的当前时间
+    const shortDate = this.formatDateShort(new Date());
+    const shortId = submission.id.slice(-6).toUpperCase();
+    const infoText = `${isZh ? '学生：' : 'Student: '}${submission.student.name}    ${isZh ? '日期：' : 'Date: '}${shortDate}    ${isZh ? '题目：' : 'Title: '}${submission.homework.title}    ${isZh ? 'ID：' : 'ID: '}${shortId}`;
+    doc.text(infoText, { width: 499 });
+    doc.moveDown(0.8);
+
+    // Divider line
+    doc.moveTo(48, doc.y).lineTo(547, doc.y).stroke();
+    doc.moveDown(0.8);
+
+    // Score section
+    doc.fontSize(13).text(isZh ? '【评分】' : '[Score]', { underline: true });
+    doc.moveDown(0.3);
+    doc.fontSize(12);
+    doc.text(`${isZh ? '总分' : 'Total'}: ${submission.totalScore ?? '--'}`);
+    doc.moveDown(0.8);
+
+    // Summary section
+    const summary = typeof grading?.summary === 'string' ? grading.summary : null;
+    doc.fontSize(13).text(isZh ? '【评语总结】' : '[Summary]', { underline: true });
+    doc.moveDown(0.3);
+    doc.fontSize(11);
+    if (summary) {
+      const maxLength = 500;
+      const truncatedSummary = summary.length > maxLength ? summary.slice(0, maxLength) + '...' : summary;
+      this.wrapText(doc, truncatedSummary, 48, 499);
+    } else {
+      const noSummaryMsg = !grading
+        ? (isZh ? '暂无批改数据' : 'No grading data available')
+        : (isZh ? '暂无评语' : 'No summary available');
+      doc.fillColor('gray').text(noSummaryMsg).fillColor('black');
+    }
+    doc.moveDown(0.8);
+
+    // Original text section
+    doc.fontSize(13).text(isZh ? '【原文】' : '[Original Text]', { underline: true });
+    doc.moveDown(0.3);
+    doc.fontSize(10);
+    if (submission.ocrText) {
+      const cleanedOcrText = this.cleanOcrText(submission.ocrText);
+      this.wrapText(doc, cleanedOcrText, 48, 499);
+    } else {
+      doc.fillColor('gray').text(isZh ? '原文不可用' : 'Original text not available').fillColor('black');
+    }
+    doc.moveDown(0.8);
+
+    // Errors section
+    if (errors.length > 0) {
+      doc.fontSize(13).text(isZh ? '【错误详情】' : '[Errors]', { underline: true });
+      doc.moveDown(0.3);
+      doc.fontSize(10);
+      errors.forEach((error: unknown) => {
+        const err = this.asObject((error as Prisma.JsonValue | null) ?? null);
+        if (!err) return;
+        const type = typeof err.type === 'string' ? err.type : '';
+        const original = typeof err.original === 'string' ? err.original : '';
+        const suggestion = typeof err.suggestion === 'string' ? err.suggestion : '';
+        const message = typeof err.message === 'string' ? err.message : '';
+
+        const localizedType = localizeErrorType(type, isZh);
+        // Format: 类型: 描述 (原文 → 建议)
+        const errorText = message
+          ? `${localizedType}: ${message} (${original} → ${suggestion})`
+          : `${localizedType}: (${original} → ${suggestion})`;
+        doc.text(errorText);
+        doc.moveDown(0.3);
+        if (doc.y > 750) doc.addPage();
+      });
+      doc.moveDown(0.5);
+    }
+
+    // Sample essay section
+    if (sampleEssay) {
+      if (doc.y > 600) doc.addPage();
+      doc.fontSize(13).text(isZh ? '【范文】' : '[Sample Essay]', { underline: true });
+      doc.moveDown(0.3);
+      doc.fontSize(10);
+      this.wrapText(doc, sampleEssay, 48, 499);
+    }
+  }
+
+  /**
+   * 清理 OCR 文本，移除可能包含的学生信息头部
+   * 只保留纯英语作文内容
+   */
+  private cleanOcrText(ocrText: string): string {
+    if (!ocrText) return '';
+
+    // 常见的学生信息头部模式（这些通常出现在 OCR 识别的文本顶部）
+    const headerPatterns = [
+      // 姓名模式
+      /^(name\s*[:：]\s*.+?)$/gim,
+      /^(姓名\s*[:：]\s*.+?)$/gim,
+      // 班级模式
+      /^(class\s*[:：]\s*.+?)$/gim,
+      /^(班级\s*[:：]\s*.+?)$/gim,
+      // 学号模式
+      /^(student\s*id\s*[:：]\s*.+?)$/gim,
+      /^(学号\s*[:：]\s*.+?)$/gim,
+      // 日期模式
+      /^(date\s*[:：]\s*.+?)$/gim,
+      /^(日期\s*[:：]\s*.+?)$/gim,
+      // 题目模式
+      /^(title\s*[:：]\s*.+?)$/gim,
+      /^(题目\s*[:：]\s*.+?)$/gim,
+      // 学校模式
+      /^(school\s*[:：]\s*.+?)$/gim,
+      /^(学校\s*[:：]\s*.+?)$/gim,
+      // 年级模式
+      /^grade\s*\d+$/gim,
+      /^\d+\s*年级$/gim,
+    ];
+
+    let cleaned = ocrText;
+
+    // 移除匹配的头部行
+    for (const pattern of headerPatterns) {
+      cleaned = cleaned.replace(pattern, '');
+    }
+
+    // 移除顶部可能存在的空行
+    cleaned = cleaned.trim();
+
+    return cleaned;
+  }
+
+  private wrapText(doc: PDFDocumentInstance, text: string, x: number, maxWidth: number) {
+    const lineHeight = 14;
+    const lines: string[] = [];
+    const paragraphs = text.split('\n');
+
+    for (const paragraph of paragraphs) {
+      if (!paragraph) {
+        lines.push('');
+        continue;
+      }
+      const words = paragraph.split(' ');
+      let currentLine = '';
+
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const width = doc.widthOfString(testLine);
+
+        if (width < maxWidth) {
+          currentLine = testLine;
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+    }
+
+    for (const line of lines) {
+      if (doc.y > 780) doc.addPage();
+      doc.text(line, { width: maxWidth });
+    }
+  }
+
+  private resolvePdfFont(lang?: string): string {
+    if (!this.isZhLang(lang)) {
+      return 'Helvetica';
+    }
+    const envFont = process.env.REPORT_PDF_FONT || process.env.PDF_FONT_PATH || '';
+    const resolvedEnv = envFont
+      ? isAbsolute(envFont)
+        ? envFont
+        : resolve(process.cwd(), envFont)
+      : '';
+    // PDFKit 不支持 .ttc 格式，只使用 .ttf 和 .otf
+    const candidates = [
+      resolvedEnv,
+      'C:\\Windows\\Fonts\\msyh.ttf',
+      'C:\\Windows\\Fonts\\simhei.ttf',
+      'C:\\Windows\\Fonts\\simfang.ttf',
+      'C:\\Windows\\Fonts\\simkai.ttf',
+      'C:\\Windows\\Fonts\\simsun.ttf',
+      '/Library/Fonts/Arial Unicode.ttf',
+      '/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf',
+      '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
+      '/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.ttf',
+      '/usr/share/fonts/truetype/arphic/uming.ttf',
+      '/usr/share/fonts/truetype/arphic/ukai.ttf',
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      if (candidate && existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return 'Helvetica';
+  }
+
   private toCsvRow(values: Array<string | number | null>): string {
     return values
       .map((value) => {
@@ -1983,5 +2297,17 @@ export class SubmissionsService {
         return text;
       })
       .join(',');
+  }
+
+  private renderPdf(build: (doc: PDFDocumentInstance) => void): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 48 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (error) => reject(error));
+      build(doc);
+      doc.end();
+    });
   }
 }

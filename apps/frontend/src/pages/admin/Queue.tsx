@@ -13,6 +13,7 @@ import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { formatDate } from '../../utils/dateFormat';
 
 const statusColorMap: Record<string, string> = {
   completed: 'green',
@@ -164,7 +165,7 @@ export const AdminQueuePage = () => {
         title: t('admin.queue.createdAt'),
         dataIndex: 'timestamp',
         width: 170,
-        render: (value: number) => (value ? new Date(value).toLocaleString() : '--'),
+        render: (value: number) => (value ? formatDate(new Date(value)) : '--'),
       },
       {
         title: t('admin.queue.lastUpdatedAt'),
@@ -172,7 +173,7 @@ export const AdminQueuePage = () => {
         width: 170,
         render: (_: unknown, row: { finishedOn?: number | null; processedOn?: number | null }) => {
           const time = row.finishedOn || row.processedOn;
-          return time ? new Date(time).toLocaleString() : '--';
+          return time ? formatDate(new Date(time)) : '--';
         },
       },
       {
@@ -259,7 +260,7 @@ export const AdminQueuePage = () => {
             </Button>
           </Popconfirm>
           <Typography.Text type="secondary">
-            {metrics?.updatedAt ? `${t('admin.queue.updatedAt')} ${new Date(metrics.updatedAt).toLocaleString()}` : ''}
+            {metrics?.updatedAt ? `${t('admin.queue.updatedAt')} ${formatDate(metrics.updatedAt)}` : ''}
           </Typography.Text>
         </Space>
       </ProCard>

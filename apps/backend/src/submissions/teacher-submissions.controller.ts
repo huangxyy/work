@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   Res,
+  StreamableFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -119,7 +120,8 @@ export class TeacherSubmissionsController {
       'Content-Disposition',
       `attachment; filename="homework-${query.homeworkId}-images.zip"`,
     );
-    return zip;
+    res.setHeader('Content-Length', zip.length);
+    return new StreamableFile(zip);
   }
 
   @Get('reminders')
@@ -148,5 +150,28 @@ export class TeacherSubmissionsController {
   @Post('batches/:batchId/retry')
   async retryBatch(@Param('batchId') batchId: string, @Req() req: { user: AuthUser }) {
     return this.submissionsService.regradeBatchSubmissions(batchId, req.user);
+  }
+
+  @Get('pdf')
+  async exportPdf(
+    @Query('homeworkId') homeworkId: string,
+    @Query('submissionIds') submissionIds: string,
+    @Query('lang') lang: string | undefined,
+    @Req() req: { user: AuthUser },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const buffer = await this.submissionsService.exportHomeworkSubmissionsPdf(
+      homeworkId,
+      submissionIds.split(',').filter((id) => id),
+      lang,
+      req.user,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="homework-${homeworkId}-grading-sheets.pdf"`,
+    );
+    res.setHeader('Content-Length', buffer.length);
+    return new StreamableFile(buffer);
   }
 }

@@ -8,6 +8,7 @@ import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { formatDate } from '../../utils/dateFormat';
 
 const chartTextStyle = {
   fontFamily: 'IBM Plex Mono, Noto Sans SC, monospace',
@@ -149,7 +150,7 @@ export const AdminUsagePage = () => {
           <Typography.Text>{t('admin.usage.rangeDays')}</Typography.Text>
           <InputNumber min={1} max={30} value={days} onChange={(value) => setDays(value || 7)} />
           <Typography.Text type="secondary">
-            {data?.updatedAt ? `${t('admin.usage.updatedAt')} ${new Date(data.updatedAt).toLocaleString()}` : ''}
+            {data?.updatedAt ? `${t('admin.usage.updatedAt')} ${formatDate(data.updatedAt)}` : ''}
           </Typography.Text>
         </Space>
       </ProCard>

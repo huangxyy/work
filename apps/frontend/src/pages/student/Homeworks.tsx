@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchStudentHomeworks } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { formatDate } from '../../utils/dateFormat';
 
 type HomeworkItem = {
   id: string;
@@ -83,7 +84,7 @@ export const StudentHomeworksPage = () => {
           <Space direction="vertical" size={0}>
             <Tag color={status.color}>{status.label}</Tag>
             <Typography.Text type="secondary">
-              {item.dueAt ? new Date(item.dueAt).toLocaleString() : t('student.homeworks.flexibleDeadline')}
+              {item.dueAt ? formatDate(item.dueAt) : t('student.homeworks.flexibleDeadline')}
             </Typography.Text>
           </Space>
         );
