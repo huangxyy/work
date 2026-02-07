@@ -104,6 +104,7 @@ type PrintPacketEntry = {
   errors: Array<{ type: string; message: string; original: string; suggestion: string }>;
 };
 
+const CSV_BOM = '\uFEFF';
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff']);
 const MAX_BATCH_IMAGES = 100;
 const DEFAULT_ZIP_MAX_BYTES = 104857600;
@@ -380,7 +381,7 @@ export class SubmissionsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async listHomeworkSubmissions(homeworkId: string, user: AuthUser) {
@@ -469,7 +470,7 @@ export class SubmissionsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async exportHomeworkImagesZip(homeworkId: string, user: AuthUser) {
@@ -562,7 +563,7 @@ export class SubmissionsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async exportHomeworkPrintPacket(

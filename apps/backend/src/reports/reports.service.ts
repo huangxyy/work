@@ -10,6 +10,7 @@ import { AuthUser } from '../auth/auth.types';
 import { ReportRangeQueryDto } from './dto/report-range-query.dto';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const CSV_BOM = '\uFEFF';
 
 // 统一的错误类型中文映射表（与前端保持一致）
 const ERROR_TYPE_ZH_MAP: Record<string, string> = {
@@ -179,7 +180,7 @@ export class ReportsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async exportClassPdf(classId: string, query: ReportRangeQueryDto, user: AuthUser) {

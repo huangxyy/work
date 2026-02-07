@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C /d/work log --oneline -15)"
+      "Bash(git -C /d/work log --oneline -15)",
+      "Bash(pnpm lint:*)"
     ]
   }
 }

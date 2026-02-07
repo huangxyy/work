@@ -2,10 +2,8 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { useMemo, useRef, useState } from 'react';
-import { fetchStudentReportOverview } from '../../api';
+import { downloadStudentReportPdf, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -23,7 +21,7 @@ type StudentReport = {
 };
 
 export const StudentReportPage = () => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const message = useMessage();
   const [rangeDays, setRangeDays] = useState(7);
   const [exporting, setExporting] = useState(false);
@@ -95,34 +93,15 @@ export const StudentReportPage = () => {
   }, [report?.errorTypes]);
 
   const handleExportPdf = async () => {
-    if (!reportRef.current) {
-      message.error(t('student.report.exportFailed'));
-      return;
-    }
     try {
       setExporting(true);
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let position = 0;
-      let heightLeft = imgHeight;
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      pdf.save(`student-report-${rangeDays}d.pdf`);
+      const blob = await downloadStudentReportPdf(rangeDays, language);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `student-report-${rangeDays}d.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
     } catch {
       message.error(t('student.report.exportFailed'));
     } finally {

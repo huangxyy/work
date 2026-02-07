@@ -94,7 +94,7 @@ export const LoginPage = () => {
       if (result.user.role === 'TEACHER') {
         navigate('/teacher/classes');
       } else if (result.user.role === 'ADMIN') {
-        navigate('/admin/config');
+        navigate('/admin/dashboard');
       } else {
         navigate('/student/homeworks');
       }

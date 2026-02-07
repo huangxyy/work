@@ -1,12 +1,11 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { Alert, Button, InputNumber, List, Select, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   downloadTeacherClassReportCsv,
+  downloadTeacherClassReportPdf,
   fetchClasses,
   fetchTeacherClassReportOverview,
 } from '../../api';
@@ -191,34 +190,15 @@ export const TeacherReportPage = () => {
       message.warning(t('teacher.reports.selectClassHint'));
       return;
     }
-    if (!reportRef.current) {
-      message.error(t('teacher.reports.exportFailed'));
-      return;
-    }
     try {
       setExporting(true);
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let position = 0;
-      let heightLeft = imgHeight;
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      pdf.save(`class-${selectedClassId}-report.pdf`);
+      const blob = await downloadTeacherClassReportPdf(selectedClassId, rangeDays, language);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `class-${selectedClassId}-report.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
     } catch {
       message.error(t('teacher.reports.exportFailed'));
     } finally {
