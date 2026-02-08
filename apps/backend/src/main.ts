@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters';
 
 const parseCorsOrigins = (rawValue: string | undefined): string[] =>
   (rawValue || '')
@@ -18,6 +19,7 @@ async function bootstrap() {
   app.set('trust proxy', 1);
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalFilters(new HttpExceptionFilter());
   if (corsOrigins.length === 0 || corsOrigins.includes('*')) {
     app.enableCors();
     if (corsOrigins.length === 0) {

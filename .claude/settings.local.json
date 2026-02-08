@@ -2,6 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git -C /d/work log --oneline -15)",
+      "Bash(powershell:*)",
+      "Bash(pnpm build)",
+      "Bash(pnpm test)",
       "Bash(pnpm lint:*)"
     ]
   }

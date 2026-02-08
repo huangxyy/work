@@ -175,8 +175,8 @@ export class ReportsService {
         submission.homework.id,
         submission.homework.title,
         submission.totalScore ?? '',
-        submission.status,
-        submission.createdAt.toISOString(),
+        this.getStatusLabel(submission.status, query.lang),
+        this.formatDateShort(submission.createdAt),
       ]);
     }
 
@@ -665,6 +665,28 @@ export class ReportsService {
     return (lang || '').toLowerCase().startsWith('zh');
   }
 
+  private getStatusLabel(status: string, lang?: string): string {
+    const isZh = this.isZhLang(lang);
+    const statusMap: Record<string, { zh: string; en: string }> = {
+      QUEUED: { zh: '排队中', en: 'Queued' },
+      PROCESSING: { zh: '进行中', en: 'Processing' },
+      DONE: { zh: '完成', en: 'Done' },
+      FAILED: { zh: '失败', en: 'Failed' },
+    };
+    const label = statusMap[status];
+    return label ? (isZh ? label.zh : label.en) : status;
+  }
+
+  // 日期格式化为 YYYY.M.D.H:MM（统一时间格式）
+  private formatDateShort(date: Date): string {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${year}.${month}.${day}.${hours}:${minutes}`;
+  }
+
   private getClassReportHeaders(lang?: string): string[] {
     if (this.isZhLang(lang)) {
       return ['提交ID', '班级ID', '班级名称', '学生ID', '学生姓名', '作业ID', '作业标题', '总分', '状态', '提交时间'];
@@ -732,8 +754,9 @@ export class ReportsService {
     });
   }
 
+  // 日期时间格式化为 YYYY.M.D.H:MM（统一时间格式）
   private formatDateTime(date: Date): string {
-    return date.toISOString().replace('T', ' ').slice(0, 19);
+    return this.formatDateShort(date);
   }
 
   private formatRatio(value: number): string {

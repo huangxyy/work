@@ -12,6 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 新增 GitHub Actions CI/CD 工作流
 - 新增主机部署脚本 `deploy/install-host.sh`
 - API 接口更新与优化
+- **修复 PDF 导出功能** - 增强字体加载验证，支持中文字体回退机制
+- **合并导出按钮** - 教师端作业详情页和报告页使用 Dropdown.Button 组件
+- **优化 PDF 批改单格式** - 显示所有错误、简化学生信息、OCR 文本清理
 
 ## Development Commands
 
@@ -117,6 +120,7 @@ Key variables:
 - `LLM_*` - DeepSeek LLM config (important: `LLM_MAX_TOKENS=2000` minimum to avoid JSON truncation)
 - `WORKER_CONCURRENCY` - Worker parallel job count
 - `RETENTION_DAYS` - Data retention policy
+- `PDF_FONT_PATH` - Path to Chinese TTF/OTF font for PDF exports (e.g., `C:\Windows\Fonts\msyh.ttf`)
 
 ### Frontend (.env)
 - `VITE_API_BASE_URL` - API base path (default: `/api`)
@@ -135,6 +139,10 @@ Password: `Test1234`
 - **Page keeps refreshing / won't load** - Nginx proxy port mismatch.
   - **自动修复**: 运行 `scripts\check-ports.bat`
   - **手动修复**: 检查 Vite 端口（`pnpm dev` 启动时显示）是否与 `deploy/nginx/nginx.conf` 中的 `proxy_pass` 端口一致，修改后 `docker-compose restart nginx`
+- **PDF 导出文件无法打开** - 中文字体加载失败导致 PDF 损坏。
+  - 查看 `apps/backend/src/submissions/submissions.service.ts:resolvePdfFont` 中的字体候选列表
+  - 设置环境变量 `PDF_FONT_PATH` 指定有效的中文字体路径（如 `C:\Windows\Fonts\msyh.ttf`）
+  - 确保字体文件存在且可读（.ttf 或 .otf 格式，不支持 .ttc）
 
 ## Testing
 
@@ -157,6 +165,8 @@ Existing test files:
 - `src/auth/auth.service.spec.ts`
 - `src/grading/grading.service.spec.ts`
 - `src/submissions/submissions.service.spec.ts`
+- `src/ocr/ocr.service.spec.ts`
+- `src/public/public.controller.spec.ts`
 
 ### Frontend Tests
 No test framework configured currently.

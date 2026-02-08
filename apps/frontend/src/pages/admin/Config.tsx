@@ -28,6 +28,7 @@ import {
   updateAdminConfig,
 } from '../../api';
 import { useI18n } from '../../i18n';
+import { formatDate } from '../../utils/dateFormat';
 import { useMessage } from '../../hooks/useMessage';
 
 type HealthState = {
@@ -117,7 +118,7 @@ export const AdminConfigPage = () => {
       {
         title: t('admin.config.logTime'),
         dataIndex: 'createdAt',
-        render: (value: string) => new Date(value).toLocaleString(),
+        render: (value: string) => formatDate(value),
       },
       {
         title: t('admin.config.logProvider'),
@@ -481,7 +482,7 @@ export const AdminConfigPage = () => {
                   {llmHealth.ok ? t('admin.config.llmHealthOk') : t('admin.config.llmHealthFail')}
                 </Tag>
                 <Typography.Text type="secondary">
-                  {t('admin.config.lastChecked')} {new Date(llmHealth.checkedAt).toLocaleString()}
+                  {t('admin.config.lastChecked')} {formatDate(llmHealth.checkedAt)}
                 </Typography.Text>
                 {llmHealth.model ? (
                   <Typography.Text type="secondary">{llmHealth.model}</Typography.Text>
@@ -712,7 +713,7 @@ export const AdminConfigPage = () => {
                   {ocrHealth.ok ? t('admin.config.ocrHealthOk') : t('admin.config.ocrHealthFail')}
                 </Tag>
                 <Typography.Text type="secondary">
-                  {t('admin.config.lastChecked')} {new Date(ocrHealth.checkedAt).toLocaleString()}
+                  {t('admin.config.lastChecked')} {formatDate(ocrHealth.checkedAt)}
                 </Typography.Text>
                 {typeof ocrHealth.latencyMs === 'number' ? (
                   <Typography.Text type="secondary">{ocrHealth.latencyMs}ms</Typography.Text>
@@ -921,7 +922,7 @@ export const AdminConfigPage = () => {
                 <Descriptions size="small" column={2} bordered>
                   <Descriptions.Item label={t('admin.config.logId')}>{selectedLog.id}</Descriptions.Item>
                   <Descriptions.Item label={t('admin.config.logTime')}>
-                    {new Date(selectedLog.createdAt).toLocaleString()}
+                    {formatDate(selectedLog.createdAt)}
                   </Descriptions.Item>
                   <Descriptions.Item label={t('admin.config.logSource')}>
                     {selectedLog.source || '--'}

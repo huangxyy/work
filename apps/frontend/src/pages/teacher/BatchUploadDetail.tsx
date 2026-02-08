@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchTeacherBatchUploadDetail } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
+import { formatDateShort, formatDate } from '../../utils/dateFormat';
 import { useI18n } from '../../i18n';
 
 type BatchSubmissionRow = {
@@ -102,7 +103,7 @@ export const TeacherBatchUploadDetailPage = () => {
                 {data.needRewrite ? t('common.yes') : t('common.no')}
               </Descriptions.Item>
               <Descriptions.Item label={t('teacher.batchUpload.historyCreatedAt')}>
-                {data.createdAt ? new Date(data.createdAt).toLocaleString() : '--'}
+                {data.createdAt ? formatDate(data.createdAt) : '--'}
               </Descriptions.Item>
               <Descriptions.Item label={t('teacher.batchUpload.totalImages')}>
                 {data.totalImages}
@@ -192,7 +193,7 @@ export const TeacherBatchUploadDetailPage = () => {
                 {
                   title: t('common.lastUpdated'),
                   dataIndex: 'updatedAt',
-                  renderText: (value) => value || '--',
+                  render: (_, record) => formatDateShort(record.updatedAt),
                   width: 200,
                 },
                 {

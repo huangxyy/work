@@ -18,10 +18,12 @@ import {
   fetchClassStudents,
   fetchClasses,
   fetchHomeworksByClass,
+  fetchStudentSubmissions,
   importClassStudents,
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
+import { formatDate } from '../../utils/dateFormat';
 import { useMessage } from '../../hooks/useMessage';
 
 type StudentRow = {
@@ -141,7 +143,7 @@ export const TeacherClassDetailPage = () => {
     {
       title: t('common.due'),
       dataIndex: 'dueAt',
-      renderText: (value) => (value ? new Date(value).toLocaleString() : t('status.noDue')),
+      renderText: (value) => (value ? formatDate(value) : t('status.noDue')),
       width: 220,
     },
     {

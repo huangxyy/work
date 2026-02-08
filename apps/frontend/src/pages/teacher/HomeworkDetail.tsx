@@ -4,9 +4,11 @@ import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
+  Checkbox,
   DatePicker,
   Descriptions,
   Divider,
+  Dropdown,
   Input,
   InputNumber,
   List,
@@ -38,8 +40,8 @@ import {
   regradeHomeworkSubmissions,
   downloadTeacherHomeworkSubmissionsCsv,
   downloadTeacherHomeworkImagesZip,
-  downloadTeacherHomeworkPrintPacket,
   downloadTeacherHomeworkRemindersCsv,
+  downloadTeacherSubmissionsPdf,
   retryTeacherBatchUploads,
   updateHomeworkLateSubmission,
   type TeacherBatchUploadResult,
@@ -48,6 +50,7 @@ import {
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { formatDateShort } from '../../utils/dateFormat';
 
 type HomeworkItem = {
   id: string;
@@ -87,6 +90,7 @@ export const TeacherHomeworkDetailPage = () => {
   const [scoreMin, setScoreMin] = useState<number | null>(null);
   const [scoreMax, setScoreMax] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
   const resolveApiErrorMessage = (error: unknown, fallback: string) => {
     if (!isAxiosError(error)) {
@@ -110,6 +114,11 @@ export const TeacherHomeworkDetailPage = () => {
   useEffect(() => {
     setAllowLateSubmission(Boolean(homework?.allowLateSubmission));
   }, [homework?.allowLateSubmission, homework?.id]);
+
+  // Reset selection when filtered submissions change
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [keyword, statusFilter, scoreMin, scoreMax, dateRange]);
 
   const uploadTips = useMemo(
     () => [t('teacher.batchUpload.tip1'), t('teacher.batchUpload.tip2'), t('teacher.batchUpload.tip3')],
@@ -311,20 +320,20 @@ export const TeacherHomeworkDetailPage = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  const parseFilenameFromDisposition = (raw: string | undefined, fallback: string) => {
-    if (!raw) {
-      return fallback;
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRowKeys(filteredSubmissions.filter((s) => s.status === 'DONE').map((s) => s.id));
+    } else {
+      setSelectedRowKeys([]);
     }
-    const utf8Match = raw.match(/filename\*=UTF-8''([^;]+)/i);
-    if (utf8Match?.[1]) {
-      try {
-        return decodeURIComponent(utf8Match[1]);
-      } catch {
-        return utf8Match[1];
-      }
+  };
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedRowKeys([...selectedRowKeys, id]);
+    } else {
+      setSelectedRowKeys(selectedRowKeys.filter((key) => key !== id));
     }
-    const plainMatch = raw.match(/filename="?([^";]+)"?/i);
-    return plainMatch?.[1] || fallback;
   };
 
   const handleExportCsv = async () => {
@@ -363,23 +372,15 @@ export const TeacherHomeworkDetailPage = () => {
     }
   };
 
-  const handleExportPrintPacket = async () => {
-    if (!id) {
+  const handleBatchExportPdf = async () => {
+    if (!selectedRowKeys.length || !id) {
       return;
     }
     try {
-      const exported = await downloadTeacherHomeworkPrintPacket(id, { lang: language });
-      const fallbackName = exported.mimeType.includes('zip')
-        ? `homework-${id}-print-packets.zip`
-        : `homework-${id}-print-packet.pdf`;
-      const filename = parseFilenameFromDisposition(exported.fileName, fallbackName);
-      downloadBlob(exported.blob, filename);
-
-      if (exported.files > 1) {
-        message.info(
-          `${t('teacher.homeworkDetail.printPacketSplitHint')} ${exported.files} ${t('teacher.homeworkDetail.printPacketSplitUnit')}`,
-        );
-      }
+      const submissionIds = selectedRowKeys.join(',');
+      const blob = await downloadTeacherSubmissionsPdf(id, submissionIds, language);
+      downloadBlob(blob, `homework-${id}-grading-sheets.pdf`);
+      message.success(`${t('teacher.homeworkDetail.exportPdfSuccess')} ${selectedRowKeys.length}`);
     } catch {
       message.error(t('teacher.homeworkDetail.exportFailed'));
     }
@@ -508,6 +509,24 @@ export const TeacherHomeworkDetailPage = () => {
 
   const columns: ProColumns<SubmissionRow>[] = [
     {
+      title: (
+        <Checkbox
+          checked={selectedRowKeys.length === filteredSubmissions.filter((s) => s.status === 'DONE').length && filteredSubmissions.filter((s) => s.status === 'DONE').length > 0}
+          indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < filteredSubmissions.filter((s) => s.status === 'DONE').length}
+          onChange={(e) => handleSelectAll(e.target.checked)}
+        />
+      ),
+      dataIndex: 'id',
+      width: 50,
+      render: (_, record) => (
+        <Checkbox
+          checked={selectedRowKeys.includes(record.id)}
+          onChange={(e) => handleSelectRow(record.id, e.target.checked)}
+          disabled={record.status !== 'DONE'}
+        />
+      ),
+    },
+    {
       title: t('common.student'),
       dataIndex: 'studentName',
       render: (value) => <Typography.Text strong>{value}</Typography.Text>,
@@ -520,7 +539,15 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('common.status'),
       dataIndex: 'status',
-      renderText: (value) => (value ? t(`status.${value.toLowerCase()}`) : '--'),
+      render: (_, item) => {
+        const statusMap: Record<string, string> = {
+          QUEUED: t('status.queued'),
+          PROCESSING: t('status.processing'),
+          DONE: t('status.done'),
+          FAILED: t('status.failed'),
+        };
+        return <Tag color={item.status === 'DONE' ? 'success' : item.status === 'FAILED' ? 'error' : item.status === 'PROCESSING' ? 'processing' : 'default'}>{statusMap[item.status] || item.status}</Tag>;
+      },
       width: 140,
     },
     {
@@ -532,11 +559,7 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('common.lastUpdated'),
       dataIndex: 'updatedAt',
-      renderText: (value) => {
-        if (!value) return '--';
-        const d = new Date(value);
-        return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
-      },
+      renderText: (value) => formatDateShort(value),
       width: 200,
     },
     {
@@ -582,8 +605,7 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('teacher.batchUpload.historyCreatedAt'),
       dataIndex: 'createdAt',
-      render: (value: string) =>
-        value ? new Date(value).toLocaleString() : '--',
+      render: (value: string) => formatDateShort(value),
       width: 180,
     },
     {
@@ -700,7 +722,7 @@ export const TeacherHomeworkDetailPage = () => {
                   <Descriptions column={1} bordered>
                     <Descriptions.Item label={t('common.title')}>{homework.title}</Descriptions.Item>
                     <Descriptions.Item label={t('common.dueDate')}>
-                      {homework.dueAt ? (() => { const d = new Date(homework.dueAt); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; })() : t('status.noDue')}
+                      {homework.dueAt ? formatDateShort(homework.dueAt) : t('status.noDue')}
                     </Descriptions.Item>
                     <Descriptions.Item label={t('common.description')}>
                       {homework.desc ? (
@@ -859,18 +881,33 @@ export const TeacherHomeworkDetailPage = () => {
                         >
                           {`${t('teacher.homeworkDetail.retryFailed')} ${failedCount || 0}`}
                         </Button>,
-                        <Button key="export-csv" onClick={handleExportCsv}>
-                          {t('teacher.homeworkDetail.exportCsv')}
-                        </Button>,
-                        <Button key="export-print-packet" onClick={handleExportPrintPacket}>
-                          {t('teacher.homeworkDetail.exportPrintPacket')}
-                        </Button>,
-                        <Button key="export-images" onClick={handleExportImages}>
-                          {t('teacher.homeworkDetail.exportImages')}
-                        </Button>,
-                        <Button key="export-reminders" onClick={handleExportReminders}>
-                          {t('teacher.homeworkDetail.exportReminders')}
-                        </Button>,
+                        <Dropdown.Button
+                          key="export"
+                          type="primary"
+                          disabled={selectedRowKeys.length === 0 || !id}
+                          onClick={handleBatchExportPdf}
+                          menu={{
+                            items: [
+                              {
+                                key: 'csv',
+                                label: t('teacher.homeworkDetail.exportCsv'),
+                                onClick: handleExportCsv,
+                              },
+                              {
+                                key: 'images',
+                                label: t('teacher.homeworkDetail.exportImages'),
+                                onClick: handleExportImages,
+                              },
+                              {
+                                key: 'reminders',
+                                label: t('teacher.homeworkDetail.exportReminders'),
+                                onClick: handleExportReminders,
+                              },
+                            ],
+                          }}
+                        >
+                          {t('teacher.homeworkDetail.exportPdf')} ({selectedRowKeys.length})
+                        </Dropdown.Button>,
                       ]}
                     />
                   </ProCard>
