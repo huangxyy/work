@@ -100,11 +100,49 @@ type StudentCandidate = {
   normalized: string;
 };
 
+type PDFDocumentInstance = InstanceType<typeof PDFDocument>;
+
+type PrintPacketOptions = {
+  lang?: string;
+  submissionIds?: string[];
+};
+
+type PrintPacketExport = {
+  filename: string;
+  mimeType: 'application/pdf' | 'application/zip';
+  buffer: Buffer;
+  totalStudents: number;
+  files: number;
+};
+
+type PrintPacketEntry = {
+  submissionId: string;
+  studentName: string;
+  studentAccount: string;
+  totalScore: number | null;
+  updatedAt: Date;
+  summary: string;
+  nextSteps: string[];
+  rewrite: string;
+  sampleEssay: string;
+  errors: Array<{ type: string; message: string; original: string; suggestion: string }>;
+};
+
+const CSV_BOM = '\uFEFF';
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff']);
 const MAX_BATCH_IMAGES = 100;
 const DEFAULT_ZIP_MAX_BYTES = 104857600;
 const DEFAULT_ZIP_UNCOMPRESSED_BYTES = 314572800;
 const DEFAULT_ZIP_ENTRY_BYTES = 15728640;
+const DEFAULT_PRINT_PACKET_MAX_PER_FILE = 30;
+const DEFAULT_PRINT_PACKET_MAX_TOTAL = 120;
+const PRINT_PACKET_MAX_PAGES_PER_STUDENT = 2;
+const PRINT_PACKET_SUMMARY_MAX_CHARS = 700;
+const PRINT_PACKET_REWRITE_MAX_CHARS = 1000;
+const PRINT_PACKET_SAMPLE_MAX_CHARS = 1200;
+const PRINT_PACKET_MAX_ERRORS = 8;
+const PRINT_PACKET_MAX_NEXT_STEPS = 6;
+const PRINT_PACKET_LINE_GAP = 6;
 const MAX_ZIP_BYTES = Number.isFinite(Number(process.env.BATCH_ZIP_MAX_BYTES))
   ? Number(process.env.BATCH_ZIP_MAX_BYTES)
   : DEFAULT_ZIP_MAX_BYTES;
@@ -116,6 +154,12 @@ const MAX_ZIP_UNCOMPRESSED_BYTES = Number.isFinite(
 const MAX_ZIP_ENTRY_BYTES = Number.isFinite(Number(process.env.BATCH_ZIP_MAX_ENTRY_BYTES))
   ? Number(process.env.BATCH_ZIP_MAX_ENTRY_BYTES)
   : DEFAULT_ZIP_ENTRY_BYTES;
+const PRINT_PACKET_MAX_PER_FILE = Number.isFinite(Number(process.env.PRINT_PACKET_MAX_PER_FILE))
+  ? Number(process.env.PRINT_PACKET_MAX_PER_FILE)
+  : DEFAULT_PRINT_PACKET_MAX_PER_FILE;
+const PRINT_PACKET_MAX_TOTAL = Number.isFinite(Number(process.env.PRINT_PACKET_MAX_TOTAL))
+  ? Number(process.env.PRINT_PACKET_MAX_TOTAL)
+  : DEFAULT_PRINT_PACKET_MAX_TOTAL;
 
 @Injectable()
 export class SubmissionsService {
@@ -361,7 +405,7 @@ export class SubmissionsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async listHomeworkSubmissions(homeworkId: string, user: AuthUser) {
@@ -447,7 +491,7 @@ export class SubmissionsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
   async exportHomeworkImagesZip(homeworkId: string, user: AuthUser) {
@@ -540,7 +584,126 @@ export class SubmissionsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
+  }
+
+  async exportHomeworkPrintPacket(
+    homeworkId: string,
+    user: AuthUser,
+    options: PrintPacketOptions = {},
+  ): Promise<PrintPacketExport> {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Only teacher or admin can export');
+    }
+
+    const homework = await this.prisma.homework.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: homeworkId }
+          : { id: homeworkId, class: { teachers: { some: { id: user.id } } } },
+      select: { id: true, title: true },
+    });
+
+    if (!homework) {
+      throw new NotFoundException('Homework not found or no access');
+    }
+
+    const submissionIdSet = new Set(
+      (options.submissionIds || [])
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
+
+    const where: Prisma.SubmissionWhereInput = {
+      homeworkId,
+      status: SubmissionStatus.DONE,
+      ...(submissionIdSet.size ? { id: { in: Array.from(submissionIdSet) } } : {}),
+    };
+
+    const submissions = await this.prisma.submission.findMany({
+      where,
+      select: {
+        id: true,
+        totalScore: true,
+        updatedAt: true,
+        gradingJson: true,
+        student: { select: { id: true, name: true, account: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!submissions.length) {
+      throw new BadRequestException('No completed submissions found for print packet export');
+    }
+
+    const latestByStudent = new Map<string, (typeof submissions)[number]>();
+    for (const submission of submissions) {
+      if (!latestByStudent.has(submission.student.id)) {
+        latestByStudent.set(submission.student.id, submission);
+      }
+    }
+
+    const entries = Array.from(latestByStudent.values()).map((submission) => {
+      const parsed = this.extractPrintPacketGrading(submission.gradingJson);
+      return {
+        submissionId: submission.id,
+        studentName: submission.student.name,
+        studentAccount: submission.student.account,
+        totalScore: submission.totalScore,
+        updatedAt: submission.updatedAt,
+        summary: parsed.summary,
+        nextSteps: parsed.nextSteps,
+        rewrite: parsed.rewrite,
+        sampleEssay: parsed.sampleEssay,
+        errors: parsed.errors,
+      } as PrintPacketEntry;
+    });
+
+    if (entries.length > PRINT_PACKET_MAX_TOTAL) {
+      throw new BadRequestException(
+        `Too many students (${entries.length}). Please export no more than ${PRINT_PACKET_MAX_TOTAL} at once.`,
+      );
+    }
+
+    const perFile = Math.max(1, PRINT_PACKET_MAX_PER_FILE);
+    const chunks = this.chunkArray(entries, perFile);
+    const isZh = this.isZhLang(options.lang);
+
+    if (chunks.length === 1) {
+      const pdf = await this.renderPrintPacketPdf(chunks[0], {
+        homeworkTitle: homework.title,
+        homeworkId: homework.id,
+        lang: options.lang,
+      });
+      return {
+        filename: `homework-${homework.id}-print-packet.pdf`,
+        mimeType: 'application/pdf',
+        buffer: pdf,
+        totalStudents: entries.length,
+        files: 1,
+      };
+    }
+
+    const zip = new AdmZip();
+    for (let index = 0; index < chunks.length; index += 1) {
+      const pdf = await this.renderPrintPacketPdf(chunks[index], {
+        homeworkTitle: homework.title,
+        homeworkId: homework.id,
+        lang: options.lang,
+      });
+      const filename = isZh
+        ? `作业批改单-${index + 1}.pdf`
+        : `homework-print-packet-${index + 1}.pdf`;
+      zip.addFile(filename, pdf);
+    }
+
+    return {
+      filename: `homework-${homework.id}-print-packets.zip`,
+      mimeType: 'application/zip',
+      buffer: zip.toBuffer(),
+      totalStudents: entries.length,
+      files: chunks.length,
+    };
   }
 
   async regradeHomeworkSubmissions(dto: RegradeHomeworkSubmissionsDto, user: AuthUser) {
@@ -1872,6 +2035,309 @@ export class SubmissionsService {
   private async cleanupTempFiles(paths: Set<string>) {
     const tasks = Array.from(paths).map((filePath) => fs.unlink(filePath).catch(() => undefined));
     await Promise.all(tasks);
+  }
+
+  private chunkArray<T>(items: T[], size: number): T[][] {
+    if (!items.length) {
+      return [];
+    }
+    const chunkSize = Math.max(1, size);
+    const chunks: T[][] = [];
+    for (let index = 0; index < items.length; index += chunkSize) {
+      chunks.push(items.slice(index, index + chunkSize));
+    }
+    return chunks;
+  }
+
+  private extractPrintPacketGrading(value: Prisma.JsonValue | null): {
+    summary: string;
+    nextSteps: string[];
+    rewrite: string;
+    sampleEssay: string;
+    errors: Array<{ type: string; message: string; original: string; suggestion: string }>;
+  } {
+    const obj = this.asObject(value);
+    const suggestions = this.asObject(obj?.suggestions as Prisma.JsonValue | null);
+    const summary = this.trimText(this.readString(obj?.summary), PRINT_PACKET_SUMMARY_MAX_CHARS);
+    const rewrite = this.trimText(
+      this.readString(suggestions?.rewrite),
+      PRINT_PACKET_REWRITE_MAX_CHARS,
+    );
+    const sampleEssay = this.trimText(
+      this.readString(suggestions?.sampleEssay),
+      PRINT_PACKET_SAMPLE_MAX_CHARS,
+    );
+
+    const nextSteps = Array.isArray(obj?.nextSteps)
+      ? (obj.nextSteps as unknown[])
+          .filter((item) => typeof item === 'string')
+          .map((item) => this.trimText(String(item), 180))
+          .filter(Boolean)
+          .slice(0, PRINT_PACKET_MAX_NEXT_STEPS)
+      : [];
+
+    const errorsRaw = Array.isArray(obj?.errors) ? (obj.errors as unknown[]) : [];
+    const errors = errorsRaw
+      .filter((item) => typeof item === 'object' && item !== null)
+      .slice(0, PRINT_PACKET_MAX_ERRORS)
+      .map((item) => {
+        const row = item as Record<string, unknown>;
+        return {
+          type: this.trimText(this.readString(row.type), 40),
+          message: this.trimText(this.readString(row.message), 180),
+          original: this.trimText(this.readString(row.original), 120),
+          suggestion: this.trimText(this.readString(row.suggestion), 120),
+        };
+      })
+      .filter((item) => item.message || item.original || item.suggestion);
+
+    return {
+      summary,
+      nextSteps,
+      rewrite,
+      sampleEssay,
+      errors,
+    };
+  }
+
+  private readString(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private trimText(value: string, limit: number): string {
+    if (!value) {
+      return '';
+    }
+    const text = value.trim();
+    if (text.length <= limit) {
+      return text;
+    }
+    return `${text.slice(0, Math.max(0, limit - 1)).trim()}...`;
+  }
+
+  private async renderPrintPacketPdf(
+    entries: PrintPacketEntry[],
+    options: { homeworkTitle: string; homeworkId: string; lang?: string },
+  ): Promise<Buffer> {
+    const isZh = this.isZhLang(options.lang);
+    const font = this.resolvePdfFont(options.lang);
+
+    return new Promise<Buffer>((resolvePromise, rejectPromise) => {
+      const chunks: Buffer[] = [];
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+      doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      doc.on('end', () => resolvePromise(Buffer.concat(chunks)));
+      doc.on('error', (error) => rejectPromise(error));
+
+      doc.font(font);
+      entries.forEach((entry, index) => {
+        if (index > 0) {
+          doc.addPage();
+          doc.font(font);
+        }
+        this.renderStudentPrintPage(doc, entry, {
+          isZh,
+          font,
+          homeworkId: options.homeworkId,
+          homeworkTitle: options.homeworkTitle,
+        });
+      });
+
+      doc.end();
+    });
+  }
+
+  private renderStudentPrintPage(
+    doc: PDFDocumentInstance,
+    entry: PrintPacketEntry,
+    options: { isZh: boolean; font: string; homeworkId: string; homeworkTitle: string },
+  ) {
+    const { isZh, font } = options;
+    const left = doc.page.margins.left;
+    const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const pageBottom = () => doc.page.height - doc.page.margins.bottom;
+    let pagesUsed = 1;
+    let truncated = false;
+
+    const ensureSpace = (height: number): boolean => {
+      if (doc.y + height <= pageBottom()) {
+        return true;
+      }
+      if (pagesUsed >= PRINT_PACKET_MAX_PAGES_PER_STUDENT) {
+        return false;
+      }
+      doc.addPage();
+      doc.font(font);
+      pagesUsed += 1;
+      return true;
+    };
+
+    const writeText = (
+      text: string,
+      config: { size?: number; bold?: boolean; color?: string; indent?: number; gap?: number } = {},
+    ): boolean => {
+      const content = text.trim();
+      if (!content) {
+        return true;
+      }
+      const indent = config.indent ?? 0;
+      const size = config.size ?? 11;
+      const lineGap = 2;
+      const blockWidth = width - indent;
+
+      doc.font(font);
+      doc.fontSize(size);
+      doc.fillColor(config.color || '#111827');
+      const estimated = doc.heightOfString(content, { width: blockWidth, lineGap });
+      if (!ensureSpace(estimated + (config.gap ?? PRINT_PACKET_LINE_GAP))) {
+        return false;
+      }
+      doc.text(content, left + indent, doc.y, { width: blockWidth, lineGap });
+      doc.moveDown((config.gap ?? PRINT_PACKET_LINE_GAP) / 12);
+      return true;
+    };
+
+    const writeSectionTitle = (title: string) =>
+      writeText(title, { size: 12, bold: true, color: '#0f172a', gap: 4 });
+
+    const writeBullets = (items: string[]) => {
+      for (const item of items) {
+        if (!writeText(`- ${item}`, { indent: 12, size: 10 })) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    const updatedAtText = this.formatPrintDate(entry.updatedAt);
+    if (!writeText(isZh ? '作业批改单' : 'Homework Feedback Sheet', { size: 18, bold: true, color: '#0f172a' })) {
+      truncated = true;
+    }
+    if (
+      !writeText(
+        isZh
+          ? `作业：${options.homeworkTitle}（${options.homeworkId}）`
+          : `Homework: ${options.homeworkTitle} (${options.homeworkId})`,
+        { size: 11, color: '#374151', gap: 2 },
+      )
+    ) {
+      truncated = true;
+    }
+    if (
+      !writeText(
+        isZh
+          ? `学生：${entry.studentName}（${entry.studentAccount}）    提交ID：${entry.submissionId}`
+          : `Student: ${entry.studentName} (${entry.studentAccount})    Submission: ${entry.submissionId}`,
+        { size: 11, color: '#374151', gap: 2 },
+      )
+    ) {
+      truncated = true;
+    }
+    if (
+      !writeText(
+        isZh
+          ? `分数：${entry.totalScore ?? '--'}    更新时间：${updatedAtText}`
+          : `Score: ${entry.totalScore ?? '--'}    Updated: ${updatedAtText}`,
+        { size: 11, color: '#374151' },
+      )
+    ) {
+      truncated = true;
+    }
+
+    if (!truncated && writeSectionTitle(isZh ? '批改总结' : 'Summary')) {
+      if (!writeText(entry.summary || (isZh ? '暂无总结。' : 'No summary.'), { size: 10 })) {
+        truncated = true;
+      }
+    }
+
+    if (!truncated && entry.errors.length && writeSectionTitle(isZh ? '关键错误定位' : 'Key Errors')) {
+      for (const [index, item] of entry.errors.entries()) {
+        const line = isZh
+          ? `${index + 1}. ${item.type ? `${item.type}：` : ''}${item.message || ''}`
+          : `${index + 1}. ${item.type ? `${item.type}: ` : ''}${item.message || ''}`;
+        const detail = isZh
+          ? `原文：${item.original || '--'} -> 建议：${item.suggestion || '--'}`
+          : `Original: ${item.original || '--'} -> Suggestion: ${item.suggestion || '--'}`;
+        if (!writeText(line, { size: 10, indent: 8, gap: 2 })) {
+          truncated = true;
+          break;
+        }
+        if (!writeText(detail, { size: 10, indent: 18 })) {
+          truncated = true;
+          break;
+        }
+      }
+    }
+
+    if (!truncated && writeSectionTitle(isZh ? '下一步建议' : 'Next Steps')) {
+      const steps = entry.nextSteps.length ? entry.nextSteps : [isZh ? '暂无下一步建议。' : 'No next-step suggestions.'];
+      if (!writeBullets(steps)) {
+        truncated = true;
+      }
+    }
+
+    if (!truncated && entry.rewrite && writeSectionTitle(isZh ? '改写建议' : 'Rewrite Suggestion')) {
+      if (!writeText(entry.rewrite, { size: 10 })) {
+        truncated = true;
+      }
+    }
+
+    if (!truncated && entry.sampleEssay && writeSectionTitle(isZh ? '范文参考' : 'Sample Essay')) {
+      if (!writeText(entry.sampleEssay, { size: 10 })) {
+        truncated = true;
+      }
+    }
+
+    if (truncated) {
+      writeText(
+        isZh
+          ? '注：内容过长，已按“每位学生最多 2 页”规则截断。完整内容请在系统中查看。'
+          : 'Note: Content is truncated to keep max 2 pages per student. See full details in the system.',
+        { size: 9, color: '#6b7280' },
+      );
+    }
+  }
+
+  private formatPrintDate(date: Date): string {
+    return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
+  }
+
+  private resolvePdfFont(lang?: string): string {
+    if (!this.isZhLang(lang)) {
+      return 'Helvetica';
+    }
+    const envFont = process.env.REPORT_PDF_FONT || process.env.PDF_FONT_PATH || '';
+    const resolvedEnv = envFont
+      ? isAbsolute(envFont)
+        ? envFont
+        : resolve(process.cwd(), envFont)
+      : '';
+    const candidates = [
+      resolvedEnv,
+      'C:\\Windows\\Fonts\\msyh.ttc',
+      'C:\\Windows\\Fonts\\msyh.ttf',
+      'C:\\Windows\\Fonts\\simhei.ttf',
+      'C:\\Windows\\Fonts\\simsun.ttc',
+      '/System/Library/Fonts/PingFang.ttc',
+      '/System/Library/Fonts/STHeiti Light.ttc',
+      '/System/Library/Fonts/STHeiti Medium.ttc',
+      '/Library/Fonts/Arial Unicode.ttf',
+      '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+      '/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf',
+      '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+      '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+      '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+      '/usr/share/fonts/truetype/arphic/uming.ttc',
+      '/usr/share/fonts/truetype/arphic/ukai.ttc',
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      if (candidate && existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return 'Helvetica';
   }
 
   private extractGrading(value: Prisma.JsonValue | null): {
