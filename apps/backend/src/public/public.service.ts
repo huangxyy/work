@@ -489,16 +489,57 @@ export class PublicService {
   private resolveLlmApiUrl(runtime: LlmRuntimeConfig): string {
     const base = (runtime.baseUrl || '').replace(/\/$/, '');
     if (base.endsWith('/chat/completions') || base.endsWith('/v1/chat/completions')) {
+      this.assertNotInternalUrl(base);
       return base;
     }
     const path = runtime.path?.trim();
     if (path) {
       if (path.startsWith('http://') || path.startsWith('https://')) {
+        this.assertNotInternalUrl(path);
         return path;
       }
-      return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+      const resolved = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+      this.assertNotInternalUrl(resolved);
+      return resolved;
     }
-    return `${base}/v1/chat/completions`;
+    const resolved = `${base}/v1/chat/completions`;
+    this.assertNotInternalUrl(resolved);
+    return resolved;
+  }
+
+  /**
+   * Block requests to internal/private network addresses to prevent SSRF.
+   */
+  private assertNotInternalUrl(url: string): void {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error('Invalid LLM URL format');
+    }
+    const hostname = parsed.hostname.toLowerCase();
+
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]' ||
+      hostname === '0.0.0.0'
+    ) {
+      throw new Error('LLM URL pointing to localhost is not allowed');
+    }
+
+    const ipParts = hostname.split('.').map(Number);
+    if (ipParts.length === 4 && ipParts.every((n) => !isNaN(n))) {
+      const [a, b] = ipParts;
+      if (
+        a === 10 ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168) ||
+        (a === 169 && b === 254)
+      ) {
+        throw new Error('LLM URL pointing to private network is not allowed');
+      }
+    }
   }
 
   private async fetchCompletion(

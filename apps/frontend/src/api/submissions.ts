@@ -26,7 +26,7 @@ export const fetchSubmission = async (id: string) => {
   return response.data as {
     id: string;
     status: 'QUEUED' | 'PROCESSING' | 'DONE' | 'FAILED';
-    images: Array<{ id: string; objectKey: string }>;
+    images: Array<{ id: string }>;
     student?: { id: string; name: string; account: string } | null;
     homework?: { id: string; title: string } | null;
     createdAt?: string;

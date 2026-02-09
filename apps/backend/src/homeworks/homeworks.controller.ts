@@ -62,7 +62,11 @@ export class HomeworksController {
 
   @Delete(':id')
   @Roles(Role.TEACHER, Role.ADMIN)
-  async remove(@Param('id') id: string, @Req() req: { user: AuthUser }) {
-    return this.homeworksService.deleteHomework(id, req.user);
+  async remove(
+    @Param('id') id: string,
+    @Query('force') force: string,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.homeworksService.deleteHomework(id, req.user, force === 'true');
   }
 }

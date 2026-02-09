@@ -5,6 +5,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { TeacherLayout } from '../layouts/TeacherLayout';
 import { StudentLayout } from '../layouts/StudentLayout';
+import { RequireAuth } from '../components/RequireAuth';
 import { useI18n } from '../i18n';
 
 const LoginPage = lazy(() => import('../pages/Login').then((module) => ({ default: module.LoginPage })));
@@ -115,7 +116,7 @@ export const router = createBrowserRouter([
   { path: '/login', element: withSuspense(<LoginPage />) },
   {
     path: '/student',
-    element: <StudentLayout />,
+    element: <RequireAuth allowedRoles={['STUDENT']}><StudentLayout /></RequireAuth>,
     children: [
       { index: true, element: <Navigate to="/student/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<StudentDashboardPage />) },
@@ -130,7 +131,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/teacher',
-    element: <TeacherLayout />,
+    element: <RequireAuth allowedRoles={['TEACHER']}><TeacherLayout /></RequireAuth>,
     children: [
       { index: true, element: <Navigate to="/teacher/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<TeacherDashboardPage />) },
@@ -149,7 +150,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/admin',
-    element: <AdminLayout />,
+    element: <RequireAuth allowedRoles={['ADMIN']}><AdminLayout /></RequireAuth>,
     children: [
       { index: true, element: <Navigate to="/admin/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<AdminDashboardPage />) },

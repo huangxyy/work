@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -42,6 +43,7 @@ export class ReportsController {
 
   @Get('class/:classId/pdf')
   @Roles(Role.TEACHER, Role.ADMIN)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   async exportClassPdf(
     @Param('classId') classId: string,
     @Query() query: ReportRangeQueryDto,
@@ -70,6 +72,7 @@ export class ReportsController {
 
   @Get('student/:studentId/pdf')
   @Roles(Role.TEACHER, Role.ADMIN)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   async exportStudentPdf(
     @Param('studentId') studentId: string,
     @Query() query: ReportRangeQueryDto,

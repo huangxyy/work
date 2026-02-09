@@ -94,7 +94,7 @@ export const StudentSubmissionsPage = () => {
     link.href = url;
     link.download = filename;
     link.click();
-    window.URL.revokeObjectURL(url);
+    setTimeout(() => window.URL.revokeObjectURL(url), 200);
   };
 
   const handleExport = async () => {

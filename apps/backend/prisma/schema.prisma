@@ -59,6 +59,8 @@ model Enrollment {
   student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([classId, studentId])
+  @@index([classId])
+  @@index([studentId])
 }
 
 model Homework {
@@ -73,6 +75,8 @@ model Homework {
   submissions   Submission[]
   batchUploads  BatchUpload[]
   gradingPolicy GradingPolicy? @relation("HomeworkGradingPolicy")
+
+  @@index([classId])
 }
 
 model Submission {
@@ -99,6 +103,8 @@ model Submission {
   @@index([studentId])
   @@index([status])
   @@index([batchId])
+  @@index([createdAt])
+  @@index([homeworkId, status])
 }
 
 model BatchUpload {
@@ -130,6 +136,8 @@ model SubmissionImage {
   createdAt    DateTime @default(now())
 
   submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
 }
 
 model SystemConfig {

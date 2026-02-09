@@ -66,17 +66,26 @@ export class RetentionService {
         break;
       }
 
+      // Batch-fetch all images for this page of submissions to avoid N+1 queries
+      const submissionIds = submissions.map((s) => s.id);
+      const allImages = await this.prisma.submissionImage.findMany({
+        where: { submissionId: { in: submissionIds } },
+        select: { submissionId: true, objectKey: true },
+      });
+      const imagesBySubmission = new Map<string, string[]>();
+      for (const img of allImages) {
+        const keys = imagesBySubmission.get(img.submissionId) || [];
+        keys.push(img.objectKey);
+        imagesBySubmission.set(img.submissionId, keys);
+      }
+
       for (const submission of submissions) {
         stats.scanned += 1;
         if (stats.sampleSubmissionIds.length < 10) {
           stats.sampleSubmissionIds.push(submission.id);
         }
 
-        const images = await this.prisma.submissionImage.findMany({
-          where: { submissionId: submission.id },
-          select: { objectKey: true },
-        });
-        const objectKeys = images.map((image) => image.objectKey);
+        const objectKeys = imagesBySubmission.get(submission.id) || [];
 
         if (stats.sampleObjectKeys.length < 10) {
           for (const key of objectKeys) {

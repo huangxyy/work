@@ -119,6 +119,7 @@ export class AdminService {
     const submissions = await this.prisma.submission.findMany({
       where: { createdAt: { gte: start } },
       select: { status: true, errorCode: true, createdAt: true },
+      take: 50000,
     });
 
     const dailyMap = new Map<
@@ -264,6 +265,44 @@ export class AdminService {
     const name = dto.name?.trim();
     if (dto.name !== undefined && !name) {
       throw new BadRequestException('Name is required');
+    }
+
+    // When changing role away from TEACHER, disconnect from all classes to avoid
+    // orphaned teacher-class associations that would grant unauthorized access.
+    if (dto.role !== undefined && dto.role !== Role.TEACHER && existing.role === Role.TEACHER) {
+      await this.prisma.class.updateMany({
+        where: { teachers: { some: { id } } },
+        data: {},
+      });
+      // Prisma's implicit many-to-many requires explicit disconnect via class update
+      const teacherClasses = await this.prisma.class.findMany({
+        where: { teachers: { some: { id } } },
+        select: { id: true },
+      });
+      for (const klass of teacherClasses) {
+        await this.prisma.class.update({
+          where: { id: klass.id },
+          data: { teachers: { disconnect: { id } } },
+        });
+      }
+      if (teacherClasses.length > 0) {
+        this.logger.log(
+          `Disconnected user ${id} from ${teacherClasses.length} class(es) due to role change from TEACHER to ${dto.role}`,
+        );
+      }
+    }
+
+    // When changing role away from STUDENT, remove enrollments to avoid
+    // orphaned enrollment records that could leak homework data.
+    if (dto.role !== undefined && dto.role !== Role.STUDENT && existing.role === Role.STUDENT) {
+      const deleted = await this.prisma.enrollment.deleteMany({
+        where: { studentId: id },
+      });
+      if (deleted.count > 0) {
+        this.logger.log(
+          `Removed ${deleted.count} enrollment(s) for user ${id} due to role change from STUDENT to ${dto.role}`,
+        );
+      }
     }
 
     const user = await this.prisma.user.update({
@@ -631,11 +670,19 @@ export class AdminService {
     }
 
     const startedAt = Date.now();
-    const response = await fetch(this.resolveChatUrl(config.baseUrl, config.path), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs ?? 30000);
+    let response: Response;
+    try {
+      response = await fetch(this.resolveChatUrl(config.baseUrl, config.path), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const latencyMs = Date.now() - startedAt;
     const text = await response.text();
 
@@ -794,16 +841,59 @@ export class AdminService {
   private resolveChatUrl(baseUrl: string, path?: string): string {
     const base = baseUrl.replace(/\/$/, '');
     if (base.endsWith('/chat/completions') || base.endsWith('/v1/chat/completions')) {
+      this.assertNotInternalUrl(base);
       return base;
     }
     const customPath = this.normalizeText(path || '');
     if (customPath) {
       if (customPath.startsWith('http://') || customPath.startsWith('https://')) {
+        this.assertNotInternalUrl(customPath);
         return customPath;
       }
-      return `${base}${customPath.startsWith('/') ? '' : '/'}${customPath}`;
+      const resolved = `${base}${customPath.startsWith('/') ? '' : '/'}${customPath}`;
+      this.assertNotInternalUrl(resolved);
+      return resolved;
     }
-    return `${base}/v1/chat/completions`;
+    const resolved = `${base}/v1/chat/completions`;
+    this.assertNotInternalUrl(resolved);
+    return resolved;
+  }
+
+  /**
+   * Block requests to internal/private network addresses to prevent SSRF.
+   */
+  private assertNotInternalUrl(url: string): void {
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Block localhost variants
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '[::1]' ||
+        hostname === '0.0.0.0'
+      ) {
+        throw new BadRequestException('URLs pointing to localhost are not allowed');
+      }
+
+      // Block private/internal IP ranges
+      const ipParts = hostname.split('.').map(Number);
+      if (ipParts.length === 4 && ipParts.every((n) => !isNaN(n))) {
+        const [a, b] = ipParts;
+        if (
+          a === 10 || // 10.0.0.0/8
+          (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+          (a === 192 && b === 168) || // 192.168.0.0/16
+          (a === 169 && b === 254) // 169.254.0.0/16 (link-local / cloud metadata)
+        ) {
+          throw new BadRequestException('URLs pointing to private networks are not allowed');
+        }
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException('Invalid URL format');
+    }
   }
 
   private async fetchWithTimeout(

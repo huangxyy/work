@@ -85,7 +85,7 @@ export class HealthService {
       this.logger.error('Database health check failed', error);
       return {
         status: 'unhealthy',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Database connection failed',
         responseTime: Date.now() - start,
       };
     }
@@ -116,7 +116,7 @@ export class HealthService {
       this.logger.error('Redis health check failed', error);
       return {
         status: 'degraded',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Cache service unavailable',
         responseTime: Date.now() - start,
       };
     }
@@ -138,7 +138,7 @@ export class HealthService {
       this.logger.error('Storage health check failed', error);
       return {
         status: 'degraded',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Storage service unavailable',
         responseTime: Date.now() - start,
       };
     }

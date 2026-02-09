@@ -86,6 +86,21 @@ api.interceptors.response.use(
     if (requestKey) {
       pendingRequests.delete(requestKey);
     }
+
+    // Auto-logout on 401 (expired/invalid token) to redirect to login.
+    // Avoid redirect loops by skipping the login endpoint itself.
+    if (
+      error?.response?.status === 401 &&
+      !configWithMeta.url?.includes('/auth/login')
+    ) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      // Only redirect if not already on the login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+
     return Promise.reject(error);
   },
 );

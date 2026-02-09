@@ -1,5 +1,6 @@
 import { Controller, Get, Query, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -20,6 +21,7 @@ export class StudentReportsController {
   }
 
   @Get('pdf')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   async exportPdf(
     @Query() query: ReportRangeQueryDto,
     @Req() req: { user: AuthUser },

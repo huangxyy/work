@@ -46,8 +46,20 @@ export class GradingProcessor extends WorkerHost {
     this.defaultSecretKey = configService.get<string>('BAIDU_OCR_SECRET_KEY') || '';
   }
 
+  /** Maximum time (ms) a single grading job is allowed to run before being considered stalled. */
+  private readonly jobTimeoutMs = 5 * 60 * 1000; // 5 minutes
+
   protected getWorkerOptions(): WorkerOptions {
-    return { concurrency: this.concurrency };
+    return {
+      concurrency: this.concurrency,
+      // lockDuration: how long the worker holds the lock on a job.
+      // If a job runs longer than this, BullMQ considers it stalled.
+      lockDuration: 6 * 60 * 1000, // 6 minutes (slightly above jobTimeoutMs)
+      // stalledInterval: how often the worker checks for stalled jobs.
+      stalledInterval: 60 * 1000, // 1 minute
+      // maxStalledCount: number of times a job can be stalled before being moved to 'failed'.
+      maxStalledCount: 2,
+    };
   }
 
   async process(job: Job<{ submissionId?: string; message?: string; requestedAt?: string }>) {
@@ -73,6 +85,21 @@ export class GradingProcessor extends WorkerHost {
   }
 
   private async handleGrading(job: Job<GradingJobData>) {
+    const result = await this.executeWithTimeout(job);
+    return result;
+  }
+
+  private async executeWithTimeout(job: Job<GradingJobData>) {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Grading job timed out after ${this.jobTimeoutMs / 1000}s`));
+      }, this.jobTimeoutMs);
+    });
+
+    return Promise.race([this.doGrading(job), timeoutPromise]);
+  }
+
+  private async doGrading(job: Job<GradingJobData>) {
     const startedAt = Date.now();
     const { submissionId, mode, needRewrite } = job.data;
     const jobLabel = `${job.name}:${job.id}`;

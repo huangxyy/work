@@ -6,7 +6,7 @@ import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { fetchTeacherStudentReportOverview } from '../../api';
+import { downloadTeacherStudentReportPdf, fetchTeacherStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -24,7 +24,7 @@ type StudentReport = {
 };
 
 export const TeacherStudentReportPage = () => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const message = useMessage();
   const { studentId } = useParams();
   const [searchParams] = useSearchParams();
@@ -99,43 +99,57 @@ export const TeacherStudentReportPage = () => {
   }, [report?.errorTypes]);
 
   const handleExportPdf = async () => {
-    if (!reportRef.current) {
+    if (!studentId) {
       message.error(t('teacher.reports.exportFailed'));
       return;
     }
     try {
       setExporting(true);
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let position = 0;
-      let heightLeft = imgHeight;
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        pdf.addPage();
+      const blob = await downloadTeacherStudentReportPdf(studentId, rangeDays, language);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `student-${studentId}-${rangeDays}d.pdf`;
+      link.click();
+      setTimeout(() => window.URL.revokeObjectURL(url), 200);
+    } catch {
+      if (!reportRef.current) {
+        message.error(t('teacher.reports.exportFailed'));
+        return;
+      }
+      try {
+        const canvas = await html2canvas(reportRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = pageWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let position = 0;
+        let heightLeft = imgHeight;
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+          position -= pageHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+        pdf.save(`student-${studentId}-${rangeDays}d.pdf`);
+      } catch {
+        message.error(t('teacher.reports.exportFailed'));
       }
-      pdf.save(`student-${studentId || 'report'}-${rangeDays}d.pdf`);
-    } catch {
-      message.error(t('teacher.reports.exportFailed'));
     } finally {
       setExporting(false);
     }
   };
 
   useEffect(() => {
-    if (!report || !reportRef.current) {
+    if (!report) {
       return;
     }
     if (searchParams.get('export') === '1') {

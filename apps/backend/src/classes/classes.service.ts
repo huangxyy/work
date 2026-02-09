@@ -216,7 +216,8 @@ export class ClassesService {
       throw new BadRequestException('No students provided');
     }
 
-    const defaultPassword = dto.defaultPassword || '123456';
+    // Match the seed default password; '123456' was too weak
+    const defaultPassword = dto.defaultPassword || 'Test1234';
 
     const studentIds: string[] = [];
     const result = {

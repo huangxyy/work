@@ -59,13 +59,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // Do NOT expose raw internal error messages to clients.
+      // The real message is logged server-side below.
+      message = 'Internal server error';
     }
 
-    // Log server errors (5xx)
+    // Log server errors (5xx) — include the real exception message for debugging
     if (status >= 500) {
+      const internalMessage = exception instanceof Error ? exception.message : 'Unknown';
       this.logger.error(
-        `${request.method} ${request.url} - ${status} - ${message}`,
+        `${request.method} ${request.url} - ${status} - ${internalMessage}`,
         exception instanceof Error ? exception.stack : undefined,
       );
     } else {

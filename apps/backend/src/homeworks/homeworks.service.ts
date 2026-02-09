@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -251,8 +251,23 @@ export class HomeworksService {
     return { homeworkId: homework.id, allowLateSubmission };
   }
 
-  async deleteHomework(homeworkId: string, user: AuthUser) {
+  async deleteHomework(homeworkId: string, user: AuthUser, force = false) {
     const homework = await this.ensureHomeworkAccess(homeworkId, user);
+
+    // Check for in-flight submissions that would be silently dropped
+    const activeCount = await this.prisma.submission.count({
+      where: {
+        homeworkId: homework.id,
+        status: { in: ['QUEUED', 'PROCESSING'] },
+      },
+    });
+
+    if (activeCount > 0 && !force) {
+      throw new BadRequestException(
+        `Cannot delete homework: ${activeCount} submission(s) are still queued or being graded. ` +
+        `Wait for grading to finish, or use force=true to delete anyway.`,
+      );
+    }
 
     const images = await this.prisma.submissionImage.findMany({
       where: { submission: { homeworkId: homework.id } },
@@ -272,6 +287,7 @@ export class HomeworksService {
       deleted: true,
       removedObjects: deletedObjects.ok,
       failedObjectDeletes: deletedObjects.failed.length,
+      droppedActiveSubmissions: activeCount,
     };
   }
 }

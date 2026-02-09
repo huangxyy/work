@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -14,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { RetrySkippedDto } from './dto/retry-skipped.dto';
 import { Role } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'crypto';
@@ -199,6 +201,7 @@ export class TeacherSubmissionsController {
   }
 
   @Get('pdf')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   async exportPdf(
     @Query('homeworkId') homeworkId: string,
     @Query('submissionIds') submissionIds: string,
@@ -206,9 +209,13 @@ export class TeacherSubmissionsController {
     @Req() req: { user: AuthUser },
     @Res({ passthrough: true }) res: Response,
   ) {
+    const ids = (submissionIds || '').split(',').filter((id) => id).slice(0, 200);
+    if (ids.length === 0) {
+      throw new BadRequestException('At least one submissionId is required');
+    }
     const buffer = await this.submissionsService.exportHomeworkSubmissionsPdf(
       homeworkId,
-      submissionIds.split(',').filter((id) => id),
+      ids,
       lang,
       req.user,
     );

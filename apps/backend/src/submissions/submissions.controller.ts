@@ -90,7 +90,7 @@ export class SubmissionsController {
     return {
       id: submission.id,
       status: submission.status,
-      images: submission.images.map((image) => ({ id: image.id, objectKey: image.objectKey })),
+      images: submission.images.map((image) => ({ id: image.id })),
       student: submission.student
         ? {
             id: submission.student.id,
