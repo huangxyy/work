@@ -1,0 +1,17 @@
+{
+  "name": "repo",
+  "private": true,
+  "version": "0.0.1",
+  "packageManager": "pnpm@8.15.9",
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend start:dev",
+    "dev:worker": "pnpm --filter backend start:worker:dev",
+    "restart": "powershell -ExecutionPolicy Bypass -File ./restart-services.ps1",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "test:cov": "pnpm --filter backend test:cov",
+    "typecheck": "pnpm --filter backend exec tsc --noEmit && pnpm --filter frontend exec tsc --noEmit"
+  }
+}

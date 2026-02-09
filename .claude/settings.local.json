@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /d/work log --oneline -15)",
+      "Bash(powershell:*)",
+      "Bash(pnpm build)",
+      "Bash(pnpm test)",
+      "Bash(pnpm lint:*)",
+      "Bash(timeout:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(start.bat:*)",
+      "Bash(cmd /c \"cd /d D:\\\\项目\\\\英语批改-合作\\\\新\\\\work && start.bat\")",
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(pnpm prisma:generate:*)",
+      "Bash(start /min cmd /c \"pnpm start:dev > ..\\\\logs\\\\backend.log 2>&1\")",
+      "Bash(start /min cmd /c \"pnpm start:worker:dev > ..\\\\logs\\\\worker.log 2>&1\")",
+      "Bash(pnpm typecheck:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}
