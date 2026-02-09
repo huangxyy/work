@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { RegradeSubmissionDto } from './dto/regrade-submission.dto';
 import { StudentSubmissionsQueryDto } from './dto/student-submissions-query.dto';
@@ -81,7 +82,7 @@ export class SubmissionsController {
 
   @Get(':id')
   @Roles(Role.STUDENT, Role.TEACHER, Role.ADMIN)
-  async get(@Param('id') id: string, @Req() req: { user: AuthUser }) {
+  async get(@Param('id', ParseCuidPipe) id: string, @Req() req: { user: AuthUser }) {
     const submission = await this.submissionsService.getSubmission(id, req.user);
     if (!submission) {
       throw new NotFoundException('Submission not found');
@@ -114,7 +115,7 @@ export class SubmissionsController {
   @Post(':id/regrade')
   @Roles(Role.STUDENT, Role.TEACHER, Role.ADMIN)
   async regrade(
-    @Param('id') id: string,
+    @Param('id', ParseCuidPipe) id: string,
     @Body() body: RegradeSubmissionDto,
     @Req() req: { user: AuthUser },
   ) {

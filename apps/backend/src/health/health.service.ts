@@ -28,12 +28,15 @@ export class HealthService {
   private readonly s3Client: S3Client;
   private readonly storageBucket: string;
   private readonly startTime: number;
+  private redisClient: import('ioredis').default | null = null;
+  private readonly redisUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {
     this.startTime = Date.now();
+    this.redisUrl = this.config.get<string>('REDIS_URL') || 'redis://localhost:6379';
 
     const endpoint = this.config.get<string>('MINIO_ENDPOINT');
     const accessKeyId = this.config.get<string>('MINIO_ACCESS_KEY');
@@ -91,29 +94,55 @@ export class HealthService {
     }
   }
 
+  /**
+   * Reuse a single Redis client across health checks to avoid connection leaks.
+   * Reconnects lazily if the previous client was disconnected.
+   */
+  private async getRedisClient(): Promise<import('ioredis').default> {
+    if (this.redisClient && this.redisClient.status === 'ready') {
+      return this.redisClient;
+    }
+    // Clean up stale client
+    if (this.redisClient) {
+      try { this.redisClient.disconnect(); } catch { /* ignore */ }
+      this.redisClient = null;
+    }
+    const Redis = (await import('ioredis')).default;
+    const client = new Redis(this.redisUrl, {
+      maxRetriesPerRequest: 1,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+    });
+    await client.connect();
+    this.redisClient = client;
+    return client;
+  }
+
   private async checkRedis(): Promise<ServiceHealth> {
     const start = Date.now();
     try {
-      const redisUrl = this.config.get<string>('REDIS_URL') || 'redis://localhost:6379';
-      const Redis = (await import('ioredis')).default;
-      const client = new Redis(redisUrl);
+      const client = await this.getRedisClient();
 
       await new Promise<void>((resolve, reject) => {
-        client.on('error', reject);
+        const timer = setTimeout(() => reject(new Error('Redis ping timeout')), 5000);
         client.ping((err) => {
+          clearTimeout(timer);
           if (err) reject(err);
           else resolve();
         });
-        setTimeout(() => reject(new Error('Redis ping timeout')), 5000);
       });
 
-      await client.quit();
       return {
         status: 'healthy',
         responseTime: Date.now() - start,
       };
     } catch (error) {
       this.logger.error('Redis health check failed', error);
+      // Reset the client so next check retries a fresh connection
+      if (this.redisClient) {
+        try { this.redisClient.disconnect(); } catch { /* ignore */ }
+        this.redisClient = null;
+      }
       return {
         status: 'degraded',
         message: 'Cache service unavailable',

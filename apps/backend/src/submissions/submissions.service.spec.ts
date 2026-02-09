@@ -85,6 +85,8 @@ describe('SubmissionsService', () => {
       enrollment: {
         findMany: jest.fn(),
       },
+      // Interactive transaction: execute callback passing the mock itself as tx
+      $transaction: jest.fn().mockImplementation((cb: (tx: unknown) => Promise<unknown>) => cb(prismaService)),
     } as unknown as jest.Mocked<PrismaService>;
 
     storageService = {

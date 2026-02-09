@@ -297,6 +297,24 @@ export class PublicService {
     };
   }
 
+  /**
+   * Validate a CSS value to prevent CSS injection attacks.
+   * Only allows safe characters for colors, gradients, and rgba() values.
+   * Blocks: url(), expression(), import, semicolons, curly braces, backslashes.
+   */
+  private isSafeCssValue(value: string): boolean {
+    // Block obviously dangerous patterns
+    const dangerous = /[{};\\]|url\s*\(|expression\s*\(|@import|javascript:|data:/i;
+    if (dangerous.test(value)) {
+      return false;
+    }
+    // Max length guard (CSS color/gradient values shouldn't be excessively long)
+    if (value.length > 200) {
+      return false;
+    }
+    return true;
+  }
+
   private mergeTheme(base: LandingTheme, incoming: Partial<LandingTheme>): LandingTheme {
     const merged = { ...base };
     (Object.keys(base) as Array<keyof LandingTheme>).forEach((key) => {
@@ -309,7 +327,13 @@ export class PublicService {
         return;
       }
       if (typeof value === 'string' && value.trim()) {
-        merged[key] = value.trim() as LandingTheme[typeof key];
+        const trimmed = value.trim();
+        // Validate CSS value to prevent CSS injection from compromised LLM output
+        if (this.isSafeCssValue(trimmed)) {
+          merged[key] = trimmed as LandingTheme[typeof key];
+        } else {
+          this.logger.warn(`Blocked unsafe CSS theme value for key "${key}": ${trimmed.slice(0, 50)}`);
+        }
       }
     });
     return merged;
@@ -349,7 +373,8 @@ export class PublicService {
     (Object.keys(base) as Array<keyof T>).forEach((key) => {
       const value = incoming[key];
       if (typeof value === 'string' && value.trim()) {
-        result[key as string] = value.trim();
+        // Cap text length to prevent storage abuse from compromised LLM output
+        result[key as string] = value.trim().slice(0, 500);
       }
     });
     return result as T;
@@ -359,7 +384,10 @@ export class PublicService {
     if (!Array.isArray(incoming) || incoming.length === 0) {
       return base;
     }
-    const filtered = incoming.filter((item) => typeof item === 'object' && item !== null) as T[];
+    // Cap list length to prevent excessively large payloads
+    const filtered = incoming
+      .slice(0, 10)
+      .filter((item) => typeof item === 'object' && item !== null) as T[];
     return filtered.length ? filtered : base;
   }
 

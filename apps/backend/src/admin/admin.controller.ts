@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { AdminService } from './admin.service';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
@@ -55,12 +56,12 @@ export class AdminController {
   }
 
   @Patch('users/:id')
-  async updateUser(@Param('id') id: string, @Body() body: UpdateAdminUserDto) {
+  async updateUser(@Param('id', ParseCuidPipe) id: string, @Body() body: UpdateAdminUserDto) {
     return this.adminService.updateUser(id, body);
   }
 
   @Post('users/:id/reset-password')
-  async resetPassword(@Param('id') id: string, @Body() body: ResetUserPasswordDto) {
+  async resetPassword(@Param('id', ParseCuidPipe) id: string, @Body() body: ResetUserPasswordDto) {
     return this.adminService.resetUserPassword(id, body);
   }
 

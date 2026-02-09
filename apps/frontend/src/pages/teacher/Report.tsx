@@ -1,7 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { Alert, Button, Dropdown, InputNumber, List, Select, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -73,6 +71,7 @@ export const TeacherReportPage = () => {
   const classesQuery = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
   });
 
   useEffect(() => {
@@ -197,6 +196,10 @@ export const TeacherReportPage = () => {
     }
     try {
       setExporting(true);
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         useCORS: true,

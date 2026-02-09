@@ -1,5 +1,4 @@
-import type { EChartsOption } from 'echarts';
-import * as echarts from 'echarts';
+import type { ECharts, EChartsOption } from 'echarts';
 import { useEffect, useRef } from 'react';
 
 type ChartPanelProps = {
@@ -10,30 +9,56 @@ type ChartPanelProps = {
 
 export const ChartPanel = ({ option, height = 260, className }: ChartPanelProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const instanceRef = useRef<echarts.ECharts | null>(null);
+  const instanceRef = useRef<ECharts | null>(null);
+  const optionRef = useRef(option);
 
   useEffect(() => {
-    if (!containerRef.current) {
-      return undefined;
-    }
-    const instance = echarts.init(containerRef.current);
-    instanceRef.current = instance;
-    const handleResize = () => instance.resize();
-    window.addEventListener('resize', handleResize);
+    let disposed = false;
     let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(() => instance.resize());
-      observer.observe(containerRef.current);
-    }
+    let handleResize: (() => void) | null = null;
+    let instance: ECharts | null = null;
+
+    const initChart = async () => {
+      if (!containerRef.current) {
+        return;
+      }
+
+      const echarts = await import('echarts');
+
+      if (disposed || !containerRef.current) {
+        return;
+      }
+
+      instance = echarts.init(containerRef.current);
+      instanceRef.current = instance;
+      instance.setOption(optionRef.current, true);
+
+      handleResize = () => instance?.resize();
+      window.addEventListener('resize', handleResize);
+
+      if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(() => instance?.resize());
+        observer.observe(containerRef.current);
+      }
+
+      requestAnimationFrame(() => instance?.resize());
+    };
+
+    void initChart();
+
     return () => {
-      window.removeEventListener('resize', handleResize);
+      disposed = true;
+      if (handleResize) {
+        window.removeEventListener('resize', handleResize);
+      }
       observer?.disconnect();
-      instance.dispose();
+      instance?.dispose();
       instanceRef.current = null;
     };
   }, []);
 
   useEffect(() => {
+    optionRef.current = option;
     if (!instanceRef.current) {
       return;
     }

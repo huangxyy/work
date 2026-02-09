@@ -231,23 +231,6 @@ export class SubmissionsService {
       }
     }
 
-    // Prevent duplicate submissions while a previous one is still queued or being graded.
-    // Students can re-submit only after a previous submission reaches DONE or FAILED.
-    const activeSubmission = await this.prisma.submission.findFirst({
-      where: {
-        homeworkId: dto.homeworkId,
-        studentId: user.id,
-        status: { in: [SubmissionStatus.QUEUED, SubmissionStatus.PROCESSING] },
-      },
-      select: { id: true, status: true },
-    });
-
-    if (activeSubmission) {
-      throw new BadRequestException(
-        'You already have a submission being graded for this homework. Please wait for it to finish before submitting again.',
-      );
-    }
-
     // Clean up images from previous completed/failed submissions for this homework
     // to avoid accumulating stale files in object storage.
     this.cleanupOldSubmissionImages(dto.homeworkId, user.id).catch((err) => {
@@ -255,12 +238,31 @@ export class SubmissionsService {
       this.logger.warn(`Failed to clean up old submission images: ${msg}`);
     });
 
-    const submission = await this.prisma.submission.create({
-      data: {
-        homeworkId: dto.homeworkId,
-        studentId: user.id,
-        status: SubmissionStatus.QUEUED,
-      },
+    // Atomically prevent duplicate submissions while a previous one is still queued or being graded.
+    // Uses a transaction to close the race window between checking and creating.
+    const submission = await this.prisma.$transaction(async (tx) => {
+      const activeSubmission = await tx.submission.findFirst({
+        where: {
+          homeworkId: dto.homeworkId,
+          studentId: user.id,
+          status: { in: [SubmissionStatus.QUEUED, SubmissionStatus.PROCESSING] },
+        },
+        select: { id: true, status: true },
+      });
+
+      if (activeSubmission) {
+        throw new BadRequestException(
+          'You already have a submission being graded for this homework. Please wait for it to finish before submitting again.',
+        );
+      }
+
+      return tx.submission.create({
+        data: {
+          homeworkId: dto.homeworkId,
+          studentId: user.id,
+          status: SubmissionStatus.QUEUED,
+        },
+      });
     });
 
     const images: Array<{ submissionId: string; objectKey: string }> = [];
@@ -445,7 +447,11 @@ export class SubmissionsService {
     return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
   }
 
-  async listHomeworkSubmissions(homeworkId: string, user: AuthUser) {
+  async listHomeworkSubmissions(
+    homeworkId: string,
+    user: AuthUser,
+    options?: { cursor?: string; limit?: number },
+  ) {
     if (user.role === Role.STUDENT) {
       throw new ForbiddenException('Only teacher or admin can access homework submissions');
     }
@@ -462,10 +468,13 @@ export class SubmissionsService {
       throw new NotFoundException('Homework not found or no access');
     }
 
+    const take = Math.min(Math.max(options?.limit || 1000, 1), 1000);
     const submissions = await this.prisma.submission.findMany({
       where: { homeworkId },
       include: { student: { select: { id: true, name: true, account: true } } },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take,
+      ...(options?.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
     });
 
     return submissions.map((submission) => ({
@@ -501,6 +510,7 @@ export class SubmissionsService {
       where: { homeworkId },
       include: { student: { select: { id: true, name: true, account: true } } },
       orderBy: { updatedAt: 'desc' },
+      take: 5000,
     });
 
     const rows: Array<Array<string | number | null>> = [
@@ -791,17 +801,23 @@ export class SubmissionsService {
       data: { status: SubmissionStatus.QUEUED, errorCode: null, errorMsg: null },
     });
 
-    for (const id of ids) {
-      await this.queueService.enqueueRegrade(id, {
-        mode: resolvedPolicy.mode,
-        needRewrite: resolvedPolicy.needRewrite,
-      });
-    }
+    await Promise.all(
+      ids.map((id) =>
+        this.queueService.enqueueRegrade(id, {
+          mode: resolvedPolicy.mode,
+          needRewrite: resolvedPolicy.needRewrite,
+        }),
+      ),
+    );
 
     return { homeworkId: dto.homeworkId, count: ids.length };
   }
 
-  async listBatchUploads(homeworkId: string, user: AuthUser) {
+  async listBatchUploads(
+    homeworkId: string,
+    user: AuthUser,
+    options?: { cursor?: string; limit?: number },
+  ) {
     if (user.role === Role.STUDENT) {
       throw new ForbiddenException('Only teacher or admin can access batches');
     }
@@ -818,10 +834,13 @@ export class SubmissionsService {
       throw new NotFoundException('Homework not found or no access');
     }
 
+    const take = Math.min(Math.max(options?.limit || 200, 1), 200);
     const batches = await this.prisma.batchUpload.findMany({
       where: { homeworkId },
       include: { uploader: { select: { id: true, name: true, account: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take,
+      ...(options?.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
     });
 
     if (!batches.length) {
@@ -1027,12 +1046,14 @@ export class SubmissionsService {
       data: { status: SubmissionStatus.QUEUED, errorCode: null, errorMsg: null },
     });
 
-    for (const id of ids) {
-      await this.queueService.enqueueRegrade(id, {
-        mode: resolvedPolicy.mode,
-        needRewrite: resolvedPolicy.needRewrite,
-      });
-    }
+    await Promise.all(
+      ids.map((id) =>
+        this.queueService.enqueueRegrade(id, {
+          mode: resolvedPolicy.mode,
+          needRewrite: resolvedPolicy.needRewrite,
+        }),
+      ),
+    );
 
     return { batchId, count: ids.length };
   }
@@ -1469,12 +1490,18 @@ export class SubmissionsService {
       select: { id: true, objectKey: true },
     });
 
-    for (const image of images) {
-      try {
-        await this.storage.deleteObject(image.objectKey);
-      } catch {
-        // Ignore individual deletion failures; retention service will catch them later
-      }
+    const deleteResults = await Promise.allSettled(
+      images.map((image) => this.storage.deleteObject(image.objectKey)),
+    );
+    const failedDeletes = deleteResults.reduce(
+      (count, result) => (result.status === 'rejected' ? count + 1 : count),
+      0,
+    );
+
+    if (failedDeletes > 0) {
+      this.logger.warn(
+        `Failed to delete ${failedDeletes}/${images.length} old images from object storage (homework=${homeworkId}, student=${studentId})`,
+      );
     }
 
     if (images.length > 0) {

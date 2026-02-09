@@ -131,29 +131,40 @@ export class GradingProcessor extends WorkerHost {
         const imageCount = submission.images.length;
         this.logger.log(`Starting OCR for submission ${submissionId} with ${imageCount} images`);
 
-        for (let i = 0; i < submission.images.length; i++) {
-          const image = submission.images[i];
-          const imageStart = Date.now();
-          try {
+        const ocrResults = await Promise.allSettled(
+          submission.images.map(async (image) => {
+            const imageStart = Date.now();
             const imageBuffer = await this.storage.getObject(image.objectKey);
             const ocrResult = await this.baiduOcrService.recognize(imageBuffer, ocrConfig);
-            const imageDuration = Date.now() - imageStart;
-            if (ocrResult.text?.trim()) {
-              const textLength = ocrResult.text.trim().length;
-              texts.push(ocrResult.text.trim());
-              this.logger.log(`OCR image ${i + 1}/${imageCount} succeeded in ${imageDuration}ms, text length: ${textLength}`);
+            return {
+              text: ocrResult.text?.trim() || '',
+              durationMs: Date.now() - imageStart,
+            };
+          }),
+        );
+
+        ocrResults.forEach((result, index) => {
+          const imageNo = index + 1;
+          if (result.status === 'fulfilled') {
+            if (result.value.text) {
+              texts.push(result.value.text);
+              this.logger.log(
+                `OCR image ${imageNo}/${imageCount} succeeded in ${result.value.durationMs}ms, text length: ${result.value.text.length}`,
+              );
             } else {
-              this.logger.warn(`OCR image ${i + 1}/${imageCount} returned empty text in ${imageDuration}ms`);
-              failedImages.push(i + 1);
+              this.logger.warn(
+                `OCR image ${imageNo}/${imageCount} returned empty text in ${result.value.durationMs}ms`,
+              );
+              failedImages.push(imageNo);
             }
-          } catch (error) {
-            const imageDuration = Date.now() - imageStart;
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.logger.error(`OCR image ${i + 1}/${imageCount} failed in ${imageDuration}ms: ${message}`);
-            failedImages.push(i + 1);
-            // Continue processing other images instead of failing immediately
+            return;
           }
-        }
+
+          const message = result.reason instanceof Error ? result.reason.message : 'Unknown error';
+          this.logger.error(`OCR image ${imageNo}/${imageCount} failed: ${message}`);
+          failedImages.push(imageNo);
+          // Continue processing other images instead of failing immediately
+        });
 
         // Use single newline to preserve paragraph structure from OCR
         // Using '\n\n' could create artificial paragraph breaks

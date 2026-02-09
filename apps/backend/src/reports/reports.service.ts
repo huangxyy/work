@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { existsSync } from 'fs';
 import { isAbsolute, resolve } from 'path';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
@@ -71,6 +71,21 @@ type NextStepStat = {
   count: number;
 };
 
+type ClassOverview = {
+  classId: string;
+  className: string;
+  rangeDays: number;
+  totalStudents: number;
+  submittedStudents: number;
+  pendingStudents: number;
+  submissionRate: number;
+  summary: ScoreSummary;
+  distribution: DistributionBucket[];
+  topRank: TopRankItem[];
+  trend: TrendPoint[];
+  errorTypes: ErrorTypeStat[];
+};
+
 type ClassSubmission = {
   id: string;
   createdAt: Date;
@@ -81,6 +96,12 @@ type ClassSubmission = {
 
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
+  private readonly classOverviewCache = new Map<string, { expiresAt: number; value: ClassOverview }>();
+  private readonly classOverviewInflight = new Map<string, Promise<ClassOverview>>();
+  private readonly classOverviewCacheTtlMs = 2 * 60 * 1000;
+  private readonly classOverviewCacheMaxEntries = 300;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getClassOverview(
@@ -91,52 +112,80 @@ export class ReportsService {
     const klass = await this.ensureClassAccess(classId, user);
     const days = query.days ?? 7;
     const topN = query.topN ?? 5;
-    const cutoff = new Date(Date.now() - days * DAY_MS);
+    const cacheKey = this.getClassOverviewCacheKey(classId, days, topN);
+    const cached = this.getCachedClassOverview(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
-    const totalStudents = await this.prisma.enrollment.count({ where: { classId } });
-    const submittedStudents = await this.prisma.submission.groupBy({
-      by: ['studentId'],
-      where: {
-        homework: { classId },
-        createdAt: { gte: cutoff },
-      },
-    });
-    const submittedCount = submittedStudents.length;
-    const pendingStudents = Math.max(0, totalStudents - submittedCount);
-    const submissionRate = totalStudents ? this.roundRatio(submittedCount / totalStudents) : 0;
+    const inflight = this.classOverviewInflight.get(cacheKey);
+    if (inflight) {
+      return inflight;
+    }
 
-    const submissions = await this.prisma.submission.findMany({
-      where: {
-        homework: { classId },
-        createdAt: { gte: cutoff },
-        status: SubmissionStatus.DONE,
-        totalScore: { not: null },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        totalScore: true,
-        gradingJson: true,
-        student: { select: { id: true, name: true } },
-      },
-    });
+    const computePromise = (async (): Promise<ClassOverview> => {
+      const cutoff = new Date(Date.now() - days * DAY_MS);
 
-    const scores = this.collectScores(submissions);
+      const totalStudents = await this.prisma.enrollment.count({ where: { classId } });
+      const submittedStudents = await this.prisma.submission.groupBy({
+        by: ['studentId'],
+        where: {
+          homework: { classId },
+          createdAt: { gte: cutoff },
+        },
+      });
+      const submittedCount = submittedStudents.length;
+      const pendingStudents = Math.max(0, totalStudents - submittedCount);
+      const submissionRate = totalStudents ? this.roundRatio(submittedCount / totalStudents) : 0;
 
-    return {
-      classId: klass.id,
-      className: klass.name,
-      rangeDays: days,
-      totalStudents,
-      submittedStudents: submittedCount,
-      pendingStudents,
-      submissionRate,
-      summary: this.buildSummary(scores),
-      distribution: this.buildDistribution(scores),
-      topRank: this.buildTopRank(submissions, topN),
-      trend: this.buildTrend(submissions, days),
-      errorTypes: this.buildErrorTypes(submissions),
-    };
+      const submissions = await this.prisma.submission.findMany({
+        where: {
+          homework: { classId },
+          createdAt: { gte: cutoff },
+          status: SubmissionStatus.DONE,
+          totalScore: { not: null },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          totalScore: true,
+          gradingJson: true,
+          student: { select: { id: true, name: true } },
+        },
+        take: 5000,
+      });
+
+      const scores = this.collectScores(submissions);
+
+      const result: ClassOverview = {
+        classId: klass.id,
+        className: klass.name,
+        rangeDays: days,
+        totalStudents,
+        submittedStudents: submittedCount,
+        pendingStudents,
+        submissionRate,
+        summary: this.buildSummary(scores),
+        distribution: this.buildDistribution(scores),
+        topRank: this.buildTopRank(submissions, topN),
+        trend: this.buildTrend(submissions, days),
+        errorTypes: this.buildErrorTypes(submissions),
+      };
+
+      this.setCachedClassOverview(cacheKey, result);
+      return result;
+    })();
+
+    this.classOverviewInflight.set(cacheKey, computePromise);
+    try {
+      return await computePromise;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Failed to compute class overview cache key=${cacheKey}: ${message}`);
+      throw error;
+    } finally {
+      this.classOverviewInflight.delete(cacheKey);
+    }
   }
 
   async exportClassCsv(classId: string, query: ReportRangeQueryDto, user: AuthUser) {
@@ -158,6 +207,7 @@ export class ReportsService {
         homework: { select: { id: true, title: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 5000,
     });
 
     const rows: Array<Array<string | number | null>> = [
@@ -614,6 +664,48 @@ export class ReportsService {
 
   private toDateKey(date: Date): string {
     return date.toISOString().slice(0, 10);
+  }
+
+  private getClassOverviewCacheKey(classId: string, days: number, topN: number): string {
+    return `report:class:${classId}:${days}:${topN}`;
+  }
+
+  private getCachedClassOverview(cacheKey: string): ClassOverview | null {
+    const cached = this.classOverviewCache.get(cacheKey);
+    if (!cached) {
+      return null;
+    }
+
+    if (cached.expiresAt <= Date.now()) {
+      this.classOverviewCache.delete(cacheKey);
+      return null;
+    }
+
+    return cached.value;
+  }
+
+  private setCachedClassOverview(cacheKey: string, value: ClassOverview): void {
+    this.clearExpiredClassOverviewCache();
+    if (this.classOverviewCache.size >= this.classOverviewCacheMaxEntries) {
+      const oldestKey = this.classOverviewCache.keys().next().value;
+      if (oldestKey) {
+        this.classOverviewCache.delete(oldestKey);
+      }
+    }
+
+    this.classOverviewCache.set(cacheKey, {
+      expiresAt: Date.now() + this.classOverviewCacheTtlMs,
+      value,
+    });
+  }
+
+  private clearExpiredClassOverviewCache(): void {
+    const now = Date.now();
+    for (const [cacheKey, entry] of this.classOverviewCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.classOverviewCache.delete(cacheKey);
+      }
+    }
   }
 
   private round(value: number): number {

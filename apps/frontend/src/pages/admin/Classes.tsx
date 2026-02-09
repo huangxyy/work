@@ -32,14 +32,20 @@ export const AdminClassesPage = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeClass, setActiveClass] = useState<ClassItem | null>(null);
 
-  const classesQuery = useQuery({ queryKey: ['classes'], queryFn: fetchClasses });
+  const classesQuery = useQuery({
+    queryKey: ['classes'],
+    queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
+  });
   const summaryQuery = useQuery({
     queryKey: ['admin-class-summaries'],
     queryFn: fetchAdminClassSummaries,
+    staleTime: 5 * 60 * 1000,
   });
   const teachersQuery = useQuery({
     queryKey: ['admin-teachers'],
     queryFn: () => fetchAdminUsers({ role: 'TEACHER' }),
+    staleTime: 5 * 60 * 1000,
   });
   const studentsQuery = useQuery<StudentRow[]>({
     queryKey: ['class-students', activeClass?.id],

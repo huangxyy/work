@@ -41,6 +41,7 @@ export const AdminUsersPage = () => {
   const classesQuery = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
   });
 
   const classOptions = useMemo(

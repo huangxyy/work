@@ -4,6 +4,7 @@ import { AuthUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { GradingPolicyQueryDto } from './dto/grading-policy-query.dto';
 import { GradingPolicyUpdateDto } from './dto/grading-policy-update.dto';
 import { TeacherSettingsService } from './teacher-settings.service';
@@ -40,7 +41,7 @@ export class TeacherSettingsController {
   @Put('grading/policies/class/:classId')
   @Roles(Role.TEACHER, Role.ADMIN)
   async upsertClassPolicy(
-    @Param('classId') classId: string,
+    @Param('classId', ParseCuidPipe) classId: string,
     @Body() body: GradingPolicyUpdateDto,
     @Req() req: { user: AuthUser },
   ) {
@@ -50,7 +51,7 @@ export class TeacherSettingsController {
   @Put('grading/policies/homework/:homeworkId')
   @Roles(Role.TEACHER, Role.ADMIN)
   async upsertHomeworkPolicy(
-    @Param('homeworkId') homeworkId: string,
+    @Param('homeworkId', ParseCuidPipe) homeworkId: string,
     @Body() body: GradingPolicyUpdateDto,
     @Req() req: { user: AuthUser },
   ) {
@@ -59,14 +60,14 @@ export class TeacherSettingsController {
 
   @Delete('grading/policies/class/:classId')
   @Roles(Role.TEACHER, Role.ADMIN)
-  async clearClassPolicy(@Param('classId') classId: string, @Req() req: { user: AuthUser }) {
+  async clearClassPolicy(@Param('classId', ParseCuidPipe) classId: string, @Req() req: { user: AuthUser }) {
     return this.teacherSettingsService.clearClassPolicy(classId, req.user);
   }
 
   @Delete('grading/policies/homework/:homeworkId')
   @Roles(Role.TEACHER, Role.ADMIN)
   async clearHomeworkPolicy(
-    @Param('homeworkId') homeworkId: string,
+    @Param('homeworkId', ParseCuidPipe) homeworkId: string,
     @Req() req: { user: AuthUser },
   ) {
     return this.teacherSettingsService.clearHomeworkPolicy(homeworkId, req.user);

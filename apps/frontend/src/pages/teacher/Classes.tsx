@@ -29,6 +29,7 @@ export const TeacherClassesPage = () => {
   } = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
   });
 
   const createMutation = useMutation({

@@ -68,21 +68,34 @@ export class HomeworksService {
     throw new ForbiddenException('Only teacher or admin can access homework');
   }
 
-  private async isLateSubmissionAllowed(homeworkId: string): Promise<boolean> {
-    const value = await this.systemConfigService.getValue<boolean>(lateSubmissionConfigKey(homeworkId));
-    return value === true;
-  }
-
   private async getLateSubmissionMap(homeworkIds: string[]): Promise<Map<string, boolean>> {
     const uniqueIds = Array.from(new Set(homeworkIds.filter(Boolean)));
     if (!uniqueIds.length) {
       return new Map();
     }
 
-    const entries = await Promise.all(
-      uniqueIds.map(async (homeworkId) => [homeworkId, await this.isLateSubmissionAllowed(homeworkId)] as const),
+    const configEntries = await this.prisma.systemConfig.findMany({
+      where: {
+        key: {
+          in: uniqueIds.map((homeworkId) => lateSubmissionConfigKey(homeworkId)),
+        },
+      },
+      select: {
+        key: true,
+        value: true,
+      },
+    });
+
+    const configuredValues = new Map(
+      configEntries.map((entry) => [entry.key, typeof entry.value === 'boolean' ? entry.value : false]),
     );
-    return new Map(entries);
+
+    return new Map(
+      uniqueIds.map((homeworkId) => [
+        homeworkId,
+        configuredValues.get(lateSubmissionConfigKey(homeworkId)) === true,
+      ]),
+    );
   }
 
   private async withLateSubmissionFlag<T extends HomeworkWithId>(
@@ -119,6 +132,7 @@ export class HomeworksService {
     const homeworks = await this.prisma.homework.findMany({
       where: { classId },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
     return this.withLateSubmissionFlag(homeworks);
   }
@@ -129,6 +143,7 @@ export class HomeworksService {
     const homeworks = await this.prisma.homework.findMany({
       where: { classId },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     if (!homeworks.length) {
@@ -226,6 +241,7 @@ export class HomeworksService {
         class: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return this.withLateSubmissionFlag(homeworks);

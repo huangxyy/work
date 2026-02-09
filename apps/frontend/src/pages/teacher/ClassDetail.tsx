@@ -18,7 +18,6 @@ import {
   fetchClassStudents,
   fetchClasses,
   fetchHomeworksByClass,
-  fetchStudentSubmissions,
   importClassStudents,
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -49,6 +48,7 @@ export const TeacherClassDetailPage = () => {
   const classesQuery = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
   });
 
   const classItem = useMemo(
@@ -60,12 +60,14 @@ export const TeacherClassDetailPage = () => {
     queryKey: ['class-students', id],
     queryFn: () => fetchClassStudents(id || ''),
     enabled: !!id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const homeworksQuery = useQuery({
     queryKey: ['homeworks', id],
     queryFn: () => fetchHomeworksByClass(id || ''),
     enabled: !!id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const importMutation = useMutation({

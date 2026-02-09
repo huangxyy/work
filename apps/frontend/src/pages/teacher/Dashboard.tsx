@@ -14,6 +14,7 @@ export const TeacherDashboardPage = () => {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
   });
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [rangeDays, setRangeDays] = useState<number>(7);
@@ -43,14 +44,15 @@ export const TeacherDashboardPage = () => {
     queryKey: ['teacher-dashboard-homeworks', selectedClassId],
     queryFn: () => fetchHomeworksSummaryByClass(selectedClassId),
     enabled: !!selectedClassId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const report = reportQuery.data;
   const summary = report?.summary;
   const submissionRate = report?.submissionRate ? Number((report.submissionRate * 100).toFixed(1)) : 0;
-  const topErrors = (report?.errorTypes || []).slice(0, 5);
-  const trend = (report?.trend || []).slice(-7).reverse();
-  const maxTrendCount = Math.max(...trend.map((item) => item.count), 1);
+  const topErrors = useMemo(() => (report?.errorTypes || []).slice(0, 5), [report?.errorTypes]);
+  const trend = useMemo(() => (report?.trend || []).slice(-7).reverse(), [report?.trend]);
+  const maxTrendCount = useMemo(() => Math.max(...trend.map((item) => item.count), 1), [trend]);
   const summaryLoading = (isLoading && !data) || reportQuery.isLoading;
   const upcoming = (homeworksQuery.data || [])
     .filter((item) => item.dueAt)
@@ -66,49 +68,52 @@ export const TeacherDashboardPage = () => {
     .slice(0, 4);
 
   const classCount = data?.length ?? 0;
-  const summaryCards: Array<{ key: string; title: ReactNode; value?: number; suffix?: string }> = [
-    {
-      key: 'classes',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('teacher.dashboard.classes')}</span>
-          <span className="stat-chip">{t('common.realtime')}</span>
-        </Space>
-      ),
-      value: classCount,
-    },
-    {
-      key: 'students',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('teacher.reports.totalStudents')}</span>
-          <span className="stat-chip">{t('common.realtime')}</span>
-        </Space>
-      ),
-      value: report?.totalStudents,
-    },
-    {
-      key: 'submissions',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('teacher.reports.submissions')}</span>
-          <span className="stat-chip">{rangeDays === 7 ? t('common.last7Days') : t('common.recent')}</span>
-        </Space>
-      ),
-      value: summary?.count,
-    },
-    {
-      key: 'submissionRate',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('teacher.reports.submissionRate')}</span>
-          <span className="stat-chip">{rangeDays === 7 ? t('common.last7Days') : t('common.recent')}</span>
-        </Space>
-      ),
-      value: submissionRate,
-      suffix: '%',
-    },
-  ];
+  const summaryCards: Array<{ key: string; title: ReactNode; value?: number; suffix?: string }> = useMemo(
+    () => [
+      {
+        key: 'classes',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('teacher.dashboard.classes')}</span>
+            <span className="stat-chip">{t('common.realtime')}</span>
+          </Space>
+        ),
+        value: classCount,
+      },
+      {
+        key: 'students',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('teacher.reports.totalStudents')}</span>
+            <span className="stat-chip">{t('common.realtime')}</span>
+          </Space>
+        ),
+        value: report?.totalStudents,
+      },
+      {
+        key: 'submissions',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('teacher.reports.submissions')}</span>
+            <span className="stat-chip">{rangeDays === 7 ? t('common.last7Days') : t('common.recent')}</span>
+          </Space>
+        ),
+        value: summary?.count,
+      },
+      {
+        key: 'submissionRate',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('teacher.reports.submissionRate')}</span>
+            <span className="stat-chip">{rangeDays === 7 ? t('common.last7Days') : t('common.recent')}</span>
+          </Space>
+        ),
+        value: submissionRate,
+        suffix: '%',
+      },
+    ],
+    [classCount, rangeDays, report?.totalStudents, submissionRate, summary?.count, t],
+  );
 
   return (
     <PageContainer

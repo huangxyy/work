@@ -29,6 +29,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { StorageService } from '../storage/storage.service';
 import { CreateBatchSubmissionsDto } from './dto/create-batch-submissions.dto';
 import { ListHomeworkSubmissionsQueryDto } from './dto/list-homework-submissions-query.dto';
@@ -80,6 +81,14 @@ function decodeFileName(fileName: string): string {
   }
 }
 
+/**
+ * Sanitize a value for use in Content-Disposition filenames.
+ * Strips characters that could cause header injection or path traversal.
+ */
+function sanitizeFilenameParam(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
 @Controller('teacher/submissions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.TEACHER, Role.ADMIN)
@@ -91,7 +100,10 @@ export class TeacherSubmissionsController {
 
   @Get()
   async list(@Query() query: ListHomeworkSubmissionsQueryDto, @Req() req: { user: AuthUser }) {
-    return this.submissionsService.listHomeworkSubmissions(query.homeworkId, req.user);
+    return this.submissionsService.listHomeworkSubmissions(query.homeworkId, req.user, {
+      cursor: query.cursor,
+      limit: query.limit,
+    });
   }
 
   @Get('batches')
@@ -99,11 +111,14 @@ export class TeacherSubmissionsController {
     @Query() query: ListHomeworkSubmissionsQueryDto,
     @Req() req: { user: AuthUser },
   ) {
-    return this.submissionsService.listBatchUploads(query.homeworkId, req.user);
+    return this.submissionsService.listBatchUploads(query.homeworkId, req.user, {
+      cursor: query.cursor,
+      limit: query.limit,
+    });
   }
 
   @Get('batches/:batchId')
-  async getBatch(@Param('batchId') batchId: string, @Req() req: { user: AuthUser }) {
+  async getBatch(@Param('batchId', ParseCuidPipe) batchId: string, @Req() req: { user: AuthUser }) {
     return this.submissionsService.getBatchUploadDetail(batchId, req.user);
   }
 
@@ -148,10 +163,11 @@ export class TeacherSubmissionsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const csv = await this.submissionsService.exportHomeworkCsv(query.homeworkId, req.user, query.lang);
+    const safeId = sanitizeFilenameParam(query.homeworkId);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="homework-${query.homeworkId}-submissions.csv"`,
+      `attachment; filename="homework-${safeId}-submissions.csv"`,
     );
     return csv;
   }
@@ -163,10 +179,11 @@ export class TeacherSubmissionsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const zip = await this.submissionsService.exportHomeworkImagesZip(query.homeworkId, req.user);
+    const safeHwId = sanitizeFilenameParam(query.homeworkId);
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="homework-${query.homeworkId}-images.zip"`,
+      `attachment; filename="homework-${safeHwId}-images.zip"`,
     );
     res.setHeader('Content-Length', zip.length);
     return new StreamableFile(zip);
@@ -179,10 +196,11 @@ export class TeacherSubmissionsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const csv = await this.submissionsService.exportHomeworkRemindersCsv(query.homeworkId, req.user, query.lang);
+    const safeRmId = sanitizeFilenameParam(query.homeworkId);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="homework-${query.homeworkId}-reminders.csv"`,
+      `attachment; filename="homework-${safeRmId}-reminders.csv"`,
     );
     return csv;
   }
@@ -196,7 +214,7 @@ export class TeacherSubmissionsController {
   }
 
   @Post('batches/:batchId/retry')
-  async retryBatch(@Param('batchId') batchId: string, @Req() req: { user: AuthUser }) {
+  async retryBatch(@Param('batchId', ParseCuidPipe) batchId: string, @Req() req: { user: AuthUser }) {
     return this.submissionsService.regradeBatchSubmissions(batchId, req.user);
   }
 
@@ -219,10 +237,11 @@ export class TeacherSubmissionsController {
       lang,
       req.user,
     );
+    const safePdfId = sanitizeFilenameParam(homeworkId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="homework-${homeworkId}-grading-sheets.pdf"`,
+      `attachment; filename="homework-${safePdfId}-grading-sheets.pdf"`,
     );
     res.setHeader('Content-Length', buffer.length);
     return new StreamableFile(buffer);
@@ -241,17 +260,19 @@ export class TeacherSubmissionsController {
     @Param('fileKey') fileKey: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    // fileKey 已经被 normalize 过，直接用于构建 objectKey
+    // Validate fileKey to prevent path traversal (only allow UUID-like strings)
+    if (!fileKey || !/^[a-zA-Z0-9_-]+$/.test(fileKey)) {
+      throw new BadRequestException('Invalid file key');
+    }
     const objectKey = `thumbnails/${fileKey}.jpg`;
     try {
       const buffer = await this.storage.getObject(objectKey);
       res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
       return new StreamableFile(buffer);
-    } catch (error) {
-      // 缩略图不存在时返回 404
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      res.status(404).send(`Thumbnail not found: ${message}`);
+    } catch {
+      // 缩略图不存在时返回 404 — do not leak internal error details
+      res.status(404).send('Thumbnail not found');
     }
   }
 }

@@ -56,6 +56,7 @@ export const TeacherHomeworksPage = () => {
   const classesQuery = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
   });
 
   const classOptions = useMemo<ClassOption[]>(
@@ -77,14 +78,19 @@ export const TeacherHomeworksPage = () => {
     queryKey: ['homeworks-summary', selectedClassId],
     queryFn: () => fetchHomeworksSummaryByClass(selectedClassId || ''),
     enabled: !!selectedClassId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const createMutation = useMutation({
     mutationFn: createHomework,
     onSuccess: async () => {
       if (selectedClassId) {
-        await queryClient.invalidateQueries({ queryKey: ['homeworks-summary', selectedClassId] });
-        await queryClient.invalidateQueries({ queryKey: ['homeworks', selectedClassId] });
+        await queryClient.invalidateQueries({
+          predicate: (query) =>
+            Array.isArray(query.queryKey) &&
+            query.queryKey[1] === selectedClassId &&
+            (query.queryKey[0] === 'homeworks-summary' || query.queryKey[0] === 'homeworks'),
+        });
       }
       message.success(t('teacher.homeworks.created'));
     },

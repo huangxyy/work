@@ -33,17 +33,20 @@ export const TeacherSettingsGradingPage = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['teacher-grading-settings'],
     queryFn: fetchTeacherGradingSettings,
+    staleTime: 5 * 60 * 1000,
   });
 
   const classesQuery = useQuery({
     queryKey: ['teacher-classes'],
     queryFn: fetchClasses,
+    staleTime: 10 * 60 * 1000,
   });
 
   const homeworksQuery = useQuery({
     queryKey: ['teacher-homeworks', selectedClassId],
     queryFn: () => fetchHomeworksByClass(selectedClassId || ''),
     enabled: Boolean(selectedClassId),
+    staleTime: 5 * 60 * 1000,
   });
 
   const policyQuery = useQuery({

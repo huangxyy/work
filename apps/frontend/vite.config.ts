@@ -25,11 +25,13 @@ export default defineConfig({
     },
   },
   build: {
+    target: 'es2020',
     rollupOptions: {
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-antd': ['antd', '@ant-design/icons', '@ant-design/pro-components'],
+          'vendor-antd': ['antd', '@ant-design/icons'],
+          'vendor-antd-pro': ['@ant-design/pro-components'],
           'vendor-charts': ['echarts'],
           'vendor-pdf': ['html2canvas', 'jspdf'],
         },

@@ -39,6 +39,7 @@ export class ClassesService {
       return this.prisma.class.findMany({
         include: { teachers: { select: { id: true, name: true, account: true } } },
         orderBy: { createdAt: 'desc' },
+        take: 500,
       });
     }
 
@@ -47,6 +48,7 @@ export class ClassesService {
         where: { teachers: { some: { id: user.id } } },
         include: { teachers: { select: { id: true, name: true, account: true } } },
         orderBy: { createdAt: 'desc' },
+        take: 500,
       });
     }
 
@@ -299,6 +301,7 @@ export class ClassesService {
     const enrollments = await this.prisma.enrollment.findMany({
       where: { classId },
       include: { student: true },
+      take: 500,
     });
 
     return enrollments.map((enrollment) => ({

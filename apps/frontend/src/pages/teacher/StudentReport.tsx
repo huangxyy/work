@@ -1,10 +1,8 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { downloadTeacherStudentReportPdf, fetchTeacherStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
@@ -98,7 +96,7 @@ export const TeacherStudentReportPage = () => {
     };
   }, [report?.errorTypes]);
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = useCallback(async () => {
     if (!studentId) {
       message.error(t('teacher.reports.exportFailed'));
       return;
@@ -118,6 +116,10 @@ export const TeacherStudentReportPage = () => {
         return;
       }
       try {
+        const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+          import('html2canvas'),
+          import('jspdf'),
+        ]);
         const canvas = await html2canvas(reportRef.current, {
           scale: 2,
           useCORS: true,
@@ -146,7 +148,7 @@ export const TeacherStudentReportPage = () => {
     } finally {
       setExporting(false);
     }
-  };
+  }, [language, message, rangeDays, studentId, t]);
 
   useEffect(() => {
     if (!report) {
@@ -163,7 +165,7 @@ export const TeacherStudentReportPage = () => {
       return () => window.clearTimeout(timeout);
     }
     return undefined;
-  }, [report, searchParams]);
+  }, [handleExportPdf, report, searchParams]);
 
   return (
     <PageContainer

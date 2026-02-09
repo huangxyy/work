@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { CreateHomeworkDto } from './dto/create-homework.dto';
 import { ListHomeworksQueryDto } from './dto/list-homeworks-query.dto';
 import { UpdateHomeworkLateSubmissionDto } from './dto/update-homework-late-submission.dto';
@@ -46,14 +47,14 @@ export class HomeworksController {
 
   @Get(':id/delete-preview')
   @Roles(Role.TEACHER, Role.ADMIN)
-  async deletePreview(@Param('id') id: string, @Req() req: { user: AuthUser }) {
+  async deletePreview(@Param('id', ParseCuidPipe) id: string, @Req() req: { user: AuthUser }) {
     return this.homeworksService.getDeletePreview(id, req.user);
   }
 
   @Patch(':id/late-submission')
   @Roles(Role.TEACHER, Role.ADMIN)
   async updateLateSubmission(
-    @Param('id') id: string,
+    @Param('id', ParseCuidPipe) id: string,
     @Body() body: UpdateHomeworkLateSubmissionDto,
     @Req() req: { user: AuthUser },
   ) {
@@ -63,7 +64,7 @@ export class HomeworksController {
   @Delete(':id')
   @Roles(Role.TEACHER, Role.ADMIN)
   async remove(
-    @Param('id') id: string,
+    @Param('id', ParseCuidPipe) id: string,
     @Query('force') force: string,
     @Req() req: { user: AuthUser },
   ) {

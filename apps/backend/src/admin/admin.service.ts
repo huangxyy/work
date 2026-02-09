@@ -73,27 +73,23 @@ export class AdminService {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const [
-      usersTotal,
-      usersStudents,
-      usersTeachers,
-      usersAdmins,
-      classesTotal,
-      enrollmentsTotal,
-      homeworksTotal,
-      submissionsTotal,
-      submissionsToday,
-    ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { role: Role.STUDENT } }),
-      this.prisma.user.count({ where: { role: Role.TEACHER } }),
-      this.prisma.user.count({ where: { role: Role.ADMIN } }),
-      this.prisma.class.count(),
-      this.prisma.enrollment.count(),
-      this.prisma.homework.count(),
-      this.prisma.submission.count(),
-      this.prisma.submission.count({ where: { createdAt: { gte: startOfDay } } }),
-    ]);
+    const [usersByRole, classesTotal, enrollmentsTotal, homeworksTotal, submissionsTotal, submissionsToday] =
+      await Promise.all([
+        this.prisma.user.groupBy({
+          by: ['role'],
+          _count: { _all: true },
+        }),
+        this.prisma.class.count(),
+        this.prisma.enrollment.count(),
+        this.prisma.homework.count(),
+        this.prisma.submission.count(),
+        this.prisma.submission.count({ where: { createdAt: { gte: startOfDay } } }),
+      ]);
+
+    const usersTotal = usersByRole.reduce((sum, item) => sum + item._count._all, 0);
+    const usersStudents = usersByRole.find((item) => item.role === Role.STUDENT)?._count._all || 0;
+    const usersTeachers = usersByRole.find((item) => item.role === Role.TEACHER)?._count._all || 0;
+    const usersAdmins = usersByRole.find((item) => item.role === Role.ADMIN)?._count._all || 0;
 
     return {
       users: {
@@ -186,6 +182,7 @@ export class AdminService {
 
   async listUsers(query: ListUsersQueryDto) {
     const keyword = query.keyword?.trim();
+    const take = Math.min(Math.max(query.limit || 500, 1), 500);
     const where: {
       role?: Role;
       isActive?: boolean;
@@ -217,8 +214,9 @@ export class AdminService {
         isActive: true,
         createdAt: true,
       },
-      orderBy: { createdAt: 'desc' },
-      take: 500,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     });
   }
 
@@ -346,6 +344,7 @@ export class AdminService {
         _count: { select: { enrolls: true, homeworks: true, teachers: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return classes.map((klass) => ({

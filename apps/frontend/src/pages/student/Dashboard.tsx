@@ -1,6 +1,7 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { Alert, Button, List, Progress, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { fetchStudentHomeworks, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -34,50 +35,53 @@ export const StudentDashboardPage = () => {
     : t('student.dashboard.noUpcomingDeadlines');
   const report = reportQuery.data;
   const summary = report?.summary;
-  const topErrors = (report?.errorTypes || []).slice(0, 5);
-  const nextSteps = (report?.nextSteps || []).slice(0, 5);
-  const summaryCards = [
-    {
-      key: 'assignments',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('student.dashboard.assignmentsAvailable')}</span>
-          <span className="stat-chip">{t('common.realtime')}</span>
-        </Space>
-      ),
-      value: homeworkCount,
-    },
-    {
-      key: 'submissions',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('student.dashboard.weeklySubmissions')}</span>
-          <span className="stat-chip">{t('common.last7Days')}</span>
-        </Space>
-      ),
-      value: summary?.count,
-    },
-    {
-      key: 'avg',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('student.report.avgScore')}</span>
-          <span className="stat-chip">{t('common.last7Days')}</span>
-        </Space>
-      ),
-      value: summary?.avg,
-    },
-    {
-      key: 'max',
-      title: (
-        <Space size={6} align="center">
-          <span>{t('student.report.highestScore')}</span>
-          <span className="stat-chip">{t('common.last7Days')}</span>
-        </Space>
-      ),
-      value: summary?.max,
-    },
-  ];
+  const topErrors = useMemo(() => (report?.errorTypes || []).slice(0, 5), [report?.errorTypes]);
+  const nextSteps = useMemo(() => (report?.nextSteps || []).slice(0, 5), [report?.nextSteps]);
+  const summaryCards = useMemo(
+    () => [
+      {
+        key: 'assignments',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('student.dashboard.assignmentsAvailable')}</span>
+            <span className="stat-chip">{t('common.realtime')}</span>
+          </Space>
+        ),
+        value: homeworkCount,
+      },
+      {
+        key: 'submissions',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('student.dashboard.weeklySubmissions')}</span>
+            <span className="stat-chip">{t('common.last7Days')}</span>
+          </Space>
+        ),
+        value: summary?.count,
+      },
+      {
+        key: 'avg',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('student.report.avgScore')}</span>
+            <span className="stat-chip">{t('common.last7Days')}</span>
+          </Space>
+        ),
+        value: summary?.avg,
+      },
+      {
+        key: 'max',
+        title: (
+          <Space size={6} align="center">
+            <span>{t('student.report.highestScore')}</span>
+            <span className="stat-chip">{t('common.last7Days')}</span>
+          </Space>
+        ),
+        value: summary?.max,
+      },
+    ],
+    [homeworkCount, summary?.avg, summary?.count, summary?.max, t],
+  );
 
   const getDueStatus = (dueAt?: Date | null) => {
     if (!dueAt) {

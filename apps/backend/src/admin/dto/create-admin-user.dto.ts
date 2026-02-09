@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { Role } from '@prisma/client';
 
 export class CreateAdminUserDto {
@@ -15,7 +15,10 @@ export class CreateAdminUserDto {
   role?: Role;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
   @MaxLength(1000)
+  @Matches(/(?=.*[a-zA-Z])(?=.*\d)/, {
+    message: 'Password must contain at least one letter and one digit',
+  })
   password: string;
 }

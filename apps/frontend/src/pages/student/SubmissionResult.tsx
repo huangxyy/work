@@ -35,6 +35,7 @@ type GradingResult = {
 };
 
 type SubmissionStatus = 'QUEUED' | 'PROCESSING' | 'DONE' | 'FAILED';
+type SubmissionPollData = { status: SubmissionStatus; updatedAt?: string };
 
 const statusStepIndex: Record<SubmissionStatus, number> = {
   QUEUED: 0,
@@ -51,11 +52,23 @@ export const SubmissionResultPage = () => {
     queryFn: () => fetchSubmission(id || ''),
     enabled: !!id,
     refetchInterval: (query) => {
-      const result = query.state.data as { status: SubmissionStatus } | undefined;
+      const result = query.state.data as SubmissionPollData | undefined;
       if (!result) {
         return 2000;
       }
-      return result.status === 'DONE' || result.status === 'FAILED' ? false : 2000;
+
+      if (result.status === 'DONE' || result.status === 'FAILED') {
+        return false;
+      }
+
+      if (result.status === 'QUEUED') {
+        return 2000;
+      }
+
+      const baseline = result.updatedAt ? new Date(result.updatedAt).getTime() : query.state.dataUpdatedAt;
+      const elapsed = Math.max(0, Date.now() - (Number.isFinite(baseline) ? baseline : Date.now()));
+      const step = Math.floor(elapsed / 30000);
+      return Math.min(2000 * (2 ** step), 15000);
     },
   });
 

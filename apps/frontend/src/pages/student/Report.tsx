@@ -2,8 +2,6 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { useMemo, useRef, useState } from 'react';
 import { downloadStudentReportPdf, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
@@ -110,6 +108,10 @@ export const StudentReportPage = () => {
         return;
       }
       try {
+        const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+          import('html2canvas'),
+          import('jspdf'),
+        ]);
         const canvas = await html2canvas(reportRef.current, {
           scale: 2,
           useCORS: true,

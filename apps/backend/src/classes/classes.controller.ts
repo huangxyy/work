@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { ImportStudentsDto } from './dto/import-students.dto';
@@ -29,7 +30,7 @@ export class ClassesController {
   @Post(':id/students/import')
   @Roles(Role.TEACHER, Role.ADMIN)
   async importStudents(
-    @Param('id') classId: string,
+    @Param('id', ParseCuidPipe) classId: string,
     @Body() body: ImportStudentsDto,
     @Req() req: { user: AuthUser },
   ) {
@@ -39,7 +40,7 @@ export class ClassesController {
   @Patch(':id/teachers')
   @Roles(Role.ADMIN)
   async updateTeachers(
-    @Param('id') classId: string,
+    @Param('id', ParseCuidPipe) classId: string,
     @Body() body: UpdateClassTeachersDto,
     @Req() req: { user: AuthUser },
   ) {
@@ -48,15 +49,15 @@ export class ClassesController {
 
   @Get(':id/students')
   @Roles(Role.TEACHER, Role.ADMIN)
-  async listStudents(@Param('id') classId: string, @Req() req: { user: AuthUser }) {
+  async listStudents(@Param('id', ParseCuidPipe) classId: string, @Req() req: { user: AuthUser }) {
     return this.classesService.listStudents(classId, req.user);
   }
 
   @Delete(':id/students/:studentId')
   @Roles(Role.TEACHER, Role.ADMIN)
   async removeStudent(
-    @Param('id') classId: string,
-    @Param('studentId') studentId: string,
+    @Param('id', ParseCuidPipe) classId: string,
+    @Param('studentId', ParseCuidPipe) studentId: string,
     @Req() req: { user: AuthUser },
   ) {
     return this.classesService.removeStudent(classId, studentId, req.user);
