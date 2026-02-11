@@ -104,6 +104,25 @@ export class ReportsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Invalidate cached class overview data for a specific class.
+   * Should be called after operations that change submission data (regrade, delete, etc.)
+   */
+  invalidateClassCache(classId: string): void {
+    for (const key of this.classOverviewCache.keys()) {
+      if (key.includes(classId)) {
+        this.classOverviewCache.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Invalidate all cached class overview data.
+   */
+  invalidateAllClassCache(): void {
+    this.classOverviewCache.clear();
+  }
+
   async getClassOverview(
     classId: string,
     query: ReportRangeQueryDto,

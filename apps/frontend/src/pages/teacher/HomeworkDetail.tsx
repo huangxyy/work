@@ -25,6 +25,7 @@ import {
   Typography,
   Upload,
 } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -35,7 +36,6 @@ import {
   createTeacherBatchSubmissions,
   deleteHomework,
   fetchHomeworkDeletePreview,
-  fetchClassStudents,
   importClassStudents,
   fetchTeacherHomeworkSubmissions,
   fetchTeacherBatchUploads,
@@ -72,6 +72,25 @@ type SubmissionRow = {
   status: string;
   totalScore?: number | null;
   updatedAt?: string;
+};
+
+type BatchStatusCounts = {
+  done?: number;
+  processing?: number;
+  queued?: number;
+  failed?: number;
+};
+
+type BatchHistoryRow = {
+  id: string;
+  createdAt: string;
+  uploader?: { name: string; account: string };
+  totalImages: number;
+  matchedImages: number;
+  unmatchedCount: number;
+  createdSubmissions: number;
+  status: string;
+  statusCounts?: BatchStatusCounts;
 };
 
 export const TeacherHomeworkDetailPage = () => {
@@ -162,13 +181,7 @@ export const TeacherHomeworkDetailPage = () => {
     enabled: !!id,
   });
 
-  const studentsQuery = useQuery<Array<{ id: string; name: string; account: string }>>({
-    queryKey: ['class-students', classId],
-    queryFn: () => fetchClassStudents(classId),
-    enabled: !!classId,
-  });
-
-  const batchesQuery = useQuery({
+  const batchesQuery = useQuery<BatchHistoryRow[]>({
     queryKey: ['batch-uploads', id],
     queryFn: () => fetchTeacherBatchUploads(id || ''),
     enabled: !!id,
@@ -179,15 +192,6 @@ export const TeacherHomeworkDetailPage = () => {
     queryFn: () => fetchHomeworkDeletePreview(id || ''),
     enabled: !!id,
   });
-
-  const studentOptions = useMemo(
-    () =>
-      (studentsQuery.data || []).map((student: { id: string; name: string; account: string }) => ({
-        label: `${student.name} (${student.account})`,
-        value: student.account,
-      })),
-    [studentsQuery.data],
-  );
 
   const filteredSubmissions = useMemo(() => {
     const list = (submissionsQuery.data || []) as SubmissionRow[];
@@ -743,7 +747,7 @@ export const TeacherHomeworkDetailPage = () => {
     [t],
   );
 
-  const batchColumns = [
+  const batchColumns: ColumnsType<BatchHistoryRow> = [
     {
       title: t('teacher.batchUpload.historyCreatedAt'),
       dataIndex: 'createdAt',
@@ -789,7 +793,7 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('teacher.batchUpload.progress'),
       dataIndex: 'statusCounts',
-      render: (counts: any, row: any) => {
+      render: (counts: BatchStatusCounts | undefined, row: BatchHistoryRow) => {
         const total = row.totalImages || 1;
         const done = counts?.done || 0;
         const processing = counts?.processing || 0;
@@ -816,7 +820,7 @@ export const TeacherHomeworkDetailPage = () => {
     {
       title: t('common.action'),
       dataIndex: 'id',
-      render: (_: string, row: any) => (
+      render: (_: string, row: BatchHistoryRow) => (
         <Space size={8}>
           <Button size="small" onClick={() => navigate(`/teacher/batches/${row.id}`)}>
             {t('common.view')}
@@ -1446,7 +1450,7 @@ export const TeacherHomeworkDetailPage = () => {
                     ) : !batchesQuery.data?.length ? (
                       <SoftEmpty description={t('teacher.batchUpload.historyEmpty')} />
                     ) : (
-                      <Table
+                      <Table<BatchHistoryRow>
                         rowKey="id"
                         columns={batchColumns}
                         dataSource={batchesQuery.data}

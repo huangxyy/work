@@ -106,6 +106,8 @@ model Submission {
   @@index([createdAt])
   @@index([homeworkId, status])
   @@index([studentId, homeworkId])
+  // Composite index for duplicate submission check: find active submissions by student+homework+status
+  @@index([homeworkId, studentId, status])
 }
 
 model BatchUpload {

@@ -20,45 +20,6 @@ const ERROR_TYPES = [
   'other',
 ];
 
-// Detailed scoring criteria reference
-const SCORING_GUIDE = {
-  grammar: {
-    excellent: '18-20: Few to no errors; complex structures used correctly',
-    good: '15-17: Minor errors that do not impede understanding',
-    fair: '12-14: Noticeable errors but meaning remains clear',
-    weak: '9-11: Frequent errors that occasionally obscure meaning',
-    poor: '0-8: Errors so frequent that meaning is often lost',
-  },
-  vocabulary: {
-    excellent: '18-20: Precise, varied, and contextually appropriate word choices',
-    good: '15-17: Generally appropriate with some variety',
-    fair: '12-14: Basic vocabulary with repetition or awkward choices',
-    weak: '9-11: Limited range, frequent inappropriate choices',
-    poor: '0-8: Very limited range, often confusing word usage',
-  },
-  structure: {
-    excellent: '18-20: Clear intro/body/conclusion; effective paragraphing; logical flow',
-    good: '15-17: Basic structure present with minor organizational issues',
-    fair: '12-14: Structure evident but paragraphs weak or disorganized',
-    weak: '9-11: Poor paragraphing, missing intro/conclusion',
-    poor: '0-8: No discernible structure',
-  },
-  content: {
-    excellent: '18-20: Insightful ideas; strong supporting details; original thinking',
-    good: '15-17: Clear ideas with adequate support',
-    fair: '12-14: Ideas present but underdeveloped or generic',
-    weak: '9-11: Ideas vague, minimal supporting detail',
-    poor: '0-8: Off-topic, no clear ideas',
-  },
-  coherence: {
-    excellent: '18-20: Smooth transitions; clear logical connections throughout',
-    good: '15-17: Generally coherent with occasional abrupt transitions',
-    fair: '12-14: Basic coherence but connections sometimes unclear',
-    weak: '9-11: Choppy flow, difficult to follow at times',
-    poor: '0-8: Disconnected, no logical flow',
-  },
-};
-
 const ERROR_TYPE_DESCRIPTIONS = {
   grammar: 'Subject-verb agreement, tense consistency, sentence fragments, run-ons, article usage, prepositions',
   vocabulary: 'Word form errors (e.g., "happy" vs "happiness"), collocation mistakes, register issues, wrong word choice',

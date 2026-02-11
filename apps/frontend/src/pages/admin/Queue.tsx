@@ -1,7 +1,7 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { Alert, Button, InputNumber, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   cleanAdminQueue,
   fetchAdminQueueMetrics,
@@ -95,24 +95,27 @@ export const AdminQueuePage = () => {
     [t],
   );
 
-  const formatStatus = (value: string) => {
-    switch (value) {
-      case 'completed':
-        return t('status.done');
-      case 'failed':
-        return t('status.failed');
-      case 'active':
-        return t('status.processing');
-      case 'waiting':
-        return t('status.queued');
-      case 'delayed':
-        return t('status.delayed');
-      case 'paused':
-        return t('status.paused');
-      default:
-        return value || '--';
-    }
-  };
+  const formatStatus = useCallback(
+    (value: string) => {
+      switch (value) {
+        case 'completed':
+          return t('status.done');
+        case 'failed':
+          return t('status.failed');
+        case 'active':
+          return t('status.processing');
+        case 'waiting':
+          return t('status.queued');
+        case 'delayed':
+          return t('status.delayed');
+        case 'paused':
+          return t('status.paused');
+        default:
+          return value || '--';
+      }
+    },
+    [t],
+  );
 
   const columns = useMemo(
     () => [
@@ -183,7 +186,7 @@ export const AdminQueuePage = () => {
         render: (value: string | null) => (value ? <Typography.Text type="danger">{value}</Typography.Text> : '--'),
       },
     ],
-    [t],
+    [formatStatus, t],
   );
 
   // Auto-refresh queue metrics every 30 seconds

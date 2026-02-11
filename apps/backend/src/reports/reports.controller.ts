@@ -15,7 +15,7 @@ import { ReportsService } from './reports.service';
  * Strips characters that could cause header injection or path traversal.
  */
 function sanitizeFilenameParam(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_\-]/g, '');
+  return value.replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
 @Controller('teacher/reports')

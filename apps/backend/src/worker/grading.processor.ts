@@ -108,6 +108,24 @@ export class GradingProcessor extends WorkerHost {
     let llmStartedAt: number | null = null;
 
     try {
+      // Verify the submission still exists and hasn't been cancelled/deleted
+      // between being queued and picked up by the worker.
+      const preCheck = await this.prisma.submission.findUnique({
+        where: { id: submissionId },
+        select: { id: true, status: true },
+      });
+
+      if (!preCheck) {
+        this.logger.warn(`Submission ${submissionId} no longer exists, skipping job ${jobLabel}`);
+        return { durationMs: Date.now() - startedAt, skipped: true, reason: 'SUBMISSION_DELETED' };
+      }
+
+      // Skip if submission is already DONE (e.g. regraded by another job)
+      if (preCheck.status === SubmissionStatus.DONE) {
+        this.logger.warn(`Submission ${submissionId} is already DONE, skipping job ${jobLabel}`);
+        return { durationMs: Date.now() - startedAt, skipped: true, reason: 'ALREADY_DONE' };
+      }
+
       await this.prisma.submission.update({
         where: { id: submissionId },
         data: { status: SubmissionStatus.PROCESSING, errorCode: null, errorMsg: null },

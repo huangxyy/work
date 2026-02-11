@@ -36,7 +36,7 @@ const themeToken = {
   fontFamily: '"IBM Plex Sans", "Segoe UI", sans-serif',
 };
 
-const App = () => {
+export const App = () => {
   const { language } = useI18n();
   const locale = language === 'zh-CN' ? zhCN : enUS;
 

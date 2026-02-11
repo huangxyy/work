@@ -13,7 +13,7 @@ import { ReportsService } from './reports.service';
  * Sanitize a value for use in Content-Disposition filenames.
  */
 function sanitizeFilenameParam(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_\-]/g, '');
+  return value.replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
 @Controller('student/reports')

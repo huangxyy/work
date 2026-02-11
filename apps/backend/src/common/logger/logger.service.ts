@@ -136,7 +136,6 @@ export class LoggerService implements NestLoggerService {
     const { level, message, timestamp, context, userId, requestId, data } = entry;
 
     const coloredLevel = this.colorizeLevel(level);
-    const time = new Date(timestamp).toLocaleTimeString();
     const prefix = [
       coloredLevel,
       timestamp,

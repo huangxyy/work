@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
 import AdmZip = require('adm-zip');
-const PDFDocument = require('pdfkit');
+import PDFDocument = require('pdfkit');
 import pinyin from 'pinyin';
 import * as sharp from 'sharp';
 import { randomUUID } from 'crypto';
@@ -1780,7 +1780,7 @@ export class SubmissionsService {
     const stagingObjectKey = `staging/${homework.id}/${normalizedFileKey}`;
 
     let imageBuffer: Buffer;
-    let contentType = 'image/jpeg';
+    const contentType = 'image/jpeg';
     try {
       imageBuffer = await this.storage.getObject(stagingObjectKey);
     } catch (error) {
@@ -1817,9 +1817,8 @@ export class SubmissionsService {
         });
 
         if (currentBatch?.skipped && Array.isArray(currentBatch.skipped)) {
-          const updatedSkipped = currentBatch.skipped.filter(
-            (item: any) => item.fileKey !== dto.fileKey
-          );
+          const skippedItems = currentBatch.skipped as Array<{ fileKey?: string }>;
+          const updatedSkipped = skippedItems.filter((item) => item.fileKey !== dto.fileKey);
           await this.prisma.batchUpload.update({
             where: { id: dto.batchId },
             data: { skipped: updatedSkipped },
@@ -3307,7 +3306,6 @@ export class SubmissionsService {
   }
 
   private wrapText(doc: PDFDocumentInstance, text: string, x: number, maxWidth: number) {
-    const lineHeight = 14;
     const lines: string[] = [];
     const paragraphs = text.split('\n');
 

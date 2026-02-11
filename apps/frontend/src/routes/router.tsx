@@ -1,12 +1,10 @@
-import { PageContainer } from '@ant-design/pro-components';
-import { Result, Spin } from 'antd';
 import { lazy, Suspense } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { TeacherLayout } from '../layouts/TeacherLayout';
 import { StudentLayout } from '../layouts/StudentLayout';
 import { RequireAuth } from '../components/RequireAuth';
-import { useI18n } from '../i18n';
+import { NotFoundPage, PageFallback } from './route-components';
 
 const LoginPage = lazy(() => import('../pages/Login').then((module) => ({ default: module.LoginPage })));
 const LandingPage = lazy(() =>
@@ -90,25 +88,9 @@ const TeacherSubmissionDetailPage = lazy(() =>
   import('../pages/teacher/SubmissionDetail').then((module) => ({ default: module.TeacherSubmissionDetailPage })),
 );
 
-const PageFallback = () => (
-  <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-    <Spin size="large" />
-  </div>
-);
-
 const withSuspense = (element: JSX.Element) => (
   <Suspense fallback={<PageFallback />}>{element}</Suspense>
 );
-
-const NotFoundPage = () => {
-  const { t } = useI18n();
-
-  return (
-    <PageContainer title={t('errors.pageNotFoundTitle')} breadcrumb={{ items: [] }}>
-      <Result status="404" title="404" subTitle={t('errors.pageNotFoundSubtitle')} />
-    </PageContainer>
-  );
-};
 
 export const router = createBrowserRouter([
   { path: '/', element: withSuspense(<LandingPage />) },

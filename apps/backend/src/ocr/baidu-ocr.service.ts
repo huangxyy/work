@@ -34,24 +34,28 @@ export class BaiduOcrService {
       throw new Error('BAIDU_OCR_API_KEY and BAIDU_OCR_SECRET_KEY must be configured');
     }
 
-    const accessToken = await this.getAccessToken(effectiveConfig);
-
-    // Convert buffer to base64
+    // Convert buffer to base64 once (immutable across retries)
     const base64Image = imageBuffer.toString('base64');
 
     const formData = new URLSearchParams();
     formData.append('image', base64Image);
 
-    const response = await this.callWithRetry(
-      `${this.OCR_API_URL}?access_token=${accessToken}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData,
+    const requestOptions: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-    );
+      body: formData,
+    };
+
+    // Build a URL provider that refreshes the token on each attempt,
+    // so auth token errors are automatically recovered by getting a fresh token.
+    const getUrl = async () => {
+      const accessToken = await this.getAccessToken(effectiveConfig);
+      return `${this.OCR_API_URL}?access_token=${accessToken}`;
+    };
+
+    const response = await this.callWithRetry(getUrl, requestOptions);
 
     const data = (await response.json()) as BaiduOcrResponse;
 
@@ -144,12 +148,14 @@ export class BaiduOcrService {
   }
 
   private async callWithRetry(
-    url: string,
+    urlOrProvider: string | (() => Promise<string>),
     options: RequestInit,
     retries = 2,
   ): Promise<Response> {
     for (let i = 0; i <= retries; i++) {
       try {
+        // Resolve URL freshly on each attempt so token refresh takes effect
+        const url = typeof urlOrProvider === 'function' ? await urlOrProvider() : urlOrProvider;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
@@ -170,6 +176,20 @@ export class BaiduOcrService {
               const delay = Math.pow(2, i) * 1000; // exponential backoff
               this.logger.warn(`QPS limit exceeded, retrying in ${delay}ms...`);
               await new Promise((resolve) => setTimeout(resolve, delay));
+              continue;
+            }
+          }
+
+          // Handle auth token errors — clear cached token so next retry gets a fresh one
+          if (data.error_code === BaiduOcrErrorCode.AUTH_TOKEN_EXPIRED ||
+              data.error_code === BaiduOcrErrorCode.AUTH_TOKEN_INVALID) {
+            this.cachedToken = null;
+            this.tokenExpiresAt = 0;
+            if (i < retries) {
+              const delay = Math.pow(2, i) * 500;
+              this.logger.warn(`Auth token invalid/expired, clearing cache and retrying in ${delay}ms...`);
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              // Rebuild URL with fresh token for next attempt
               continue;
             }
           }

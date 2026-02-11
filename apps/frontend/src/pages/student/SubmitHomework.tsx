@@ -47,6 +47,11 @@ export const SubmitHomeworkPage = () => {
     [t],
   );
 
+  const isImageFile = (file: RcFile): boolean => {
+    if (file.type?.startsWith('image/')) return true;
+    return /\.(png|jpe?g|webp|tif?f?)$/i.test(file.name);
+  };
+
   const handleSubmit = async () => {
     if (!homeworkId) {
       message.error(t('submit.missingId'));
@@ -72,8 +77,12 @@ export const SubmitHomeworkPage = () => {
       return;
     }
 
-    // Validate file size
+    // Validate file type and size
     for (const file of files) {
+      if (!isImageFile(file)) {
+        message.error(t('submit.onlyImages'));
+        return;
+      }
       if (file.size > MAX_FILE_SIZE) {
         message.error(`File ${file.name} exceeds 10MB limit`);
         return;
@@ -109,11 +118,36 @@ export const SubmitHomeworkPage = () => {
         ],
       }}
     >
+      {homeworksQuery.isError ? (
+        <Alert
+          type="error"
+          message={t('student.dashboard.loadError')}
+          description={homeworksQuery.error instanceof Error ? homeworksQuery.error.message : t('common.tryAgain')}
+          action={
+            <Button size="small" onClick={() => homeworksQuery.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
       {!homeworkId ? (
         <Alert
           type="error"
           message={t('submit.missingReference')}
           description={t('submit.missingReferenceDesc')}
+          action={
+            <Button onClick={() => navigate('/student/homeworks')}>
+              {t('common.backToHomeworks')}
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : homeworksQuery.isSuccess && !homework ? (
+        <Alert
+          type="warning"
+          message={t('submit.homeworkNotFound')}
+          description={t('submit.homeworkNotFoundDesc')}
           action={
             <Button onClick={() => navigate('/student/homeworks')}>
               {t('common.backToHomeworks')}

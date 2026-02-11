@@ -154,17 +154,24 @@ export class HealthService {
   private async checkStorage(): Promise<ServiceHealth> {
     const start = Date.now();
     try {
-      await this.s3Client.send(
+      // Add timeout to prevent health check from hanging if MinIO is unresponsive
+      const storageCheck = this.s3Client.send(
         new HeadBucketCommand({
           Bucket: this.storageBucket,
         }),
       );
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Storage health check timed out')), 5000),
+      );
+
+      await Promise.race([storageCheck, timeoutPromise]);
       return {
         status: 'healthy',
         responseTime: Date.now() - start,
       };
     } catch (error) {
-      this.logger.error('Storage health check failed', error);
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Storage health check failed: ${msg}`);
       return {
         status: 'degraded',
         message: 'Storage service unavailable',

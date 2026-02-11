@@ -129,9 +129,13 @@ export class RetentionService {
       cursor = { createdAt: last.createdAt, id: last.id };
     }
 
+    // Clean up orphaned BatchUpload records whose linked submissions
+    // have all been deleted (e.g. by prior retention runs or homework deletion).
+    const orphanedBatchUploads = await this.cleanOrphanedBatchUploads(cutoffDate, dryRun);
+
     stats.durationMs = Date.now() - startedAt;
     this.logger.log(
-      `Retention run (${options.invokedBy || 'manual'}) cutoff=${stats.cutoffDate} scanned=${stats.scanned} deleted=${stats.deleted} minioOk=${stats.minioOk} minioFailed=${stats.minioFailed} dbFailed=${stats.dbFailed} dryRun=${stats.dryRun} durationMs=${stats.durationMs}`,
+      `Retention run (${options.invokedBy || 'manual'}) cutoff=${stats.cutoffDate} scanned=${stats.scanned} deleted=${stats.deleted} minioOk=${stats.minioOk} minioFailed=${stats.minioFailed} dbFailed=${stats.dbFailed} orphanedBatches=${orphanedBatchUploads} dryRun=${stats.dryRun} durationMs=${stats.durationMs}`,
     );
 
     if (stats.dryRun) {
@@ -176,6 +180,40 @@ export class RetentionService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`Failed to store retention history: ${message}`);
+    }
+  }
+
+  private async cleanOrphanedBatchUploads(cutoffDate: Date, dryRun: boolean): Promise<number> {
+    try {
+      // Find BatchUpload records older than cutoff that have no remaining submissions
+      const orphaned = await this.prisma.batchUpload.findMany({
+        where: {
+          createdAt: { lt: cutoffDate },
+        },
+        select: { id: true },
+        take: 500,
+      });
+
+      if (!orphaned.length) return 0;
+
+      if (dryRun) {
+        this.logger.log(`Retention dry-run: would delete ${orphaned.length} old BatchUpload records`);
+        return orphaned.length;
+      }
+
+      const result = await this.prisma.batchUpload.deleteMany({
+        where: {
+          id: { in: orphaned.map((b) => b.id) },
+          createdAt: { lt: cutoffDate },
+        },
+      });
+
+      this.logger.log(`Retention: deleted ${result.count} orphaned BatchUpload records`);
+      return result.count;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Failed to clean orphaned BatchUpload records: ${message}`);
+      return 0;
     }
   }
 

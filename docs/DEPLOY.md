@@ -2,23 +2,64 @@
 
 ## 生产环境部署
 
-### 自动化部署
+### 自动化部署（首装）
 
-使用提供的自动化脚本：
+先准备主机参数文件：
+
+```bash
+cp deploy/host.env.example deploy/host.env
+vi deploy/host.env
+```
+
+再执行首装脚本：
 
 ```bash
 cd deploy
 bash install-host.sh
 ```
 
-该脚本会自动：
+`install-host.sh` 会自动完成：
 1. 安装 Node.js 20
 2. 安装并配置 Redis
 3. 安装并配置 MinIO
-4. 安装并配置 MySQL
-5. 配置 Nginx 反向代理
-6. 创建 systemd 服务
-7. 部署应用到 `/www/homework-ai`
+4. 初始化 MySQL（可通过 `SKIP_MYSQL_SETUP=1` 跳过）
+5. 拉取代码并生成后端 `.env`
+6. 构建后端与前端
+7. 创建并启动 systemd 服务（API + Worker）
+8. 发布前端静态资源与 Nginx 配置
+9. 执行 `deploy/healthcheck.sh` 进行健康检查
+
+### 自动化更新（持续发布）
+
+首装完成后，后续更新建议使用：
+
+```bash
+bash deploy/update-host.sh
+```
+
+`update-host.sh` 会执行：
+1. `git fetch + git pull --ff-only`
+2. 安装依赖、生成 Prisma Client
+3. 可选执行 `prisma migrate deploy`（`RUN_MIGRATIONS=1`）
+4. 构建后端与前端
+5. 同步前端资源到 `WEB_ROOT`
+6. 重启 API / Worker 服务
+7. 运行健康检查并等待服务就绪
+
+### GitHub Actions 自动发布
+
+仓库已提供 `/.github/workflows/deploy.yml`，支持两种触发方式：
+
+1. `CI` 在 `main` 分支成功后自动触发部署
+2. 手动触发 `Deploy`（可指定分支和是否执行迁移）
+
+需要在仓库 Secrets 中配置：
+
+- `DEPLOY_HOST`：目标服务器地址
+- `DEPLOY_USER`：SSH 登录用户
+- `DEPLOY_SSH_KEY`：私钥内容
+- `DEPLOY_PORT`（可选，默认 `22`）
+- `DEPLOY_APP_DIR`（可选，默认 `/www/homework-ai`）
 
 ### 手动部署
 
@@ -194,6 +235,18 @@ tail -f /var/log/nginx/error.log
 systemctl status homework-ai-api
 systemctl status homework-ai-worker
 systemctl status nginx
+```
+
+### 发布后健康检查
+
+```bash
+bash deploy/healthcheck.sh --url http://127.0.0.1:3008/api/health
+```
+
+若希望严格要求总体状态必须为 `healthy`，可追加：
+
+```bash
+bash deploy/healthcheck.sh --url http://127.0.0.1:3008/api/health --require-healthy
 ```
 
 ## 故障排查

@@ -4,6 +4,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -79,16 +80,39 @@ export class StorageService {
 
     const body = response.Body as unknown;
 
+    let buffer: Buffer;
     if (body instanceof Readable) {
-      return this.streamToBuffer(body);
-    }
-
-    if (typeof (body as { getReader?: () => unknown }).getReader === 'function') {
+      buffer = await this.streamToBuffer(body);
+    } else if (typeof (body as { getReader?: () => unknown }).getReader === 'function') {
       const readable = Readable.fromWeb(body as ReadableStream<Uint8Array>);
-      return this.streamToBuffer(readable);
+      buffer = await this.streamToBuffer(readable);
+    } else {
+      throw new Error(`Unsupported body type for key ${key}`);
     }
 
-    throw new Error(`Unsupported body type for key ${key}`);
+    if (buffer.length === 0) {
+      this.logger.warn(`Object ${this.bucket}/${key} has zero bytes`);
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Check if an object exists without downloading it.
+   */
+  async objectExists(key: string): Promise<boolean> {
+    await this.ensureBucket();
+    try {
+      await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async deleteObject(key: string): Promise<void> {

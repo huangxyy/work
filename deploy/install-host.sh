@@ -1,35 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/www/homework-ai"
-WEB_ROOT="/www/wwwroot/aigzy.cn"
-DOMAIN="aigzy.cn"
-API_PORT="3008"
-REPO_URL="CHANGE_ME"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${HOST_ENV_FILE:-${SCRIPT_DIR}/host.env}"
 
-DB_NAME="homework_ai"
-DB_USER="homework_ai"
-DB_PASS="CHANGE_ME"
-MYSQL_HOST="127.0.0.1"
-MYSQL_PORT="3306"
-MYSQL_ROOT_PASSWORD=""
-SKIP_MYSQL_SETUP="0"
+if [ -f "${ENV_FILE}" ]; then
+  # shellcheck disable=SC1090
+  . "${ENV_FILE}"
+  echo "Loaded host config from ${ENV_FILE}"
+else
+  echo "host.env not found at ${ENV_FILE}, using inline defaults."
+fi
 
-JWT_SECRET="CHANGE_ME"
-CORS_ORIGIN="https://${DOMAIN},http://${DOMAIN}"
+APP_DIR="${APP_DIR:-/www/homework-ai}"
+WEB_ROOT="${WEB_ROOT:-/www/wwwroot/aigzy.cn}"
+DOMAIN="${DOMAIN:-aigzy.cn}"
+API_PORT="${API_PORT:-3008}"
+REPO_URL="${REPO_URL:-CHANGE_ME}"
 
-MINIO_DATA="/www/minio-data"
-MINIO_ROOT_USER="minioadmin"
-MINIO_ROOT_PASSWORD="minioadmin"
+DB_NAME="${DB_NAME:-homework_ai}"
+DB_USER="${DB_USER:-homework_ai}"
+DB_PASS="${DB_PASS:-CHANGE_ME}"
+MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
+MYSQL_PORT="${MYSQL_PORT:-3306}"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
+SKIP_MYSQL_SETUP="${SKIP_MYSQL_SETUP:-0}"
 
-BAIDU_OCR_API_KEY=""
-BAIDU_OCR_SECRET_KEY=""
-LLM_PROVIDER=""
-LLM_API_KEY=""
-LLM_BASE_URL=""
-LLM_MODEL=""
-LLM_MODEL_CHEAPER=""
-LLM_MODEL_QUALITY=""
+JWT_SECRET="${JWT_SECRET:-CHANGE_ME}"
+CORS_ORIGIN="${CORS_ORIGIN:-https://${DOMAIN},http://${DOMAIN}}"
+
+MINIO_DATA="${MINIO_DATA:-/www/minio-data}"
+MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
+MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
+
+BAIDU_OCR_API_KEY="${BAIDU_OCR_API_KEY:-}"
+BAIDU_OCR_SECRET_KEY="${BAIDU_OCR_SECRET_KEY:-}"
+LLM_PROVIDER="${LLM_PROVIDER:-}"
+LLM_API_KEY="${LLM_API_KEY:-}"
+LLM_BASE_URL="${LLM_BASE_URL:-}"
+LLM_MODEL="${LLM_MODEL:-}"
+LLM_MODEL_CHEAPER="${LLM_MODEL_CHEAPER:-}"
+LLM_MODEL_QUALITY="${LLM_MODEL_QUALITY:-}"
+RUN_RETENTION="${RUN_RETENTION:-true}"
 
 require_root() {
   if [ "${EUID}" -ne 0 ]; then
@@ -42,7 +54,7 @@ require_value() {
   local name="$1"
   local value="$2"
   if [ "${value}" = "CHANGE_ME" ] || [ -z "${value}" ]; then
-    echo "Set ${name} in deploy/install-host.sh before running."
+    echo "Set ${name} in deploy/host.env (or export env var) before running."
     exit 1
   fi
 }
@@ -177,7 +189,7 @@ RETENTION_DAYS=7
 RETENTION_DRY_RUN=false
 RETENTION_BATCH_SIZE=200
 RETENTION_CRON=30 3 * * *
-RUN_RETENTION=true
+RUN_RETENTION=${RUN_RETENTION}
 DATA_TTL_DAYS=7
 BUDGET_DAILY_LIMIT=100
 PORT=${API_PORT}
@@ -314,5 +326,12 @@ build_project
 setup_services
 deploy_frontend
 setup_nginx
+
+if [ -f "${APP_DIR}/deploy/healthcheck.sh" ]; then
+  bash "${APP_DIR}/deploy/healthcheck.sh" \
+    --url "http://127.0.0.1:${API_PORT}/api/health" \
+    --max-attempts 20 \
+    --retry-interval 3
+fi
 
 echo "Done. API should be on http://127.0.0.1:${API_PORT}/api/health"
