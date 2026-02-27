@@ -50,7 +50,8 @@ export const TeacherClassesPage = () => {
     {
       title: t('teacher.classes.grade'),
       dataIndex: 'grade',
-      render: (_, item) => (item.grade ? <Tag>{item.grade}</Tag> : <Tag>{t('teacher.classes.unassigned')}</Tag>),
+      render: (_, item) =>
+        item.grade ? <Tag className="apple-tag-pill">{item.grade}</Tag> : <Tag className="apple-tag-pill">{t('teacher.classes.unassigned')}</Tag>,
     },
     {
       title: t('common.action'),
@@ -83,13 +84,13 @@ export const TeacherClassesPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {isLoading && !data ? (
         <Skeleton active paragraph={{ rows: 4 }} />
       ) : (
-        <ProCard bordered>
+        <ProCard bordered className="apple-soft-card">
           <ProTable<ClassItem>
             rowKey="id"
             columns={columns}
@@ -100,7 +101,7 @@ export const TeacherClassesPage = () => {
             options={false}
             locale={{ emptyText: <SoftEmpty description={t('teacher.classes.empty')} /> }}
             toolBarRender={() => [
-              <Space key="toolbar">
+              <Space key="toolbar" className="apple-toolbar">
                 <ModalForm
                   title={t('teacher.classes.create')}
                   trigger={<Button type="primary">{t('teacher.classes.create')}</Button>}

@@ -54,6 +54,14 @@ export const createHomework = async (payload: {
   return response.data;
 };
 
+export const updateHomework = async (
+  homeworkId: string,
+  data: { title?: string; desc?: string; dueAt?: string },
+) => {
+  const response = await api.patch(`/homeworks/${homeworkId}`, data);
+  return response.data;
+};
+
 export const updateHomeworkLateSubmission = async (
   homeworkId: string,
   allowLateSubmission: boolean,

@@ -7,6 +7,8 @@ export type AuthUser = {
   account: string;
   name: string;
   role: UserRole;
+  email?: string | null;
+  phone?: string | null;
 };
 
 type RequestMeta = { requestKey?: string };
@@ -46,6 +48,7 @@ const buildRequestKey = (config: ConfigWithMeta) => {
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
+  timeout: 30_000,
 });
 
 api.interceptors.request.use((config) => {
@@ -87,15 +90,15 @@ api.interceptors.response.use(
       pendingRequests.delete(requestKey);
     }
 
-    // Auto-logout on 401 (expired/invalid token) to redirect to login.
-    // Avoid redirect loops by skipping the login endpoint itself.
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
     if (
       error?.response?.status === 401 &&
       !configWithMeta.url?.includes('/auth/login')
     ) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      // Only redirect if not already on the login page
+      authStore.clear();
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }
@@ -108,7 +111,10 @@ api.interceptors.response.use(
 export const authStore = {
   getToken: () => localStorage.getItem('auth_token'),
   setToken: (token: string) => localStorage.setItem('auth_token', token),
-  clear: () => localStorage.removeItem('auth_token'),
+  clear: () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+  },
   setUser: (user: AuthUser) => localStorage.setItem('auth_user', JSON.stringify(user)),
   getUser: (): AuthUser | null => {
     const raw = localStorage.getItem('auth_user');

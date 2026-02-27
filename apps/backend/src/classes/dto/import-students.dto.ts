@@ -5,8 +5,9 @@ export class StudentInputDto {
   @IsString()
   account: string;
 
+  @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 }
 
 export class ImportStudentsDto {

@@ -3,7 +3,7 @@ import type { EChartsOption } from 'echarts';
 import { Alert, InputNumber, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { fetchAdminUsage } from '../../api';
+import { fetchAdminUsage, fetchLlmCostSummary } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -141,12 +141,12 @@ export const AdminUsagePage = () => {
           description={
             usageQuery.error instanceof Error ? usageQuery.error.message : t('common.tryAgain')
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
 
-      <ProCard bordered style={{ marginBottom: 16 }}>
-        <Space wrap>
+      <ProCard bordered className="apple-soft-card" style={{ marginBottom: 16 }}>
+        <Space wrap className="apple-toolbar">
           <Typography.Text>{t('admin.usage.rangeDays')}</Typography.Text>
           <InputNumber min={1} max={30} value={days} onChange={(value) => setDays(value || 7)} />
           <Typography.Text type="secondary">
@@ -159,9 +159,9 @@ export const AdminUsagePage = () => {
         <SoftEmpty description={t('admin.usage.empty')} />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <ProCard bordered title={t('admin.usage.summary')}>
+          <ProCard bordered title={t('admin.usage.summary')} className="apple-soft-card">
             <ProCard gutter={16} wrap>
-              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                 <AnimatedStatistic
                   title={
                     <Space size={6} align="center">
@@ -172,7 +172,7 @@ export const AdminUsagePage = () => {
                   value={data.summary.total}
                 />
               </ProCard>
-              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                 <AnimatedStatistic
                   title={
                     <Space size={6} align="center">
@@ -183,7 +183,7 @@ export const AdminUsagePage = () => {
                   value={data.summary.done}
                 />
               </ProCard>
-              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                 <AnimatedStatistic
                   title={
                     <Space size={6} align="center">
@@ -194,7 +194,7 @@ export const AdminUsagePage = () => {
                   value={data.summary.failed}
                 />
               </ProCard>
-              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+              <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                 <AnimatedStatistic
                   title={
                     <Space size={6} align="center">
@@ -209,14 +209,14 @@ export const AdminUsagePage = () => {
           </ProCard>
 
           <ProCard gutter={16} wrap>
-            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('admin.usage.dailyTrend')}>
+            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('admin.usage.dailyTrend')} className="apple-soft-card">
               {data.daily.length ? (
                 <ChartPanel option={dailyOption} height={280} />
               ) : (
                 <SoftEmpty description={t('admin.usage.empty')} />
               )}
             </ProCard>
-            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('admin.usage.errorBreakdown')}>
+            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('admin.usage.errorBreakdown')} className="apple-soft-card">
               {data.errors.length ? (
                 <ChartPanel option={errorOption} />
               ) : (
@@ -224,8 +224,106 @@ export const AdminUsagePage = () => {
               )}
             </ProCard>
           </ProCard>
+
+          <CostSummarySection days={days} t={t} />
         </Space>
       )}
     </PageContainer>
   );
 };
+
+function CostSummarySection({ days, t }: { days: number; t: (k: string) => string }) {
+  const costQuery = useQuery({
+    queryKey: ['admin-llm-cost', days],
+    queryFn: () => fetchLlmCostSummary(days),
+    staleTime: 60_000,
+  });
+
+  const costData = costQuery.data;
+
+  const costChartOption = useMemo<EChartsOption>(() => {
+    const daily = costData?.daily || [];
+    return {
+      textStyle: chartTextStyle,
+      grid: { left: 24, right: 24, top: 36, bottom: 28, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15, 23, 42, 0.92)',
+        borderColor: 'rgba(148, 163, 184, 0.4)',
+        textStyle: tooltipTextStyle,
+      },
+      legend: { data: [t('admin.usage.totalCost'), t('admin.usage.totalCalls')], textStyle: chartTextStyle },
+      xAxis: {
+        type: 'category',
+        data: daily.map((d) => d.date),
+        axisLabel: { ...axisLabel, rotate: 30, width: 80, overflow: 'truncate' },
+        axisLine,
+        axisTick: { show: false },
+      },
+      yAxis: [
+        { type: 'value', name: t('admin.usage.costUnit'), axisLabel, axisLine, splitLine },
+        { type: 'value', name: t('admin.usage.totalCalls'), axisLabel, axisLine, splitLine, minInterval: 1 },
+      ],
+      animationDuration: 600,
+      animationEasing: 'cubicOut',
+      series: [
+        {
+          name: t('admin.usage.totalCost'),
+          type: 'bar',
+          data: daily.map((d) => d.cost),
+          barWidth: 14,
+          itemStyle: { color: '#8b5cf6' },
+        },
+        {
+          name: t('admin.usage.totalCalls'),
+          type: 'line',
+          yAxisIndex: 1,
+          data: daily.map((d) => d.calls),
+          smooth: true,
+          lineStyle: { width: 2, color: '#22c55e' },
+          itemStyle: { color: '#22c55e' },
+        },
+      ],
+    };
+  }, [costData, t]);
+
+  if (!costData) return null;
+
+  return (
+    <>
+      <ProCard bordered title={t('admin.usage.costTitle')} className="apple-soft-card">
+        <ProCard gutter={16} wrap>
+          <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
+            <AnimatedStatistic title={<span className="apple-muted-label">{t('admin.usage.totalCalls')}</span>} value={costData.totalCalls} />
+          </ProCard>
+          <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
+            <AnimatedStatistic title={<span className="apple-muted-label">{t('admin.usage.totalTokens')}</span>} value={costData.totalTokens} />
+          </ProCard>
+          <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
+            <AnimatedStatistic title={<span className="apple-muted-label">{t('admin.usage.totalCost')}</span>} value={costData.totalCost} suffix={` ${t('admin.usage.costUnit')}`} decimals={4} />
+          </ProCard>
+          <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
+            <AnimatedStatistic title={<span className="apple-muted-label">{t('admin.usage.avgCostPerCall')}</span>} value={costData.avgCostPerCall} suffix={` ${t('admin.usage.costUnit')}`} decimals={6} />
+          </ProCard>
+        </ProCard>
+      </ProCard>
+
+      <ProCard gutter={16} wrap>
+        <ProCard bordered colSpan={{ xs: 24, sm: 12 }} className="apple-soft-card">
+          <AnimatedStatistic title={<span className="apple-muted-label">{t('admin.usage.promptTokens')}</span>} value={costData.totalPromptTokens} />
+        </ProCard>
+        <ProCard bordered colSpan={{ xs: 24, sm: 12 }} className="apple-soft-card">
+          <AnimatedStatistic title={<span className="apple-muted-label">{t('admin.usage.completionTokens')}</span>} value={costData.totalCompletionTokens} />
+        </ProCard>
+      </ProCard>
+
+      <ProCard bordered title={t('admin.usage.dailyCost')} className="apple-soft-card">
+        {costData.daily.length ? (
+          <ChartPanel option={costChartOption} height={280} />
+        ) : (
+          <SoftEmpty description={t('admin.usage.empty')} />
+        )}
+      </ProCard>
+    </>
+  );
+}

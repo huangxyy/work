@@ -2,7 +2,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProCard, ProFormSelect, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, Descriptions, Drawer, Space, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   fetchAdminClassSummaries,
   fetchAdminUsers,
@@ -51,6 +51,7 @@ export const AdminClassesPage = () => {
     queryKey: ['class-students', activeClass?.id],
     queryFn: () => fetchClassStudents(activeClass?.id || ''),
     enabled: !!activeClass?.id,
+    staleTime: 2 * 60 * 1000,
   });
 
   const summaryMap = useMemo(() => {
@@ -102,7 +103,12 @@ export const AdminClassesPage = () => {
     onError: () => message.error(t('admin.classes.removeStudentFailed')),
   });
 
-  const columns: ProColumns<ClassItem>[] = [
+  const handleOpenDrawer = useCallback((row: ClassItem) => {
+    setActiveClass(row);
+    setDrawerOpen(true);
+  }, []);
+
+  const columns = useMemo<ProColumns<ClassItem>[]>(() => [
     {
       title: t('common.class'),
       dataIndex: 'name',
@@ -120,11 +126,11 @@ export const AdminClassesPage = () => {
         row.teachers && row.teachers.length ? (
           <Space size={[4, 4]} wrap>
             {row.teachers.map((teacher) => (
-              <Tag key={teacher.id}>{teacher.name}</Tag>
+              <Tag key={teacher.id} className="apple-tag-pill">{teacher.name}</Tag>
             ))}
           </Space>
         ) : (
-          <Tag>{t('admin.classes.noTeachers')}</Tag>
+          <Tag className="apple-tag-pill">{t('admin.classes.noTeachers')}</Tag>
         ),
       width: 220,
     },
@@ -166,16 +172,13 @@ export const AdminClassesPage = () => {
         <Button
           key="students"
           size="small"
-          onClick={() => {
-            setActiveClass(row);
-            setDrawerOpen(true);
-          }}
+          onClick={() => handleOpenDrawer(row)}
         >
           {t('admin.classes.manageStudents')}
         </Button>,
       ],
     },
-  ];
+  ], [t, summaryMap, teacherOptions, updateTeachersMutation, handleOpenDrawer]);
 
   return (
     <PageContainer
@@ -194,10 +197,10 @@ export const AdminClassesPage = () => {
           description={
             classesQuery.error instanceof Error ? classesQuery.error.message : t('common.tryAgain')
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
-      <ProCard bordered>
+      <ProCard bordered className="apple-soft-card">
         <ProTable<ClassItem>
           rowKey="id"
           columns={columns}
@@ -218,7 +221,7 @@ export const AdminClassesPage = () => {
       >
         {activeClass ? (
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <ProCard bordered>
+            <ProCard bordered className="apple-soft-card">
               <Descriptions column={1} bordered>
                 <Descriptions.Item label={t('common.class')}>{activeClass.name}</Descriptions.Item>
                 <Descriptions.Item label={t('common.grade')}>
@@ -227,7 +230,7 @@ export const AdminClassesPage = () => {
               </Descriptions>
             </ProCard>
 
-            <ProCard bordered>
+            <ProCard bordered className="apple-soft-card">
               <ModalForm
                 title={t('admin.classes.importTitle')}
                 trigger={<Button type="primary">{t('admin.classes.importStudents')}</Button>}
@@ -260,7 +263,7 @@ export const AdminClassesPage = () => {
               </ModalForm>
             </ProCard>
 
-            <ProCard bordered>
+            <ProCard bordered className="apple-soft-card">
               <ProTable<StudentRow>
                 rowKey="id"
                 dataSource={studentsQuery.data || []}

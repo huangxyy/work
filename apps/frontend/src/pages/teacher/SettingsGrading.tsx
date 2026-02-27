@@ -57,12 +57,14 @@ export const TeacherSettingsGradingPage = () => {
         homeworkId: selectedHomeworkId,
       }),
     enabled: Boolean(selectedClassId),
+    staleTime: 5 * 60 * 1000,
   });
 
   const policyPreviewQuery = useQuery({
     queryKey: ['teacher-grading-policy-preview', selectedClassId],
     queryFn: () => fetchTeacherGradingPolicyPreview(selectedClassId || ''),
     enabled: Boolean(selectedClassId),
+    staleTime: 5 * 60 * 1000,
   });
 
   const grading = data?.grading;
@@ -145,7 +147,7 @@ export const TeacherSettingsGradingPage = () => {
         title: t('teacher.settings.effectiveMode'),
         dataIndex: 'effective',
         render: (_: unknown, row: PolicyPreviewRow) => (
-          <Tag>{row.effective.mode}</Tag>
+          <Tag className="apple-tag-pill">{row.effective.mode}</Tag>
         ),
         width: 140,
       },
@@ -153,7 +155,7 @@ export const TeacherSettingsGradingPage = () => {
         title: t('teacher.settings.effectiveRewrite'),
         dataIndex: 'effective',
         render: (_: unknown, row: PolicyPreviewRow) => (
-          <Tag>{row.effective.needRewrite ? t('common.enabled') : t('common.disabled')}</Tag>
+          <Tag className="apple-tag-pill">{row.effective.needRewrite ? t('common.enabled') : t('common.disabled')}</Tag>
         ),
         width: 140,
       },
@@ -167,7 +169,7 @@ export const TeacherSettingsGradingPage = () => {
           const key = value.toLowerCase();
           const label = t(`status.${key}`);
           const color = value === 'DONE' ? 'green' : value === 'FAILED' ? 'red' : 'blue';
-          return <Tag color={color}>{label}</Tag>;
+          return <Tag color={color} className="apple-tag-pill">{label}</Tag>;
         },
         width: 150,
       },
@@ -184,12 +186,12 @@ export const TeacherSettingsGradingPage = () => {
           const modeSource = row.source.mode;
           const rewriteSource = row.source.needRewrite;
           if (modeSource === rewriteSource) {
-            return <Tag>{t(`teacher.settings.policySource.${modeSource}`)}</Tag>;
+            return <Tag className="apple-tag-pill">{t(`teacher.settings.policySource.${modeSource}`)}</Tag>;
           }
           return (
             <Space size={6} wrap>
-              <Tag>{`${t('teacher.settings.policyMode')}: ${t(`teacher.settings.policySource.${modeSource}`)}`}</Tag>
-              <Tag>{`${t('teacher.settings.policyRewrite')}: ${t(`teacher.settings.policySource.${rewriteSource}`)}`}</Tag>
+              <Tag className="apple-tag-pill">{`${t('teacher.settings.policyMode')}: ${t(`teacher.settings.policySource.${modeSource}`)}`}</Tag>
+              <Tag className="apple-tag-pill">{`${t('teacher.settings.policyRewrite')}: ${t(`teacher.settings.policySource.${rewriteSource}`)}`}</Tag>
             </Space>
           );
         },
@@ -238,7 +240,10 @@ export const TeacherSettingsGradingPage = () => {
       upsertTeacherClassPolicy(selectedClassId || '', payload),
     onSuccess: async () => {
       message.success(t('teacher.settings.policySaved'));
-      await queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] }),
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy-preview'] }),
+      ]);
     },
   });
 
@@ -247,7 +252,10 @@ export const TeacherSettingsGradingPage = () => {
       upsertTeacherHomeworkPolicy(selectedHomeworkId || '', payload),
     onSuccess: async () => {
       message.success(t('teacher.settings.policySaved'));
-      await queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] }),
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy-preview'] }),
+      ]);
     },
   });
 
@@ -255,7 +263,10 @@ export const TeacherSettingsGradingPage = () => {
     mutationFn: () => clearTeacherClassPolicy(selectedClassId || ''),
     onSuccess: async () => {
       message.success(t('teacher.settings.policyCleared'));
-      await queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] }),
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy-preview'] }),
+      ]);
     },
   });
 
@@ -263,7 +274,10 @@ export const TeacherSettingsGradingPage = () => {
     mutationFn: () => clearTeacherHomeworkPolicy(selectedHomeworkId || ''),
     onSuccess: async () => {
       message.success(t('teacher.settings.policyCleared'));
-      await queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy'] }),
+        queryClient.invalidateQueries({ queryKey: ['teacher-grading-policy-preview'] }),
+      ]);
     },
   });
 
@@ -278,13 +292,13 @@ export const TeacherSettingsGradingPage = () => {
         ],
       }}
     >
-      <ProCard bordered loading={isLoading}>
+      <ProCard bordered loading={isLoading} className="apple-soft-card">
         <Descriptions column={1} bordered>
           <Descriptions.Item label={t('teacher.settings.defaultGradingMode')}>
-            <Tag>{defaultMode}</Tag>
+            <Tag className="apple-tag-pill">{defaultMode}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label={t('teacher.settings.budgetMode')}>
-            <Tag>{budgetMode}</Tag>
+            <Tag className="apple-tag-pill">{budgetMode}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label={t('teacher.settings.budgetDailyLimit')}>
             <Typography.Text>{budgetLimit}</Typography.Text>
@@ -297,8 +311,11 @@ export const TeacherSettingsGradingPage = () => {
           </Descriptions.Item>
         </Descriptions>
       </ProCard>
-      <ProCard bordered title={t('teacher.settings.policyTitle')} style={{ marginTop: 16 }}>
+      <ProCard bordered title={t('teacher.settings.policyTitle')} className="apple-soft-card" style={{ marginTop: 16 }}>
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          {policyQuery.isError && (
+            <Alert type="error" showIcon message={t('common.loadFailed')} className="apple-inline-alert" style={{ marginBottom: 0 }} />
+          )}
           <Alert
             showIcon
             type="info"
@@ -337,10 +354,10 @@ export const TeacherSettingsGradingPage = () => {
           {selectedClassId ? (
             <Descriptions column={2} bordered size="small">
               <Descriptions.Item label={t('teacher.settings.effectiveMode')}>
-                <Tag>{policyQuery.data?.effective?.mode || 'cheap'}</Tag>
+                <Tag className="apple-tag-pill">{policyQuery.data?.effective?.mode || 'cheap'}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label={t('teacher.settings.effectiveRewrite')}>
-                <Tag>{policyQuery.data?.effective?.needRewrite ? t('common.enabled') : t('common.disabled')}</Tag>
+                <Tag className="apple-tag-pill">{policyQuery.data?.effective?.needRewrite ? t('common.enabled') : t('common.disabled')}</Tag>
               </Descriptions.Item>
             </Descriptions>
           ) : (
@@ -456,7 +473,7 @@ export const TeacherSettingsGradingPage = () => {
           </Space>
         </Space>
       </ProCard>
-      <ProCard bordered title={t('teacher.settings.advancedTitle')} style={{ marginTop: 16 }} loading={isLoading}>
+      <ProCard bordered title={t('teacher.settings.advancedTitle')} className="apple-soft-card" style={{ marginTop: 16 }} loading={isLoading}>
         {grading ? (
           <Descriptions column={1} bordered>
             <Descriptions.Item label={t('teacher.settings.maxTokens')}>
@@ -484,7 +501,7 @@ export const TeacherSettingsGradingPage = () => {
               {grading.stop && grading.stop.length ? (
                 <Space size={6} wrap>
                   {grading.stop.map((item) => (
-                    <Tag key={item}>{item}</Tag>
+                    <Tag key={item} className="apple-tag-pill">{item}</Tag>
                   ))}
                 </Space>
               ) : (
@@ -492,7 +509,7 @@ export const TeacherSettingsGradingPage = () => {
               )}
             </Descriptions.Item>
             <Descriptions.Item label={t('teacher.settings.systemPrompt')}>
-              <Tag color={grading.systemPromptSet ? 'green' : 'default'}>
+              <Tag color={grading.systemPromptSet ? 'green' : 'default'} className="apple-tag-pill">
                 {grading.systemPromptSet ? t('teacher.settings.systemPromptSet') : t('teacher.settings.systemPromptUnset')}
               </Tag>
             </Descriptions.Item>
@@ -501,7 +518,10 @@ export const TeacherSettingsGradingPage = () => {
           <SoftEmpty description={t('teacher.settings.advancedEmpty')} />
         )}
       </ProCard>
-      <ProCard bordered title={t('teacher.settings.policyPreviewTitle')} style={{ marginTop: 16 }}>
+      <ProCard bordered title={t('teacher.settings.policyPreviewTitle')} className="apple-soft-card" style={{ marginTop: 16 }}>
+        {policyPreviewQuery.isError && (
+          <Alert type="error" showIcon message={t('common.loadFailed')} className="apple-inline-alert" style={{ marginBottom: 16 }} />
+        )}
         {selectedClassId ? (
           <ProTable
             rowKey="homeworkId"

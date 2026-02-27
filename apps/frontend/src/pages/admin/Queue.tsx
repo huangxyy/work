@@ -1,7 +1,8 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, InputNumber, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, InputNumber, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   cleanAdminQueue,
   fetchAdminQueueMetrics,
@@ -26,6 +27,7 @@ const statusColorMap: Record<string, string> = {
 
 export const AdminQueuePage = () => {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const message = useMessage();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string>('all');
@@ -35,6 +37,8 @@ export const AdminQueuePage = () => {
   const metricsQuery = useQuery({
     queryKey: ['admin-queue-metrics', status, limit],
     queryFn: () => fetchAdminQueueMetrics({ status: status === 'all' ? undefined : status, limit }),
+    staleTime: 10 * 1000,
+    refetchInterval: 30 * 1000,
   });
 
   const metrics = metricsQuery.data;
@@ -129,19 +133,20 @@ export const AdminQueuePage = () => {
         title: t('admin.queue.jobType'),
         dataIndex: 'name',
         width: 120,
-        render: (value: string) => <Tag>{value}</Tag>,
+        render: (value: string) => <Tag className="apple-tag-pill">{value}</Tag>,
       },
       {
         title: t('common.status'),
         dataIndex: 'status',
         width: 120,
         render: (value: string) => (
-          <Tag color={statusColorMap[value] || 'default'}>{formatStatus(value)}</Tag>
+          <Tag color={statusColorMap[value] || 'default'} className="apple-tag-pill">{formatStatus(value)}</Tag>
         ),
       },
       {
         title: t('admin.queue.submissionId'),
         dataIndex: 'data',
+        width: 180,
         render: (data: Record<string, unknown> | undefined) => {
           if (!data) {
             return '--';
@@ -151,8 +156,16 @@ export const AdminQueuePage = () => {
           const needRewrite = data.needRewrite as boolean | undefined;
           return (
             <Space direction="vertical" size={0}>
-              <Typography.Text>{submissionId || '--'}</Typography.Text>
-              <Typography.Text type="secondary">
+              {submissionId ? (
+                <Tooltip title={submissionId}>
+                  <Typography.Link onClick={() => navigate(`/admin/diagnosis`)}>
+                    {submissionId.slice(0, 12)}...
+                  </Typography.Link>
+                </Tooltip>
+              ) : (
+                <Typography.Text>--</Typography.Text>
+              )}
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {mode || '--'}{needRewrite !== undefined ? ` / ${needRewrite ? t('common.enabled') : t('common.disabled')}` : ''}
               </Typography.Text>
             </Space>
@@ -180,23 +193,19 @@ export const AdminQueuePage = () => {
         },
       },
       {
-        title: t('admin.queue.error'),
+        title: t('admin.queue.failReason'),
         dataIndex: 'failedReason',
         ellipsis: true,
-        render: (value: string | null) => (value ? <Typography.Text type="danger">{value}</Typography.Text> : '--'),
+        render: (value: string | null) =>
+          value ? (
+            <Tooltip title={value}>
+              <Typography.Text type="danger" style={{ fontSize: 12 }}>{value}</Typography.Text>
+            </Tooltip>
+          ) : '--',
       },
     ],
-    [formatStatus, t],
+    [formatStatus, navigate, t],
   );
-
-  // Auto-refresh queue metrics every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ['admin-queue-metrics'] });
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [queryClient]);
 
   return (
     <PageContainer
@@ -216,12 +225,12 @@ export const AdminQueuePage = () => {
           description={
             metricsQuery.error instanceof Error ? metricsQuery.error.message : t('common.tryAgain')
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
 
-      <ProCard bordered style={{ marginBottom: 16 }}>
-        <Space wrap>
+      <ProCard bordered className="apple-soft-card" style={{ marginBottom: 16 }}>
+        <Space wrap className="apple-toolbar">
           <Typography.Text>{t('admin.queue.statusFilter')}</Typography.Text>
           <Select style={{ minWidth: 180 }} options={statusOptions} value={status} onChange={setStatus} />
           <Typography.Text>{t('admin.queue.limit')}</Typography.Text>
@@ -272,7 +281,7 @@ export const AdminQueuePage = () => {
         <SoftEmpty description={t('admin.queue.empty')} />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <ProCard bordered title={t('admin.queue.summary')}>
+          <ProCard bordered title={t('admin.queue.summary')} className="apple-soft-card">
             <ProCard gutter={16} wrap>
               <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
                 <AnimatedStatistic title={t('status.queued')} value={metrics.counts.waiting} />
@@ -295,7 +304,7 @@ export const AdminQueuePage = () => {
               <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
                 <Space direction="vertical" size={8}>
                   <Typography.Text type="secondary">{t('admin.queue.runningState')}</Typography.Text>
-                  <Tag color={metrics.isPaused ? 'red' : 'green'}>
+                  <Tag color={metrics.isPaused ? 'red' : 'green'} className="apple-tag-pill">
                     {metrics.isPaused ? t('admin.queue.statePaused') : t('admin.queue.stateRunning')}
                   </Tag>
                 </Space>
@@ -303,13 +312,14 @@ export const AdminQueuePage = () => {
             </ProCard>
           </ProCard>
 
-          <ProCard bordered title={t('admin.queue.recentJobs')}>
+          <ProCard bordered title={t('admin.queue.recentJobs')} className="apple-soft-card">
             <Table
               rowKey="id"
               columns={columns}
               dataSource={metrics.jobs}
               loading={metricsQuery.isLoading}
               pagination={{ pageSize: 10 }}
+              scroll={{ x: 'max-content' }}
               size="small"
             />
           </ProCard>

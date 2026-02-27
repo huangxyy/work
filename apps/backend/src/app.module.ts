@@ -4,6 +4,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { RedisModule } from './common/redis';
+import { AuditModule } from './common/audit';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
@@ -16,7 +18,12 @@ import { ReportsModule } from './reports/reports.module';
 import { AdminModule } from './admin/admin.module';
 import { PublicModule } from './public/public.module';
 import { TeacherSettingsModule } from './teacher-settings/teacher-settings.module';
+import { NotificationModule } from './notifications/notification.module';
+import { EmailModule } from './email/email.module';
 import { OcrModule } from './ocr/ocr.module';
+import { AnnouncementModule } from './announcements/announcement.module';
+import { HomeworkTemplateModule } from './homework-templates/homework-template.module';
+import { SearchModule } from './search/search.module';
 import { LoggerModule } from './common/logger';
 import { PerformanceInterceptor } from './common/interceptors';
 
@@ -39,6 +46,8 @@ const buildRedisConnection = (redisUrl: string) => {
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     LoggerModule,
+    RedisModule,
+    AuditModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60,
@@ -67,7 +76,12 @@ const buildRedisConnection = (redisUrl: string) => {
     AdminModule,
     PublicModule,
     TeacherSettingsModule,
+    NotificationModule,
+    EmailModule,
     OcrModule,
+    AnnouncementModule,
+    HomeworkTemplateModule,
+    SearchModule,
   ],
   providers: [
     {

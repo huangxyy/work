@@ -65,11 +65,10 @@ export class GradingService {
 
     let inputText = trimmed;
     if (trimmed.length > this.maxInputChars) {
-      // Smart truncation: keep beginning and end to preserve context
-      // This prevents cutting off conclusions or important ending content
-      const keepStart = Math.floor(this.maxInputChars * 0.7); // 70% from start
-      const keepEnd = Math.floor(this.maxInputChars * 0.25);  // 25% from end
-      const ellipsis = '... [content truncated]... ';
+      const ellipsis = ' ... [content truncated] ... ';
+      const budget = this.maxInputChars - ellipsis.length;
+      const keepStart = Math.floor(budget * 0.7);
+      const keepEnd = budget - keepStart;
       inputText = trimmed.slice(0, keepStart) + ellipsis + trimmed.slice(-keepEnd);
       degraded = true;
       degradeReason = 'INPUT_TOO_LONG';
@@ -90,6 +89,11 @@ export class GradingService {
       attemptCount += 1;
       if (attemptCount > MAX_RETRY_ATTEMPTS) {
         throw new GradingError('MAX_RETRIES_EXCEEDED', `Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) exceeded`);
+      }
+      if (attemptCount > 1) {
+        const delay = Math.pow(2, attemptCount - 1) * 1000;
+        this.logger.debug(`Retry attempt ${attemptCount}, backoff ${delay}ms`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
       try {
         return await this.invokeModel(params);

@@ -2,7 +2,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, Input, Select, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchStudentHomeworks } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -41,6 +41,7 @@ export const StudentHomeworksPage = () => {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['student-homeworks'],
     queryFn: fetchStudentHomeworks,
+    staleTime: 2 * 60 * 1000,
   });
 
   const filteredData = useMemo(() => {
@@ -62,7 +63,10 @@ export const StudentHomeworksPage = () => {
     });
   }, [data, keyword, statusFilter, t]);
 
-  const columns: ProColumns<HomeworkItem>[] = [
+  const handleView = useCallback((id: string) => navigate(`/student/homeworks/${id}`), [navigate]);
+  const handleSubmit = useCallback((id: string) => navigate(`/student/submit/${id}`), [navigate]);
+
+  const columns = useMemo<ProColumns<HomeworkItem>[]>(() => [
     {
       title: t('common.homework'),
       dataIndex: 'title',
@@ -82,7 +86,7 @@ export const StudentHomeworksPage = () => {
         const status = getStatus(t, item.dueAt, item.allowLateSubmission);
         return (
           <Space direction="vertical" size={0}>
-            <Tag color={status.color}>{status.label}</Tag>
+            <Tag color={status.color} className="apple-tag-pill">{status.label}</Tag>
             <Typography.Text type="secondary">
               {item.dueAt ? formatDate(item.dueAt) : t('student.homeworks.flexibleDeadline')}
             </Typography.Text>
@@ -103,21 +107,21 @@ export const StudentHomeworksPage = () => {
       render: (_, item) => {
         const canSubmit = getStatus(t, item.dueAt, item.allowLateSubmission).key !== 'overdue';
         return [
-          <Button key="view" onClick={() => navigate(`/student/homeworks/${item.id}`)}>
+          <Button key="view" onClick={() => handleView(item.id)}>
             {t('common.view')}
           </Button>,
           <Button
             key="submit"
             type="primary"
             disabled={!canSubmit}
-            onClick={() => navigate(`/student/submit/${item.id}`)}
+            onClick={() => handleSubmit(item.id)}
           >
             {canSubmit ? t('common.submit') : t('student.homeworks.submitClosed')}
           </Button>,
         ];
       },
     },
-  ];
+  ], [t, handleView, handleSubmit]);
 
   return (
     <PageContainer
@@ -139,10 +143,10 @@ export const StudentHomeworksPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
-      <ProCard bordered>
+      <ProCard bordered className="apple-soft-card">
         <ProTable<HomeworkItem>
           rowKey="id"
           columns={columns}
@@ -154,7 +158,7 @@ export const StudentHomeworksPage = () => {
           locale={{
             emptyText: (
               <SoftEmpty description={t('student.homeworks.empty')}>
-                <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
+                <Typography.Paragraph type="secondary" className="apple-empty-hint">
                   {t('student.homeworks.emptyHint')}
                 </Typography.Paragraph>
               </SoftEmpty>
@@ -163,16 +167,16 @@ export const StudentHomeworksPage = () => {
           toolBarRender={() => [
             <Input.Search
               key="search"
+              className="apple-toolbar-search"
               placeholder={t('student.homeworks.searchPlaceholder')}
               allowClear
               onSearch={(value) => setKeyword(value.trim())}
-              style={{ width: 220 }}
             />,
             <Select
               key="status"
+              className="apple-toolbar-select"
               value={statusFilter}
               onChange={(value) => setStatusFilter(value)}
-              style={{ width: 160 }}
               options={[
                 { label: t('common.allStatuses'), value: 'all' },
                 { label: t('status.open'), value: 'open' },

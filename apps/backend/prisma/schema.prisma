@@ -26,14 +26,20 @@ model User {
   name         String
   account      String   @unique
   passwordHash String
+  email        String?
+  phone        String?
+  avatarUrl    String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  teacherClasses Class[]      @relation("TeacherClasses")
-  studentEnrolls Enrollment[]
-  submissions    Submission[]
-  batchUploads   BatchUpload[]
+  teacherClasses  Class[]            @relation("TeacherClasses")
+  studentEnrolls  Enrollment[]
+  submissions     Submission[]
+  batchUploads    BatchUpload[]
+  notifications   Notification[]
+  announcements   Announcement[]     @relation("AuthoredAnnouncements")
+  hwTemplates     HomeworkTemplate[] @relation("TeacherTemplates")
 }
 
 model Class {
@@ -46,6 +52,7 @@ model Class {
   teachers      User[]          @relation("TeacherClasses")
   enrolls       Enrollment[]
   homeworks     Homework[]
+  announcements Announcement[]
   gradingPolicy GradingPolicy? @relation("ClassGradingPolicy")
 }
 
@@ -88,12 +95,16 @@ model Submission {
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
-  images     SubmissionImage[]
-  ocrText    String?          @db.Text
-  gradingJson Json?
-  totalScore Float?
-  errorCode  String?
-  errorMsg   String?
+  images         SubmissionImage[]
+  ocrText        String?          @db.Text
+  gradingJson    Json?
+  totalScore     Float?
+  errorCode      String?
+  errorMsg       String?
+  teacherComment String?          @db.Text
+  manualScore    Float?
+  reviewedBy     String?
+  reviewedAt     DateTime?
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
   student  User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -175,6 +186,66 @@ model LlmCallLog {
   @@index([source])
   @@index([providerId])
   @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?  @db.Text
+  linkTo    String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  classId   String?
+  authorId  String
+  title     String
+  content   String   @db.Text
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class  Class? @relation(fields: [classId], references: [id], onDelete: Cascade)
+  author User   @relation("AuthoredAnnouncements", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([classId, createdAt])
+  @@index([authorId])
+}
+
+model HomeworkTemplate {
+  id        String   @id @default(cuid())
+  teacherId String
+  title     String
+  desc      String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacher User @relation("TeacherTemplates", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  userId    String?
+  targetId  String?
+  ip        String?
+  detail    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model GradingPolicy {

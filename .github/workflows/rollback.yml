@@ -1,0 +1,68 @@
+name: 回滚部署
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_ref:
+        description: 回滚到的提交/标签/分支（可选）
+        required: false
+        default: ''
+      require_healthy:
+        description: 回滚后健康状态是否必须为 healthy
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: 校验必需 Secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          for key in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY; do
+            if [ -z "${!key}" ]; then
+                echo "缺少 Secret：${key}" >&2
+                exit 1
+              fi
+          done
+
+      - name: 配置 SSH 私钥
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: 写入服务器指纹到 known_hosts
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          port="${DEPLOY_PORT:-22}"
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${port}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: 执行远程回滚
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+          ROLLBACK_REF: ${{ inputs.rollback_ref }}
+          REQUIRE_HEALTHY: ${{ inputs.require_healthy && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          port="${DEPLOY_PORT:-22}"
+          app_dir="${DEPLOY_APP_DIR:-/www/homework-ai}"
+
+          ssh -p "${port}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "APP_DIR='${app_dir}' ROLLBACK_REF='${ROLLBACK_REF}' CHECK_HEALTH='1' REQUIRE_HEALTHY='${REQUIRE_HEALTHY}' bash '${app_dir}/deploy/rollback-host.sh'"

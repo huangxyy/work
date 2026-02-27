@@ -128,7 +128,7 @@ export const SubmitHomeworkPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {!homeworkId ? (
@@ -141,7 +141,7 @@ export const SubmitHomeworkPage = () => {
               {t('common.backToHomeworks')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : homeworksQuery.isSuccess && !homework ? (
         <Alert
@@ -153,18 +153,18 @@ export const SubmitHomeworkPage = () => {
               {t('common.backToHomeworks')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : !canSubmit ? (
         <Alert
           type="warning"
           message={t('submit.closedByDue')}
           description={t('submit.closedByDueHint')}
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       <ProCard gutter={16} wrap>
-        <ProCard bordered title={t('submit.uploadTitle')} colSpan={{ xs: 24, lg: 16 }}>
+        <ProCard bordered title={t('submit.uploadTitle')} colSpan={{ xs: 24, lg: 16 }} className="apple-soft-card">
           <Upload.Dragger
             multiple
             beforeUpload={() => false}
@@ -207,7 +207,7 @@ export const SubmitHomeworkPage = () => {
             />
           ) : null}
         </ProCard>
-        <ProCard bordered title={t('submit.tipsTitle')} colSpan={{ xs: 24, lg: 8 }}>
+        <ProCard bordered title={t('submit.tipsTitle')} colSpan={{ xs: 24, lg: 8 }} className="apple-soft-card">
           <List
             dataSource={tips}
             renderItem={(item) => (

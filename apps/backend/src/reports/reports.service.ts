@@ -427,6 +427,60 @@ export class ReportsService {
     });
   }
 
+  async getStudentClassComparison(studentId: string, rangeDays: number) {
+    const since = new Date();
+    since.setDate(since.getDate() - rangeDays);
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { studentId },
+      select: { classId: true, class: { select: { id: true, name: true } } },
+    });
+
+    const results: Array<{
+      classId: string;
+      className: string;
+      classAvg: number | null;
+      classCount: number;
+      studentAvg: number | null;
+      studentCount: number;
+    }> = [];
+    for (const enrollment of enrollments) {
+      const classStats = await this.prisma.submission.aggregate({
+        where: {
+          status: 'DONE',
+          totalScore: { not: null },
+          updatedAt: { gte: since },
+          homework: { classId: enrollment.classId },
+        },
+        _avg: { totalScore: true },
+        _count: true,
+      });
+
+      const studentStats = await this.prisma.submission.aggregate({
+        where: {
+          studentId,
+          status: 'DONE',
+          totalScore: { not: null },
+          updatedAt: { gte: since },
+          homework: { classId: enrollment.classId },
+        },
+        _avg: { totalScore: true },
+        _count: true,
+      });
+
+      results.push({
+        classId: enrollment.classId,
+        className: enrollment.class.name,
+        classAvg: classStats._avg.totalScore ? Number(classStats._avg.totalScore.toFixed(1)) : null,
+        classCount: classStats._count,
+        studentAvg: studentStats._avg.totalScore ? Number(studentStats._avg.totalScore.toFixed(1)) : null,
+        studentCount: studentStats._count,
+      });
+    }
+
+    return results;
+  }
+
   private async ensureClassAccess(classId: string, user: AuthUser) {
     if (user.role === Role.ADMIN) {
       const klass = await this.prisma.class.findUnique({ where: { id: classId } });

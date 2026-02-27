@@ -91,6 +91,11 @@ export type TeacherBatchPreviewResult = {
   }>;
 };
 
+export const fetchUnsubmittedStudents = async (homeworkId: string) => {
+  const response = await api.get(`/teacher/submissions/unsubmitted/${homeworkId}`);
+  return response.data as Array<{ id: string; name: string; account: string }>;
+};
+
 export const fetchTeacherHomeworkSubmissions = async (homeworkId: string) => {
   const response = await api.get('/teacher/submissions', { params: { homeworkId } });
   return response.data as TeacherSubmissionRow[];

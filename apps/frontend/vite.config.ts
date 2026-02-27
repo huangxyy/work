@@ -26,6 +26,9 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
+    cssCodeSplit: true,
+    reportCompressedSize: true,
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -34,6 +37,7 @@ export default defineConfig({
           'vendor-antd-pro': ['@ant-design/pro-components'],
           'vendor-charts': ['echarts'],
           'vendor-pdf': ['html2canvas', 'jspdf'],
+          'vendor-query': ['@tanstack/react-query'],
         },
       },
     },

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,6 +13,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -22,15 +24,21 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
 import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
+import { isValidImageBuffer } from '../common/security';
+import { StorageService } from '../storage/storage.service';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { RegradeSubmissionDto } from './dto/regrade-submission.dto';
 import { StudentSubmissionsQueryDto } from './dto/student-submissions-query.dto';
 import { SubmissionsService } from './submissions.service';
 
+@ApiTags('Submissions')
 @Controller('submissions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SubmissionsController {
-  constructor(private readonly submissionsService: SubmissionsService) {}
+  constructor(
+    private readonly submissionsService: SubmissionsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post()
   @Roles(Role.STUDENT)
@@ -55,6 +63,13 @@ export class SubmissionsController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req: { user: AuthUser },
   ) {
+    for (const file of files) {
+      if (!isValidImageBuffer(file.buffer)) {
+        throw new BadRequestException(
+          `File "${file.originalname}" is not a valid image (magic bytes check failed)`,
+        );
+      }
+    }
     return this.submissionsService.createSubmission(body, files, req.user);
   }
 
@@ -91,7 +106,12 @@ export class SubmissionsController {
     return {
       id: submission.id,
       status: submission.status,
-      images: submission.images.map((image) => ({ id: image.id })),
+      images: await Promise.all(
+        submission.images.map(async (image) => ({
+          id: image.id,
+          url: await this.storageService.getPresignedUrl(image.objectKey),
+        })),
+      ),
       student: submission.student
         ? {
             id: submission.student.id,
@@ -109,6 +129,10 @@ export class SubmissionsController {
       totalScore: submission.totalScore,
       errorCode: submission.errorCode,
       errorMsg: submission.errorMsg,
+      teacherComment: submission.teacherComment,
+      manualScore: submission.manualScore,
+      reviewedBy: submission.reviewedBy,
+      reviewedAt: submission.reviewedAt,
     };
   }
 

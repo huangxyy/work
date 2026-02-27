@@ -36,6 +36,18 @@ export class SystemConfigService {
     this.cache.set(key, { value, fetchedAt: Date.now() });
   }
 
+  async getFeatureFlags(): Promise<Record<string, boolean>> {
+    const stored = await this.getValue<Record<string, boolean>>('feature_flags');
+    return stored || {};
+  }
+
+  async setFeatureFlag(flag: string, enabled: boolean): Promise<Record<string, boolean>> {
+    const flags = await this.getFeatureFlags();
+    flags[flag] = enabled;
+    await this.setValue('feature_flags', flags);
+    return flags;
+  }
+
   async deleteValue(key: string): Promise<void> {
     await this.prisma.systemConfig.delete({ where: { key } }).catch((error: unknown) => {
       if (

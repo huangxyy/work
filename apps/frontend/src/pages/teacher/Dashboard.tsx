@@ -1,13 +1,13 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, InputNumber, List, Progress, Select, Space, Tag, Typography } from 'antd';
+import { Alert, Button, InputNumber, List, Select, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { fetchClasses, fetchHomeworksSummaryByClass, fetchTeacherClassReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
+import { OnboardingGuide } from '../../components/OnboardingGuide';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
-import { formatDate } from '../../utils/dateFormat';
 
 export const TeacherDashboardPage = () => {
   const { t } = useI18n();
@@ -52,7 +52,6 @@ export const TeacherDashboardPage = () => {
   const submissionRate = report?.submissionRate ? Number((report.submissionRate * 100).toFixed(1)) : 0;
   const topErrors = useMemo(() => (report?.errorTypes || []).slice(0, 5), [report?.errorTypes]);
   const trend = useMemo(() => (report?.trend || []).slice(-7).reverse(), [report?.trend]);
-  const maxTrendCount = useMemo(() => Math.max(...trend.map((item) => item.count), 1), [trend]);
   const summaryLoading = (isLoading && !data) || reportQuery.isLoading;
   const upcoming = (homeworksQuery.data || [])
     .filter((item) => item.dueAt)
@@ -125,6 +124,7 @@ export const TeacherDashboardPage = () => {
         ],
       }}
     >
+      <OnboardingGuide role="TEACHER" />
       {isError ? (
         <Alert
           type="error"
@@ -161,7 +161,11 @@ export const TeacherDashboardPage = () => {
         </SoftEmpty>
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <ProCard bordered style={{ marginBottom: 4 }}>
+          <ProCard
+            bordered 
+            style={{ marginBottom: 4 }}
+            className="chart-panel apple-soft-card"
+          >
             <Space wrap>
               <Select
                 placeholder={t('teacher.reports.selectClass')}
@@ -178,37 +182,43 @@ export const TeacherDashboardPage = () => {
             </Space>
           </ProCard>
 
-          <ProCard bordered title={t('teacher.reports.insightsTitle')}>
-            <ProCard gutter={16} wrap>
+          <ProCard
+            bordered 
+            title={t('teacher.reports.insightsTitle')} 
+            headerBordered
+            className="chart-panel apple-soft-card"
+          >
+            <ProCard gutter={[24, 24]} wrap ghost>
               {summaryCards.map((card) => (
-                <ProCard bordered key={card.key} colSpan={{ xs: 24, sm: 12, md: 6 }} loading={summaryLoading}>
-                  <AnimatedStatistic title={card.title} value={card.value} suffix={card.suffix} />
+                <ProCard ghost key={card.key} colSpan={{ xs: 24, sm: 12, md: 6 }} loading={summaryLoading}>
+                  <AnimatedStatistic title={<span className="apple-muted-label">{card.title}</span>} value={card.value} suffix={card.suffix} />
                   {card.key === 'classes' ? (
-                    <Typography.Text type="secondary">{t('teacher.dashboard.trackClasses')}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: '12px' }}>{t('teacher.dashboard.trackClasses')}</Typography.Text>
                   ) : null}
                 </ProCard>
               ))}
             </ProCard>
           </ProCard>
 
-          <ProCard gutter={16} wrap>
-            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.dashboard.submissionActivity')}>
+          <ProCard gutter={[24, 24]} wrap ghost>
+            <ProCard
+              bordered 
+              colSpan={{ xs: 24, lg: 12 }} 
+              title={t('teacher.dashboard.submissionActivity')} 
+              headerBordered
+              className="chart-panel apple-soft-card"
+            >
               {trend.length ? (
                 <List
                   dataSource={trend}
                   renderItem={(item) => (
-                    <List.Item>
-                      <Space direction="vertical" style={{ width: '100%' }} size={6}>
-                        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                          <Typography.Text>{item.date}</Typography.Text>
-                          <Typography.Text type="secondary">
-                            {t('common.avgShort')} {item.avg}
-                          </Typography.Text>
-                        </Space>
-                        <Progress
-                          percent={Math.round((item.count / maxTrendCount) * 100)}
-                          showInfo={false}
-                        />
+                    <List.Item className="apple-list-row">
+                      <List.Item.Meta
+                        title={<span style={{ fontWeight: 500, fontSize: '15px' }}>{item.date}</span>}
+                      />
+                      <Space>
+                        <Tag color="success" className="apple-tag-pill">{t('teacher.dashboard.avgScore')} {item.avg}</Tag>
+                        <Tag color="processing" className="apple-tag-pill">{item.count} {t('teacher.reports.submissions')}</Tag>
                       </Space>
                     </List.Item>
                   )}
@@ -217,18 +227,24 @@ export const TeacherDashboardPage = () => {
                 <SoftEmpty description={t('teacher.dashboard.noActivity')} />
               )}
             </ProCard>
-            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.dashboard.topMistakes')}>
+            <ProCard
+              bordered 
+              colSpan={{ xs: 24, lg: 12 }} 
+              title={t('teacher.dashboard.topMistakes')} 
+              headerBordered
+              className="chart-panel apple-soft-card"
+            >
               {topErrors.length ? (
                 <List
                   dataSource={topErrors}
                   renderItem={(item) => (
-                    <List.Item>
-                      <Space direction="vertical" style={{ width: '100%' }} size={6}>
-                        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                          <Typography.Text>{localizeErrorType(item.type)}</Typography.Text>
-                          <Tag>{item.count}</Tag>
+                    <List.Item className="apple-list-row">
+                      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                        <Typography.Text style={{ fontWeight: 500, fontSize: '15px' }}>{localizeErrorType(item.type)}</Typography.Text>
+                        <Space>
+                          <Typography.Text style={{ color: 'var(--apple-primary)', fontWeight: 600 }}>{item.count}</Typography.Text>
+                          <Tag color="error" className="apple-tag-pill">{item.ratio}</Tag>
                         </Space>
-                        <Progress percent={Math.round(item.ratio * 100)} showInfo={false} />
                       </Space>
                     </List.Item>
                   )}
@@ -239,21 +255,26 @@ export const TeacherDashboardPage = () => {
             </ProCard>
           </ProCard>
 
-          <ProCard bordered title={t('teacher.dashboard.upcomingDeadlines')}>
+          <ProCard
+            bordered 
+            title={t('teacher.dashboard.upcomingDeadlines')} 
+            headerBordered
+            className="chart-panel apple-soft-card"
+          >
             {upcoming.length ? (
               <List
                 dataSource={upcoming}
                 renderItem={(item) => (
-                  <List.Item>
-                    <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                      <Space direction="vertical" size={0}>
-                        <Typography.Text>{item.title}</Typography.Text>
-                        <Typography.Text type="secondary">
-                          {item.dueAt ? formatDate(item.dueAt) : '--'}
-                        </Typography.Text>
-                      </Space>
-                      <Tag>{`${item.pending}/${item.total}`}</Tag>
-                    </Space>
+                  <List.Item className="apple-list-row">
+                    <List.Item.Meta
+                      title={
+                        <Space>
+                          <span style={{ fontWeight: 500, fontSize: '15px' }}>{item.title}</span>
+                          <Tag color="warning" className="apple-tag-pill">{t('student.dashboard.dueSoon')}</Tag>
+                        </Space>
+                      }
+                      description={<span style={{ color: 'var(--apple-text-muted)' }}>{t('common.due')}: {item.dueAt ? new Date(item.dueAt).toLocaleDateString() : '--'}</span>}
+                    />
                   </List.Item>
                 )}
               />

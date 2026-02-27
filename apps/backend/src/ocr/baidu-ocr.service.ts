@@ -103,9 +103,9 @@ export class BaiduOcrService {
   private async getAccessToken(config: BaiduOcrConfig): Promise<string> {
     const ttl = config.tokenCacheTtl ?? this.defaultTokenCacheTtl;
     const now = Date.now();
+    const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
-    // Check if cached token is still valid
-    if (this.cachedToken && this.tokenExpiresAt > now) {
+    if (this.cachedToken && this.tokenExpiresAt - REFRESH_MARGIN_MS > now) {
       return this.cachedToken;
     }
 
@@ -116,13 +116,26 @@ export class BaiduOcrService {
       client_secret: config.secretKey,
     });
 
-    const response = await fetch(this.OAUTH_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let response: Response;
+    try {
+      response = await fetch(this.OAUTH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Access token request timed out (10s)');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to get access token: ${response.status} ${response.statusText}`);

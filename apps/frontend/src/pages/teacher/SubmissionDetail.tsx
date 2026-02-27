@@ -1,9 +1,10 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Collapse, Descriptions, List, Space, Switch, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, Collapse, Descriptions, Image, Input, InputNumber, List, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchSubmission, regradeSubmission } from '../../api';
+import { fetchSubmission, regradeSubmission, addTeacherFeedback } from '../../api';
+import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
@@ -46,6 +47,7 @@ export const TeacherSubmissionDetailPage = () => {
     queryKey: ['submission', id],
     queryFn: () => fetchSubmission(id || ''),
     enabled: !!id,
+    staleTime: 60 * 1000,
   });
 
   const regradeMutation = useMutation({
@@ -56,6 +58,28 @@ export const TeacherSubmissionDetailPage = () => {
       refetch();
     },
     onError: () => message.error(t('teacher.submissionDetail.regradeFailed')),
+  });
+
+  const [feedbackComment, setFeedbackComment] = useState(data?.teacherComment || '');
+  const [feedbackScore, setFeedbackScore] = useState<number | null>(data?.manualScore ?? null);
+
+  useEffect(() => {
+    if (data) {
+      setFeedbackComment(data.teacherComment || '');
+      setFeedbackScore(data.manualScore ?? null);
+    }
+  }, [data?.teacherComment, data?.manualScore]);
+
+  const feedbackMutation = useMutation({
+    mutationFn: () => addTeacherFeedback(id || '', {
+      comment: feedbackComment || undefined,
+      manualScore: feedbackScore,
+    }),
+    onSuccess: () => {
+      message.success(t('teacher.submissionDetail.feedbackSaved'));
+      refetch();
+    },
+    onError: () => message.error(t('teacher.submissionDetail.feedbackFailed')),
   });
 
   const status = data?.status || 'QUEUED';
@@ -166,7 +190,7 @@ export const TeacherSubmissionDetailPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {data?.status === 'FAILED' ? (
@@ -174,16 +198,16 @@ export const TeacherSubmissionDetailPage = () => {
           type="error"
           message={t('submission.processingFailed')}
           description={failureMessage}
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {isLoading && !data ? (
-        <ProCard bordered loading />
+        <ProCard bordered loading className="apple-soft-card" />
       ) : !data ? (
         <SoftEmpty description={t('submission.noData')} />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <ProCard bordered>
+          <ProCard bordered className="apple-soft-card">
             <Descriptions column={2} bordered>
               <Descriptions.Item label={t('common.student')}>
                 {data.student?.name || '--'}
@@ -196,6 +220,7 @@ export const TeacherSubmissionDetailPage = () => {
               </Descriptions.Item>
               <Descriptions.Item label={t('common.status')}>
                 <Tag
+                  className="apple-tag-pill"
                   color={
                     status === 'DONE'
                       ? 'success'
@@ -239,7 +264,42 @@ export const TeacherSubmissionDetailPage = () => {
             </Space>
           </ProCard>
 
-          <ProCard bordered title={t('submission.highlights')}>
+          {grading?.dimensionScores ? (
+            <ProCard bordered title={t('submission.dimensionScores')} className="apple-soft-card">
+              <ChartPanel
+                option={{
+                  radar: {
+                    indicator: [
+                      { name: t('submission.dim.grammar'), max: 100 },
+                      { name: t('submission.dim.vocabulary'), max: 100 },
+                      { name: t('submission.dim.structure'), max: 100 },
+                      { name: t('submission.dim.content'), max: 100 },
+                      { name: t('submission.dim.coherence'), max: 100 },
+                    ],
+                    radius: '65%',
+                  },
+                  series: [{
+                    type: 'radar',
+                    data: [{
+                      value: [
+                        grading.dimensionScores.grammar ?? 0,
+                        grading.dimensionScores.vocabulary ?? 0,
+                        grading.dimensionScores.structure ?? 0,
+                        grading.dimensionScores.content ?? 0,
+                        grading.dimensionScores.coherence ?? 0,
+                      ],
+                      name: t('submission.dimensionScores'),
+                      areaStyle: { opacity: 0.2 },
+                    }],
+                  }],
+                  tooltip: {},
+                }}
+                height={320}
+              />
+            </ProCard>
+          ) : null}
+
+          <ProCard bordered title={t('submission.highlights')} className="apple-soft-card">
             <Descriptions column={1} bordered>
               <Descriptions.Item label={t('submission.summary')}>
                 {grading?.summary ? (
@@ -262,17 +322,17 @@ export const TeacherSubmissionDetailPage = () => {
             </Descriptions>
           </ProCard>
 
-          <ProCard bordered title={t('submission.feedback')}>
+          <ProCard bordered title={t('submission.feedback')} className="apple-soft-card">
             <Tabs items={suggestionsTabs} />
             {grading?.suggestions?.rewrite ? (
-              <ProCard bordered title={t('submission.rewrite')} style={{ marginTop: 16 }}>
+              <ProCard bordered title={t('submission.rewrite')} className="apple-soft-card" style={{ marginTop: 16 }}>
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
                   {grading.suggestions.rewrite}
                 </Typography.Paragraph>
               </ProCard>
             ) : null}
             {grading?.suggestions?.sampleEssay ? (
-              <ProCard bordered title={t('submission.sampleEssay')} style={{ marginTop: 16 }}>
+              <ProCard bordered title={t('submission.sampleEssay')} className="apple-soft-card" style={{ marginTop: 16 }}>
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
                   {grading.suggestions.sampleEssay}
                 </Typography.Paragraph>
@@ -295,6 +355,51 @@ export const TeacherSubmissionDetailPage = () => {
               ]}
             />
           ) : null}
+
+          {data?.images?.length ? (
+            <ProCard bordered title={t('submission.uploadedImages')} className="apple-soft-card">
+              <Image.PreviewGroup>
+                <Space wrap size={16}>
+                  {data.images.map((img: { id: string; url: string }) => (
+                    <Image key={img.id} src={img.url} width={200} loading="lazy" style={{ borderRadius: 8 }} placeholder />
+                  ))}
+                </Space>
+              </Image.PreviewGroup>
+            </ProCard>
+          ) : null}
+
+          <ProCard bordered title={t('teacher.submissionDetail.feedbackTitle')} className="apple-soft-card">
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div>
+                <Typography.Text strong>{t('submission.manualScore')}</Typography.Text>
+                <InputNumber
+                  min={0}
+                  max={100}
+                  value={feedbackScore}
+                  onChange={(v) => setFeedbackScore(typeof v === 'number' ? v : null)}
+                  style={{ marginLeft: 12, width: 120 }}
+                  placeholder="0-100"
+                />
+              </div>
+              <div>
+                <Typography.Text strong>{t('teacher.submissionDetail.commentLabel')}</Typography.Text>
+                <Input.TextArea
+                  rows={4}
+                  value={feedbackComment}
+                  onChange={(e) => setFeedbackComment(e.target.value)}
+                  placeholder={t('teacher.submissionDetail.commentPlaceholder')}
+                  style={{ marginTop: 8 }}
+                />
+              </div>
+              <Button
+                type="primary"
+                loading={feedbackMutation.isPending}
+                onClick={() => feedbackMutation.mutate()}
+              >
+                {t('teacher.submissionDetail.saveFeedback')}
+              </Button>
+            </Space>
+          </ProCard>
         </Space>
       )}
     </PageContainer>

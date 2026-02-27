@@ -7,7 +7,7 @@ ENV_FILE="${HOST_ENV_FILE:-${SCRIPT_DIR}/host.env}"
 if [ -f "${ENV_FILE}" ]; then
   # shellcheck disable=SC1090
   . "${ENV_FILE}"
-  echo "Loaded host config from ${ENV_FILE}"
+  echo "已加载主机配置：${ENV_FILE}"
 fi
 
 APP_DIR="${APP_DIR:-/www/homework-ai}"
@@ -25,13 +25,23 @@ REQUIRE_HEALTHY="${REQUIRE_HEALTHY:-0}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${API_PORT}/api/health}"
 HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-20}"
 HEALTH_RETRY_INTERVAL="${HEALTH_RETRY_INTERVAL:-3}"
+LOCK_FILE="${LOCK_FILE:-/tmp/homework-ai-deploy.lock}"
+STRICT_GIT_CLEAN="${STRICT_GIT_CLEAN:-1}"
+BACKUP_BEFORE_MIGRATION="${BACKUP_BEFORE_MIGRATION:-1}"
+DB_BACKUP_DIR="${DB_BACKUP_DIR:-${APP_DIR}/backups/db}"
+BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
+DB_NAME="${DB_NAME:-homework_ai}"
+DB_USER="${DB_USER:-homework_ai}"
+DB_PASS="${DB_PASS:-}"
+MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
+MYSQL_PORT="${MYSQL_PORT:-3306}"
 
 SUDO=""
 if [ "${USE_SUDO}" = "1" ] && [ "$(id -u)" -ne 0 ]; then
   if command -v sudo >/dev/null 2>&1; then
     SUDO="sudo"
   else
-    echo "USE_SUDO=1 but sudo was not found." >&2
+    echo "USE_SUDO=1 但未找到 sudo。" >&2
     exit 1
   fi
 fi
@@ -50,11 +60,100 @@ run_with_sudo() {
   fi
 }
 
+acquire_lock() {
+  if ! command -v flock >/dev/null 2>&1; then
+    echo "未找到 flock，将在无部署锁模式下继续。" >&2
+    return
+  fi
+
+  mkdir -p "$(dirname "${LOCK_FILE}")"
+  exec 9>"${LOCK_FILE}"
+  if ! flock -n 9; then
+    echo "检测到其他部署任务正在运行（锁文件：${LOCK_FILE}）。" >&2
+    exit 1
+  fi
+}
+
+print_service_debug() {
+  set +e
+  echo "部署失败，正在输出最近服务状态..." >&2
+  if command -v systemctl >/dev/null 2>&1; then
+    if [ -n "${SUDO}" ]; then
+      ${SUDO} systemctl status "${API_SERVICE}" --no-pager -n 40 || true
+      ${SUDO} systemctl status "${WORKER_SERVICE}" --no-pager -n 40 || true
+    else
+      systemctl status "${API_SERVICE}" --no-pager -n 40 || true
+      systemctl status "${WORKER_SERVICE}" --no-pager -n 40 || true
+    fi
+  fi
+}
+
+backup_database() {
+  if [ "${BACKUP_BEFORE_MIGRATION}" != "1" ]; then
+    echo "==> 已跳过数据库备份（BACKUP_BEFORE_MIGRATION=${BACKUP_BEFORE_MIGRATION}）"
+    return
+  fi
+
+  local backup_script="${APP_DIR}/deploy/backup-db.sh"
+  if [ -f "${backup_script}" ]; then
+    run_cmd bash "${backup_script}" \
+      --output-dir "${DB_BACKUP_DIR}" \
+      --retention-days "${BACKUP_RETENTION_DAYS}"
+    return
+  fi
+
+  if [ -z "${DB_PASS}" ]; then
+    echo "DB_PASS 为空，已跳过数据库备份。" >&2
+    return
+  fi
+
+  if ! command -v mysqldump >/dev/null 2>&1; then
+    echo "未找到 mysqldump，无法在迁移前执行数据库备份。" >&2
+    exit 1
+  fi
+
+  run_cmd mkdir -p "${DB_BACKUP_DIR}"
+  local timestamp backup_file
+  timestamp="$(date +%Y%m%d_%H%M%S)"
+  backup_file="${DB_BACKUP_DIR}/${DB_NAME}_${timestamp}.sql.gz"
+
+  echo "==> 正在备份数据库到 ${backup_file}"
+  MYSQL_PWD="${DB_PASS}" mysqldump \
+    --host="${MYSQL_HOST}" \
+    --port="${MYSQL_PORT}" \
+    --user="${DB_USER}" \
+    --single-transaction \
+    --routines \
+    --triggers \
+    --databases "${DB_NAME}" | gzip -c > "${backup_file}"
+
+  if [ ! -s "${backup_file}" ]; then
+    echo "备份失败：${backup_file} 为空。" >&2
+    exit 1
+  fi
+
+  if [[ "${BACKUP_RETENTION_DAYS}" =~ ^[0-9]+$ ]] && [ "${BACKUP_RETENTION_DAYS}" -gt 0 ]; then
+    find "${DB_BACKUP_DIR}" -maxdepth 1 -type f -name "${DB_NAME}_*.sql.gz" -mtime "+${BACKUP_RETENTION_DAYS}" -delete
+  fi
+}
+
+trap print_service_debug ERR
+
 if [ ! -d "${APP_DIR}/.git" ]; then
-  echo "App directory is not a git repository: ${APP_DIR}" >&2
-  echo "Run deploy/install-host.sh first." >&2
+  echo "应用目录不是 Git 仓库：${APP_DIR}" >&2
+  echo "请先执行 deploy/install-host.sh。" >&2
   exit 1
 fi
+
+acquire_lock
+
+if [ "${STRICT_GIT_CLEAN}" = "1" ] && [ -n "$(git -C "${APP_DIR}" status --porcelain --untracked-files=no)" ]; then
+  echo "${APP_DIR} 存在本地改动，STRICT_GIT_CLEAN=1 时拒绝发布。" >&2
+  echo "请先提交/暂存改动，或将 STRICT_GIT_CLEAN 设为 0 后再发布。" >&2
+  exit 1
+fi
+
+previous_rev="$(git -C "${APP_DIR}" rev-parse HEAD)"
 
 run_cmd git -C "${APP_DIR}" fetch origin --prune
 run_cmd git -C "${APP_DIR}" checkout "${BRANCH}"
@@ -68,14 +167,15 @@ run_cmd pnpm install --frozen-lockfile
 run_cmd pnpm --filter backend prisma:generate
 
 if [ "${RUN_MIGRATIONS}" = "1" ]; then
+  backup_database
   run_cmd pnpm --filter backend exec prisma migrate deploy
 else
-  echo "==> Skipping prisma migrate deploy (RUN_MIGRATIONS=${RUN_MIGRATIONS})"
+  echo "==> 已跳过 prisma migrate deploy（RUN_MIGRATIONS=${RUN_MIGRATIONS}）"
 fi
 
 run_cmd pnpm --filter backend build
 
-echo "==> Building frontend"
+echo "==> 正在构建前端"
 VITE_API_BASE_URL="${VITE_API_BASE_URL}" pnpm --filter frontend build
 
 run_with_sudo mkdir -p "${WEB_ROOT}"
@@ -88,6 +188,8 @@ fi
 
 run_with_sudo systemctl restart "${API_SERVICE}"
 run_with_sudo systemctl restart "${WORKER_SERVICE}"
+run_with_sudo systemctl is-active --quiet "${API_SERVICE}"
+run_with_sudo systemctl is-active --quiet "${WORKER_SERVICE}"
 
 if [ "${CHECK_HEALTH}" = "1" ]; then
   health_args=(
@@ -102,4 +204,9 @@ if [ "${CHECK_HEALTH}" = "1" ]; then
   run_cmd bash "${APP_DIR}/deploy/healthcheck.sh" "${health_args[@]}"
 fi
 
-echo "Update complete for ${APP_DIR} (${BRANCH})."
+current_rev="$(git -C "${APP_DIR}" rev-parse HEAD)"
+printf '%s\n' "${previous_rev}" > "${APP_DIR}/.deploy-previous"
+printf '%s\n' "${current_rev}" > "${APP_DIR}/.deploy-last-successful"
+echo "==> 发布版本：${current_rev}"
+
+echo "发布完成：${APP_DIR}（分支：${BRANCH}）"

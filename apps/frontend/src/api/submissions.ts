@@ -26,7 +26,7 @@ export const fetchSubmission = async (id: string) => {
   return response.data as {
     id: string;
     status: 'QUEUED' | 'PROCESSING' | 'DONE' | 'FAILED';
-    images: Array<{ id: string }>;
+    images: Array<{ id: string; url: string }>;
     student?: { id: string; name: string; account: string } | null;
     homework?: { id: string; title: string } | null;
     createdAt?: string;
@@ -36,6 +36,10 @@ export const fetchSubmission = async (id: string) => {
     totalScore?: number | null;
     errorCode?: string | null;
     errorMsg?: string | null;
+    teacherComment?: string | null;
+    manualScore?: number | null;
+    reviewedBy?: string | null;
+    reviewedAt?: string | null;
   };
 };
 
@@ -68,6 +72,14 @@ export const fetchStudentSubmissions = async (params?: {
     updatedAt?: string;
   }>;
 };
+
+export async function addTeacherFeedback(
+  submissionId: string,
+  data: { comment?: string; manualScore?: number | null },
+) {
+  const res = await api.patch(`/teacher/submissions/${submissionId}/feedback`, data);
+  return res.data;
+}
 
 export const downloadStudentSubmissionsCsv = async (params?: {
   homeworkId?: string;

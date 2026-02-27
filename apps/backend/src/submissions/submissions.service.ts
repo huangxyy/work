@@ -332,6 +332,31 @@ export class SubmissionsService {
     throw new ForbiddenException('No access');
   }
 
+  async addTeacherFeedback(
+    submissionId: string,
+    data: { comment?: string; manualScore?: number },
+    teacher: AuthUser,
+  ) {
+    const submission = await this.prisma.submission.findFirst({
+      where: { id: submissionId },
+      include: { homework: { include: { class: { include: { teachers: { select: { id: true } } } } } } },
+    });
+    if (!submission) throw new NotFoundException('Submission not found');
+    const isTeacher = submission.homework.class.teachers.some((t) => t.id === teacher.id);
+    if (!isTeacher && teacher.role !== 'ADMIN') throw new ForbiddenException('Not authorized');
+
+    return this.prisma.submission.update({
+      where: { id: submissionId },
+      data: {
+        teacherComment: data.comment ?? null,
+        manualScore: data.manualScore ?? null,
+        reviewedBy: teacher.id,
+        reviewedAt: new Date(),
+      },
+      select: { id: true, teacherComment: true, manualScore: true, reviewedBy: true, reviewedAt: true },
+    });
+  }
+
   async listStudentSubmissions(user: AuthUser) {
     if (user.role !== Role.STUDENT) {
       throw new ForbiddenException('Only students can list submissions');
@@ -376,7 +401,10 @@ export class SubmissionsService {
 
     const submissions = await this.prisma.submission.findMany({
       where,
-      include: { homework: { select: { id: true, title: true } } },
+      include: {
+        homework: { select: { id: true, title: true } },
+        _count: { select: { images: true } },
+      },
       orderBy: { updatedAt: 'desc' },
       take: 500,
     });
@@ -389,6 +417,7 @@ export class SubmissionsService {
       totalScore: submission.totalScore,
       errorCode: submission.errorCode,
       errorMsg: submission.errorMsg,
+      imageCount: submission._count.images,
       updatedAt: submission.updatedAt.toISOString(),
     }));
   }
@@ -425,6 +454,7 @@ export class SubmissionsService {
       },
       include: { homework: { select: { id: true, title: true } } },
       orderBy: { updatedAt: 'desc' },
+      take: 5000,
     });
 
     const rows: Array<Array<string | number | null>> = [
@@ -445,6 +475,36 @@ export class SubmissionsService {
     }
 
     return CSV_BOM + rows.map((row) => this.toCsvRow(row)).join('\n');
+  }
+
+  async getUnsubmittedStudents(homeworkId: string, teacher: AuthUser) {
+    const homework = await this.prisma.homework.findUnique({
+      where: { id: homeworkId },
+      select: { classId: true, class: { select: { teachers: { select: { id: true } } } } },
+    });
+    if (!homework) throw new NotFoundException('Homework not found');
+    if (teacher.role !== Role.ADMIN && !homework.class.teachers.some((t) => t.id === teacher.id)) {
+      throw new ForbiddenException();
+    }
+
+    const enrolledStudents = await this.prisma.enrollment.findMany({
+      where: { classId: homework.classId },
+      select: { student: { select: { id: true, name: true, account: true } } },
+    });
+
+    const submittedIds = new Set(
+      (
+        await this.prisma.submission.findMany({
+          where: { homeworkId },
+          select: { studentId: true },
+          distinct: ['studentId'],
+        })
+      ).map((s) => s.studentId),
+    );
+
+    return enrolledStudents
+      .filter((e) => !submittedIds.has(e.student.id))
+      .map((e) => e.student);
   }
 
   async listHomeworkSubmissions(
@@ -471,7 +531,15 @@ export class SubmissionsService {
     const take = Math.min(Math.max(options?.limit || 1000, 1), 1000);
     const submissions = await this.prisma.submission.findMany({
       where: { homeworkId },
-      include: { student: { select: { id: true, name: true, account: true } } },
+      select: {
+        id: true,
+        status: true,
+        totalScore: true,
+        errorCode: true,
+        errorMsg: true,
+        updatedAt: true,
+        student: { select: { id: true, name: true, account: true } },
+      },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       take,
       ...(options?.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
@@ -508,7 +576,16 @@ export class SubmissionsService {
 
     const submissions = await this.prisma.submission.findMany({
       where: { homeworkId },
-      include: { student: { select: { id: true, name: true, account: true } } },
+      select: {
+        id: true,
+        status: true,
+        totalScore: true,
+        errorCode: true,
+        errorMsg: true,
+        gradingJson: true,
+        updatedAt: true,
+        student: { select: { id: true, name: true, account: true } },
+      },
       orderBy: { updatedAt: 'desc' },
       take: 5000,
     });
@@ -560,20 +637,31 @@ export class SubmissionsService {
 
     const submissions = await this.prisma.submission.findMany({
       where: { homeworkId },
-      include: {
-        images: true,
+      select: {
+        id: true,
+        images: { select: { objectKey: true } },
         student: { select: { account: true } },
       },
       orderBy: { createdAt: 'asc' },
+      take: 5000,
     });
 
     const zip = new AdmZip();
-    for (const submission of submissions) {
-      for (const image of submission.images) {
-        const buffer = await this.storage.getObject(image.objectKey);
-        const filename = basename(image.objectKey);
-        const entry = `${submission.student.account}/${submission.id}/${filename}`;
-        zip.addFile(entry, buffer);
+    const allEntries = submissions.flatMap((submission) =>
+      submission.images.map((image) => ({
+        objectKey: image.objectKey,
+        zipPath: `${submission.student.account}/${submission.id}/${basename(image.objectKey)}`,
+      })),
+    );
+
+    const CONCURRENCY = 10;
+    for (let i = 0; i < allEntries.length; i += CONCURRENCY) {
+      const chunk = allEntries.slice(i, i + CONCURRENCY);
+      const buffers = await Promise.all(
+        chunk.map((entry) => this.storage.getObject(entry.objectKey)),
+      );
+      for (let j = 0; j < chunk.length; j++) {
+        zip.addFile(chunk[j].zipPath, buffers[j]);
       }
     }
 
@@ -801,14 +889,18 @@ export class SubmissionsService {
       data: { status: SubmissionStatus.QUEUED, errorCode: null, errorMsg: null },
     });
 
-    await Promise.all(
-      ids.map((id) =>
-        this.queueService.enqueueRegrade(id, {
-          mode: resolvedPolicy.mode,
-          needRewrite: resolvedPolicy.needRewrite,
-        }),
-      ),
-    );
+    const ENQUEUE_CONCURRENCY = 20;
+    for (let i = 0; i < ids.length; i += ENQUEUE_CONCURRENCY) {
+      const chunk = ids.slice(i, i + ENQUEUE_CONCURRENCY);
+      await Promise.all(
+        chunk.map((id) =>
+          this.queueService.enqueueRegrade(id, {
+            mode: resolvedPolicy.mode,
+            needRewrite: resolvedPolicy.needRewrite,
+          }),
+        ),
+      );
+    }
 
     return { homeworkId: dto.homeworkId, count: ids.length };
   }
@@ -942,7 +1034,15 @@ export class SubmissionsService {
 
     const submissions = await this.prisma.submission.findMany({
       where: { batchId },
-      include: { student: { select: { id: true, name: true, account: true } } },
+      select: {
+        id: true,
+        status: true,
+        totalScore: true,
+        errorCode: true,
+        errorMsg: true,
+        updatedAt: true,
+        student: { select: { id: true, name: true, account: true } },
+      },
       orderBy: { updatedAt: 'desc' },
       take: 500,
     });
@@ -1046,14 +1146,18 @@ export class SubmissionsService {
       data: { status: SubmissionStatus.QUEUED, errorCode: null, errorMsg: null },
     });
 
-    await Promise.all(
-      ids.map((id) =>
-        this.queueService.enqueueRegrade(id, {
-          mode: resolvedPolicy.mode,
-          needRewrite: resolvedPolicy.needRewrite,
-        }),
-      ),
-    );
+    const ENQUEUE_CONCURRENCY = 20;
+    for (let i = 0; i < ids.length; i += ENQUEUE_CONCURRENCY) {
+      const chunk = ids.slice(i, i + ENQUEUE_CONCURRENCY);
+      await Promise.all(
+        chunk.map((id) =>
+          this.queueService.enqueueRegrade(id, {
+            mode: resolvedPolicy.mode,
+            needRewrite: resolvedPolicy.needRewrite,
+          }),
+        ),
+      );
+    }
 
     return { batchId, count: ids.length };
   }
@@ -1321,44 +1425,72 @@ export class SubmissionsService {
       }> = [];
       let acceptedImages = 0;
 
-      // 修改：每张图片创建独立提交，而不是按学生分组
+      type PendingSubmission = {
+        image: BatchImage;
+        student: StudentCandidate;
+      };
+      const pending: PendingSubmission[] = [];
+
       for (const [account, batchImages] of grouped) {
         const student = accountMap.get(account);
         if (!student) {
           skipped.push({ file: account, reason: 'STUDENT_NOT_FOUND' });
           continue;
         }
-
-        // 每张图片独立提交
         for (const image of batchImages) {
-          const submission = await this.prisma.submission.create({
-            data: {
-              homeworkId: homework.id,
-              studentId: student.id,
-              batchId: batch.id,
-              status: SubmissionStatus.QUEUED,
-            },
-          });
+          pending.push({ image, student });
+        }
+      }
 
-          const buffer = await this.loadImageBuffer(image);
-          const extension = this.resolveImageExtension(image);
-          const objectKey = `submissions/${submission.id}/${randomUUID()}.${extension}`;
-          const contentType = image.mimeType || this.mapImageMimeType(`.${extension}`);
-          await this.storage.putObject(objectKey, buffer, contentType);
+      const BATCH_CONCURRENCY = 5;
+      for (let i = 0; i < pending.length; i += BATCH_CONCURRENCY) {
+        const chunk = pending.slice(i, i + BATCH_CONCURRENCY);
 
-          const imageRecord = { submissionId: submission.id, objectKey };
-          await this.prisma.submissionImage.create({ data: imageRecord });
-          acceptedImages += 1;
+        const created = await this.prisma.$transaction(
+          chunk.map((item) =>
+            this.prisma.submission.create({
+              data: {
+                homeworkId: homework.id,
+                studentId: item.student.id,
+                batchId: batch.id,
+                status: SubmissionStatus.QUEUED,
+              },
+            }),
+          ),
+        );
 
-          await this.queueService.enqueueGrading(submission.id, {
-            mode: resolvedPolicy.mode,
-            needRewrite: resolvedPolicy.needRewrite,
-          });
+        const imageRecords: Array<{ submissionId: string; objectKey: string }> = [];
+        await Promise.all(
+          chunk.map(async (item, idx) => {
+            const submission = created[idx];
+            const buffer = await this.loadImageBuffer(item.image);
+            const extension = this.resolveImageExtension(item.image);
+            const objectKey = `submissions/${submission.id}/${randomUUID()}.${extension}`;
+            const contentType = item.image.mimeType || this.mapImageMimeType(`.${extension}`);
+            await this.storage.putObject(objectKey, buffer, contentType);
+            imageRecords.push({ submissionId: submission.id, objectKey });
+          }),
+        );
 
+        if (imageRecords.length) {
+          await this.prisma.submissionImage.createMany({ data: imageRecords });
+        }
+        acceptedImages += imageRecords.length;
+
+        await Promise.all(
+          created.map((submission) =>
+            this.queueService.enqueueGrading(submission.id, {
+              mode: resolvedPolicy.mode,
+              needRewrite: resolvedPolicy.needRewrite,
+            }),
+          ),
+        );
+
+        for (let idx = 0; idx < chunk.length; idx++) {
           submissions.push({
-            submissionId: submission.id,
-            studentAccount: student.account,
-            studentName: student.name,
+            submissionId: created[idx].id,
+            studentAccount: chunk[idx].student.account,
+            studentName: chunk[idx].student.name,
             imageCount: 1,
           });
         }
@@ -1673,14 +1805,20 @@ export class SubmissionsService {
     }
   }
 
-  /**
-   * Clean up staging images for a homework
-   * Note: This requires the storage service to support listing by prefix
-   * For now, staging images will be kept until manually cleaned up
-   */
   private async cleanupStagingImages(homeworkId: string): Promise<void> {
-    // TODO: Implement cleanup once storage service supports listing by prefix
-    this.logger.debug(`Cleanup staging images for homework ${homeworkId} (not yet implemented)`);
+    try {
+      const prefix = `staging/${homeworkId}/`;
+      const keys = await this.storage.listObjectKeys(prefix);
+      if (keys.length === 0) {
+        this.logger.debug(`No staging images to clean for homework ${homeworkId}`);
+        return;
+      }
+      const result = await this.storage.deleteObjects(keys);
+      this.logger.log(`Cleaned ${result.ok} staging images for homework ${homeworkId} (${result.failed.length} failures)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown';
+      this.logger.warn(`Failed to cleanup staging images for ${homeworkId}: ${msg}`);
+    }
   }
 
   /**
@@ -3112,7 +3250,12 @@ export class SubmissionsService {
         homeworkId,
         status: SubmissionStatus.DONE,
       },
-      include: {
+      select: {
+        id: true,
+        updatedAt: true,
+        totalScore: true,
+        gradingJson: true,
+        ocrText: true,
         student: { select: { id: true, name: true } },
         homework: { select: { id: true, title: true } },
       },

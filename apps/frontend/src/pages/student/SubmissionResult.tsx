@@ -1,9 +1,10 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Collapse, Descriptions, List, Skeleton, Space, Statistic, Steps, Tabs, Tag, Timeline, Typography } from 'antd';
+import { Alert, Button, Collapse, Descriptions, Image, List, Skeleton, Space, Statistic, Steps, Tabs, Tag, Timeline, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { fetchSubmission } from '../../api';
+import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
 
@@ -46,6 +47,7 @@ const statusStepIndex: Record<SubmissionStatus, number> = {
 
 export const SubmissionResultPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { t } = useI18n();
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['submission', id],
@@ -219,7 +221,7 @@ export const SubmissionResultPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {status === 'FAILED' ? (
@@ -227,7 +229,14 @@ export const SubmissionResultPage = () => {
           type="error"
           message={t('submission.processingFailed')}
           description={failureMessage}
-          style={{ marginBottom: 16 }}
+          action={
+            data?.homework?.id ? (
+              <Button type="primary" onClick={() => navigate(`/student/submit/${data.homework.id}`)}>
+                {t('submission.resubmit')}
+              </Button>
+            ) : null
+          }
+          className="apple-inline-alert"
         />
       ) : null}
       {isLoading && !data ? (
@@ -236,7 +245,7 @@ export const SubmissionResultPage = () => {
         <SoftEmpty description={t('submission.noData')} />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <ProCard bordered>
+          <ProCard bordered className="apple-soft-card">
             <Steps
               current={currentStep}
               status={isFailed ? 'error' : status === 'DONE' ? 'finish' : 'process'}
@@ -254,6 +263,7 @@ export const SubmissionResultPage = () => {
               <Typography.Text type="secondary">{t('common.status')}</Typography.Text>
               <div>
                 <Tag
+                  className="apple-tag-pill"
                   color={
                     status === 'DONE' ? 'success' : status === 'FAILED' ? 'error' : 'processing'
                   }
@@ -273,7 +283,61 @@ export const SubmissionResultPage = () => {
             </ProCard>
           </ProCard>
 
-          <ProCard bordered title={t('submission.highlights')}>
+          {grading?.dimensionScores ? (
+            <ProCard bordered title={t('submission.dimensionScores')} className="apple-soft-card">
+              <ChartPanel
+                option={{
+                  radar: {
+                    indicator: [
+                      { name: t('submission.dim.grammar'), max: 100 },
+                      { name: t('submission.dim.vocabulary'), max: 100 },
+                      { name: t('submission.dim.structure'), max: 100 },
+                      { name: t('submission.dim.content'), max: 100 },
+                      { name: t('submission.dim.coherence'), max: 100 },
+                    ],
+                    radius: '65%',
+                  },
+                  series: [{
+                    type: 'radar',
+                    data: [{
+                      value: [
+                        grading.dimensionScores.grammar ?? 0,
+                        grading.dimensionScores.vocabulary ?? 0,
+                        grading.dimensionScores.structure ?? 0,
+                        grading.dimensionScores.content ?? 0,
+                        grading.dimensionScores.coherence ?? 0,
+                      ],
+                      name: t('submission.dimensionScores'),
+                      areaStyle: { opacity: 0.2 },
+                    }],
+                  }],
+                  tooltip: {},
+                }}
+                height={320}
+              />
+            </ProCard>
+          ) : null}
+
+          {data?.images?.length ? (
+            <ProCard bordered title={t('submission.uploadedImages')} className="apple-soft-card">
+              <Image.PreviewGroup>
+                <Space wrap size={16}>
+                  {data.images.map((img: { id: string; url: string }) => (
+                    <Image
+                      key={img.id}
+                      src={img.url}
+                      width={200}
+                      loading="lazy"
+                      style={{ borderRadius: 8, objectFit: 'cover' }}
+                      placeholder
+                    />
+                  ))}
+                </Space>
+              </Image.PreviewGroup>
+            </ProCard>
+          ) : null}
+
+          <ProCard bordered title={t('submission.highlights')} className="apple-soft-card">
             <Descriptions column={1} bordered>
               <Descriptions.Item label={t('submission.summary')}>
                 {grading?.summary ? (
@@ -296,17 +360,38 @@ export const SubmissionResultPage = () => {
             </Descriptions>
           </ProCard>
 
-          <ProCard bordered title={t('submission.feedback')}>
+          {data?.teacherComment || data?.manualScore != null ? (
+            <ProCard bordered title={t('submission.teacherFeedback')} className="apple-soft-card">
+              <Descriptions column={1} bordered>
+                {data.manualScore != null ? (
+                  <Descriptions.Item label={t('submission.manualScore')}>
+                    <Typography.Text strong style={{ fontSize: 18, color: 'var(--apple-primary)' }}>
+                      {data.manualScore} / 100
+                    </Typography.Text>
+                  </Descriptions.Item>
+                ) : null}
+                {data.teacherComment ? (
+                  <Descriptions.Item label={t('submission.teacherComment')}>
+                    <Typography.Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                      {data.teacherComment}
+                    </Typography.Paragraph>
+                  </Descriptions.Item>
+                ) : null}
+              </Descriptions>
+            </ProCard>
+          ) : null}
+
+          <ProCard bordered title={t('submission.feedback')} className="apple-soft-card">
             <Tabs items={suggestionsTabs} />
             {grading?.suggestions?.rewrite ? (
-              <ProCard bordered title={t('submission.rewrite')} style={{ marginTop: 16 }}>
+              <ProCard bordered title={t('submission.rewrite')} className="apple-soft-card" style={{ marginTop: 16 }}>
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
                   {grading.suggestions.rewrite}
                 </Typography.Paragraph>
               </ProCard>
             ) : null}
             {grading?.suggestions?.sampleEssay ? (
-              <ProCard bordered title={t('submission.sampleEssay')} style={{ marginTop: 16 }}>
+              <ProCard bordered title={t('submission.sampleEssay')} className="apple-soft-card" style={{ marginTop: 16 }}>
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
                   {grading.suggestions.sampleEssay}
                 </Typography.Paragraph>
@@ -314,7 +399,7 @@ export const SubmissionResultPage = () => {
             ) : null}
           </ProCard>
 
-          <ProCard bordered title={t('submission.processingTimeline')}>
+          <ProCard bordered title={t('submission.processingTimeline')} className="apple-soft-card">
             <Timeline items={timelineItems} />
           </ProCard>
 

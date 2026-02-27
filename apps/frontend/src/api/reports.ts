@@ -76,6 +76,18 @@ export const fetchStudentReportOverview = async (days = 7) => {
   };
 };
 
+export const fetchClassComparison = async (days = 7) => {
+  const res = await api.get('/student/reports/class-comparison', { params: { days } });
+  return res.data as Array<{
+    classId: string;
+    className: string;
+    classAvg: number | null;
+    classCount: number;
+    studentAvg: number | null;
+    studentCount: number;
+  }>;
+};
+
 export const downloadStudentReportPdf = async (days = 7, lang?: string) => {
   const response = await api.get('/student/reports/pdf', {
     params: { days, lang },

@@ -5,9 +5,11 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
@@ -181,6 +183,25 @@ export class StorageService {
     }
 
     return { ok, failed };
+  }
+
+  async listObjectKeys(prefix: string, maxKeys = 1000): Promise<string[]> {
+    await this.ensureBucket();
+    const result = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: prefix,
+        MaxKeys: maxKeys,
+      }),
+    );
+    return (result.Contents || []).map((obj) => obj.Key).filter((k): k is string => !!k);
+  }
+
+  async getPresignedUrl(key: string, expiresIn = 3600): Promise<string> {
+    await this.ensureBucket();
+    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    // @aws-sdk version mismatch between client-s3 and s3-request-presigner - safe to cast
+    return getSignedUrl(this.client as any, command as any, { expiresIn });
   }
 
   private async streamToBuffer(stream: Readable): Promise<Buffer> {

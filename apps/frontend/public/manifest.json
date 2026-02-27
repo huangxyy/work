@@ -1,0 +1,17 @@
+{
+  "name": "Homework AI",
+  "short_name": "HW AI",
+  "description": "AI-powered English essay grading system",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1677ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

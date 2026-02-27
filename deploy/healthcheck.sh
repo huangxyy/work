@@ -9,14 +9,14 @@ NODE_BIN="${NODE_BIN:-node}"
 
 usage() {
   cat <<EOF
-Usage: bash deploy/healthcheck.sh [options]
+用法：bash deploy/healthcheck.sh [选项]
 
-Options:
-  --url <url>                 Health endpoint URL (default: ${URL})
-  --max-attempts <number>     Retry count before failing (default: ${MAX_ATTEMPTS})
-  --retry-interval <seconds>  Seconds between retries (default: ${RETRY_INTERVAL})
-  --require-healthy           Only accept status=healthy
-  --help                      Show this message
+选项：
+  --url <url>                 健康检查地址（默认：${URL}）
+  --max-attempts <number>     最大重试次数（默认：${MAX_ATTEMPTS}）
+  --retry-interval <seconds>  重试间隔秒数（默认：${RETRY_INTERVAL}）
+  --require-healthy           仅当 status=healthy 才视为通过
+  --help                      显示帮助
 EOF
 }
 
@@ -76,7 +76,7 @@ while [ "$#" -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "Unknown option: $1" >&2
+      echo "未知选项：$1" >&2
       usage
       exit 1
       ;;
@@ -84,22 +84,22 @@ while [ "$#" -gt 0 ]; do
 done
 
 if ! is_positive_int "${MAX_ATTEMPTS}"; then
-  echo "--max-attempts must be a positive integer." >&2
+  echo "--max-attempts 必须为正整数。" >&2
   exit 1
 fi
 
 if ! is_positive_int "${RETRY_INTERVAL}"; then
-  echo "--retry-interval must be a positive integer." >&2
+  echo "--retry-interval 必须为正整数。" >&2
   exit 1
 fi
 
 if ! command -v curl >/dev/null 2>&1; then
-  echo "curl is required for health checks." >&2
+  echo "执行健康检查需要 curl。" >&2
   exit 1
 fi
 
 if ! command -v "${NODE_BIN}" >/dev/null 2>&1; then
-  echo "${NODE_BIN} is required to parse health response." >&2
+  echo "解析健康检查响应需要 ${NODE_BIN}。" >&2
   exit 1
 fi
 
@@ -113,7 +113,7 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
     redis_status="$(printf '%s' "${response}" | extract_field services.redis.status 2>/dev/null || true)"
     storage_status="$(printf '%s' "${response}" | extract_field services.storage.status 2>/dev/null || true)"
 
-    echo "Attempt ${attempt}/${MAX_ATTEMPTS}: status=${status:-unknown} db=${db_status:-unknown} redis=${redis_status:-unknown} storage=${storage_status:-unknown}"
+    echo "第 ${attempt}/${MAX_ATTEMPTS} 次：status=${status:-unknown} db=${db_status:-unknown} redis=${redis_status:-unknown} storage=${storage_status:-unknown}"
 
     accepted=0
     if [ "${REQUIRE_HEALTHY}" = "1" ]; then
@@ -127,11 +127,11 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
     fi
 
     if [ "${accepted}" = "1" ]; then
-      echo "Health check passed for ${URL}."
+      echo "健康检查通过：${URL}"
       exit 0
     fi
   else
-    echo "Attempt ${attempt}/${MAX_ATTEMPTS}: endpoint not reachable (${URL})"
+    echo "第 ${attempt}/${MAX_ATTEMPTS} 次：地址不可达（${URL}）"
   fi
 
   if [ "${attempt}" -lt "${MAX_ATTEMPTS}" ]; then
@@ -140,5 +140,5 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
   attempt=$((attempt + 1))
 done
 
-echo "Health check failed after ${MAX_ATTEMPTS} attempts: ${URL}" >&2
+echo "健康检查失败：重试 ${MAX_ATTEMPTS} 次后仍未通过（${URL}）" >&2
 exit 1

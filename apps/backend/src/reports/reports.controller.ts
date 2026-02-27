@@ -1,4 +1,5 @@
 import { Controller, Get, Param, Query, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -18,6 +19,7 @@ function sanitizeFilenameParam(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
+@ApiTags('Reports')
 @Controller('teacher/reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ReportsController {

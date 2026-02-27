@@ -10,6 +10,7 @@ import { StorageService } from '../storage/storage.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { BaiduOcrService } from '../ocr/baidu-ocr.service';
 import { BaiduOcrConfig } from '../ocr/ocr.types';
+import { NotificationService } from '../notifications/notification.service';
 
 class OcrError extends Error {
   readonly code: string;
@@ -17,6 +18,14 @@ class OcrError extends Error {
   constructor(code: string, message: string) {
     super(message);
     this.code = code;
+  }
+}
+
+class GradingTimeoutError extends Error {
+  readonly code = 'JOB_TIMEOUT';
+
+  constructor(timeoutMs: number) {
+    super(`Grading job timed out after ${timeoutMs / 1000}s`);
   }
 }
 
@@ -39,6 +48,7 @@ export class GradingProcessor extends WorkerHost {
     private readonly gradingService: GradingService,
     private readonly systemConfigService: SystemConfigService,
     private readonly baiduOcrService: BaiduOcrService,
+    private readonly notificationService: NotificationService,
     configService: ConfigService,
   ) {
     super();
@@ -90,13 +100,18 @@ export class GradingProcessor extends WorkerHost {
   }
 
   private async executeWithTimeout(job: Job<GradingJobData>) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Grading job timed out after ${this.jobTimeoutMs / 1000}s`));
+      timer = setTimeout(() => {
+        reject(new GradingTimeoutError(this.jobTimeoutMs));
       }, this.jobTimeoutMs);
     });
 
-    return Promise.race([this.doGrading(job), timeoutPromise]);
+    try {
+      return await Promise.race([this.doGrading(job), timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private async doGrading(job: Job<GradingJobData>) {
@@ -126,19 +141,11 @@ export class GradingProcessor extends WorkerHost {
         return { durationMs: Date.now() - startedAt, skipped: true, reason: 'ALREADY_DONE' };
       }
 
-      await this.prisma.submission.update({
+      const submission = await this.prisma.submission.update({
         where: { id: submissionId },
         data: { status: SubmissionStatus.PROCESSING, errorCode: null, errorMsg: null },
-      });
-
-      const submission = await this.prisma.submission.findUnique({
-        where: { id: submissionId },
         include: { images: { orderBy: { createdAt: 'asc' } } },
       });
-
-      if (!submission) {
-        throw new OcrError('SUBMISSION_NOT_FOUND', 'Submission not found');
-      }
 
       let mergedText = submission.ocrText?.trim() || '';
       if (!mergedText) {
@@ -224,6 +231,18 @@ export class GradingProcessor extends WorkerHost {
         },
       });
 
+      try {
+        await this.notificationService.create({
+          userId: submission.studentId,
+          type: 'GRADING_DONE',
+          title: 'Your submission has been graded',
+          body: `Score: ${gradingResponse.result.totalScore}/100`,
+          linkTo: `/student/submission/${submissionId}`,
+        });
+      } catch (err) {
+        this.logger.warn(`Failed to create notification: ${err instanceof Error ? err.message : 'unknown'}`);
+      }
+
       const duration = Date.now() - startedAt;
       this.logger.log(
         `Grading job ${jobLabel} done in ${duration}ms (ocr=${ocrDurationMs}ms, llm=${llmDurationMs}ms, provider=${gradingResponse.meta.providerName}, model=${gradingResponse.meta.model}, degraded=${gradingResponse.meta.degraded}, reason=${gradingResponse.meta.degradeReason || 'none'})`,
@@ -244,8 +263,8 @@ export class GradingProcessor extends WorkerHost {
           ? error.code
           : error instanceof GradingError
             ? error.code
-            : error instanceof Error
-              ? 'LLM_API_ERROR'
+            : error instanceof GradingTimeoutError
+              ? error.code
               : 'UNKNOWN';
       try {
         await this.prisma.submission.update({

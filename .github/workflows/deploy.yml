@@ -1,14 +1,29 @@
-name: Deploy
+name: 自动部署
 
 on:
   workflow_dispatch:
     inputs:
       branch:
-        description: Branch to deploy
+        description: 要部署的分支
         required: false
         default: main
       run_migrations:
-        description: Run prisma migrate deploy
+        description: 是否执行 prisma migrate deploy
+        required: false
+        type: boolean
+        default: true
+      backup_before_migration:
+        description: 迁移前是否备份数据库
+        required: false
+        type: boolean
+        default: true
+      require_healthy:
+        description: 健康检查是否必须为 healthy
+        required: false
+        type: boolean
+        default: false
+      auto_rollback_on_failure:
+        description: 部署失败时是否自动回滚
         required: false
         type: boolean
         default: true
@@ -33,12 +48,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Resolve deploy parameters
+      - name: 解析部署参数
         id: params
         run: |
           set -euo pipefail
           branch="main"
           run_migrations="1"
+          backup_before_migration="1"
+          require_healthy="0"
+          auto_rollback_on_failure="1"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ -n "${{ inputs.branch }}" ]; then
@@ -47,14 +65,26 @@ jobs:
             if [ "${{ inputs.run_migrations }}" = "false" ]; then
               run_migrations="0"
             fi
+            if [ "${{ inputs.backup_before_migration }}" = "false" ]; then
+              backup_before_migration="0"
+            fi
+            if [ "${{ inputs.require_healthy }}" = "true" ]; then
+              require_healthy="1"
+            fi
+            if [ "${{ inputs.auto_rollback_on_failure }}" = "false" ]; then
+              auto_rollback_on_failure="0"
+            fi
           else
             branch="${{ github.event.workflow_run.head_branch }}"
           fi
 
           echo "branch=${branch}" >> "$GITHUB_OUTPUT"
           echo "run_migrations=${run_migrations}" >> "$GITHUB_OUTPUT"
+          echo "backup_before_migration=${backup_before_migration}" >> "$GITHUB_OUTPUT"
+          echo "require_healthy=${require_healthy}" >> "$GITHUB_OUTPUT"
+          echo "auto_rollback_on_failure=${auto_rollback_on_failure}" >> "$GITHUB_OUTPUT"
 
-      - name: Validate required secrets
+      - name: 校验必需 Secrets
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -63,17 +93,17 @@ jobs:
           set -euo pipefail
           for key in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY; do
             if [ -z "${!key}" ]; then
-              echo "Missing secret: ${key}" >&2
-              exit 1
-            fi
+                echo "缺少 Secret：${key}" >&2
+                exit 1
+              fi
           done
 
-      - name: Setup SSH key
+      - name: 配置 SSH 私钥
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Add server to known_hosts
+      - name: 写入服务器指纹到 known_hosts
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
@@ -83,7 +113,8 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${port}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
 
-      - name: Run remote deployment
+      - name: 执行远程部署
+        id: remote_deploy
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -91,10 +122,131 @@ jobs:
           DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
           BRANCH: ${{ steps.params.outputs.branch }}
           RUN_MIGRATIONS: ${{ steps.params.outputs.run_migrations }}
+          BACKUP_BEFORE_MIGRATION: ${{ steps.params.outputs.backup_before_migration }}
+          REQUIRE_HEALTHY: ${{ steps.params.outputs.require_healthy }}
         run: |
           set -euo pipefail
           port="${DEPLOY_PORT:-22}"
           app_dir="${DEPLOY_APP_DIR:-/www/homework-ai}"
+          if ssh -p "${port}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "APP_DIR='${app_dir}' BRANCH='${BRANCH}' RUN_MIGRATIONS='${RUN_MIGRATIONS}' BACKUP_BEFORE_MIGRATION='${BACKUP_BEFORE_MIGRATION}' CHECK_HEALTH='1' REQUIRE_HEALTHY='${REQUIRE_HEALTHY}' bash '${app_dir}/deploy/update-host.sh'"; then
+            echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_status=failed" >> "$GITHUB_OUTPUT"
+            echo "remote deploy failed" >&2
+          fi
 
-          ssh -p "${port}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "APP_DIR='${app_dir}' BRANCH='${BRANCH}' RUN_MIGRATIONS='${RUN_MIGRATIONS}' bash '${app_dir}/deploy/update-host.sh'"
+      - name: 外部健康检查（可选）
+        id: external_health
+        if: steps.remote_deploy.outputs.deploy_status == 'success'
+        env:
+          DEPLOY_HEALTH_URL: ${{ secrets.DEPLOY_HEALTH_URL }}
+          DEPLOY_HEALTH_MAX_ATTEMPTS: ${{ secrets.DEPLOY_HEALTH_MAX_ATTEMPTS }}
+          DEPLOY_HEALTH_RETRY_INTERVAL: ${{ secrets.DEPLOY_HEALTH_RETRY_INTERVAL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_HEALTH_URL:-}" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "未配置 DEPLOY_HEALTH_URL，跳过外部健康检查。"
+            exit 0
+          fi
+
+          max_attempts="${DEPLOY_HEALTH_MAX_ATTEMPTS:-20}"
+          retry_interval="${DEPLOY_HEALTH_RETRY_INTERVAL:-3}"
+          attempt=1
+          ok=0
+          while [ "${attempt}" -le "${max_attempts}" ]; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "${DEPLOY_HEALTH_URL}" || true)"
+            echo "health attempt ${attempt}/${max_attempts}: http_code=${code}"
+            if [ "${code}" = "200" ]; then
+              ok=1
+              break
+            fi
+            if [ "${attempt}" -lt "${max_attempts}" ]; then
+              sleep "${retry_interval}"
+            fi
+            attempt=$((attempt + 1))
+          done
+
+          if [ "${ok}" = "1" ]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            echo "external health check failed: ${DEPLOY_HEALTH_URL}" >&2
+          fi
+
+      - name: 执行远程回滚（自动）
+        id: auto_rollback
+        if: |
+          steps.params.outputs.auto_rollback_on_failure == '1' &&
+          (steps.remote_deploy.outputs.deploy_status != 'success' ||
+           steps.external_health.outputs.status == 'failed')
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+          REQUIRE_HEALTHY: ${{ steps.params.outputs.require_healthy }}
+        run: |
+          set -euo pipefail
+          port="${DEPLOY_PORT:-22}"
+          app_dir="${DEPLOY_APP_DIR:-/www/homework-ai}"
+          if ssh -p "${port}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "APP_DIR='${app_dir}' CHECK_HEALTH='1' REQUIRE_HEALTHY='${REQUIRE_HEALTHY}' bash '${app_dir}/deploy/rollback-host.sh'"; then
+            echo "rollback_status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "rollback_status=failed" >> "$GITHUB_OUTPUT"
+            echo "auto rollback failed" >&2
+          fi
+
+      - name: 输出部署摘要
+        if: always()
+        env:
+          BRANCH: ${{ steps.params.outputs.branch }}
+          RUN_MIGRATIONS: ${{ steps.params.outputs.run_migrations }}
+          REQUIRE_HEALTHY: ${{ steps.params.outputs.require_healthy }}
+          AUTO_ROLLBACK: ${{ steps.params.outputs.auto_rollback_on_failure }}
+          DEPLOY_STATUS: ${{ steps.remote_deploy.outputs.deploy_status }}
+          EXTERNAL_HEALTH: ${{ steps.external_health.outputs.status }}
+          ROLLBACK_STATUS: ${{ steps.auto_rollback.outputs.rollback_status }}
+        run: |
+          {
+            echo "## 部署结果"
+            echo ""
+            echo "- 分支: \`${BRANCH}\`"
+            echo "- 执行迁移: \`${RUN_MIGRATIONS}\`"
+            echo "- 严格健康检查: \`${REQUIRE_HEALTHY}\`"
+            echo "- 自动回滚: \`${AUTO_ROLLBACK}\`"
+            echo "- 远程部署: \`${DEPLOY_STATUS:-unknown}\`"
+            echo "- 外部健康检查: \`${EXTERNAL_HEALTH:-skipped}\`"
+            echo "- 自动回滚结果: \`${ROLLBACK_STATUS:-not-run}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 结束并设置状态
+        if: always()
+        env:
+          DEPLOY_STATUS: ${{ steps.remote_deploy.outputs.deploy_status }}
+          EXTERNAL_HEALTH: ${{ steps.external_health.outputs.status }}
+          AUTO_ROLLBACK: ${{ steps.params.outputs.auto_rollback_on_failure }}
+          ROLLBACK_STATUS: ${{ steps.auto_rollback.outputs.rollback_status }}
+        run: |
+          set -euo pipefail
+          failed=0
+          if [ "${DEPLOY_STATUS:-failed}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${EXTERNAL_HEALTH:-skipped}" = "failed" ]; then
+            failed=1
+          fi
+
+          if [ "${failed}" = "0" ]; then
+            exit 0
+          fi
+
+          if [ "${AUTO_ROLLBACK}" = "1" ] && [ "${ROLLBACK_STATUS:-failed}" = "success" ]; then
+            echo "部署失败但自动回滚成功，任务标记为成功。"
+            exit 0
+          fi
+
+          echo "部署失败（且未成功回滚）。" >&2
+          exit 1

@@ -2,20 +2,36 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Role, User } from '@prisma/client';
+import { Prisma, Role, User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit';
+import { RedisService } from '../common/redis';
+import { EmailService } from '../email/email.service';
+import { AccountLockoutService } from './account-lockout.service';
+import { TokenBlacklistService } from './token-blacklist.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
+const TOKEN_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 days
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly audit: AuditService,
+    private readonly lockout: AccountLockoutService,
+    private readonly tokenBlacklist: TokenBlacklistService,
+    private readonly redis: RedisService,
+    private readonly emailService: EmailService,
   ) {}
 
   private sanitizeUser(user: User) {
@@ -25,15 +41,19 @@ export class AuthService {
   }
 
   private signToken(user: User) {
-    return this.jwtService.sign({
-      sub: user.id,
-      role: user.role,
-      account: user.account,
-      name: user.name,
-    });
+    const jti = randomUUID();
+    return this.jwtService.sign(
+      {
+        sub: user.id,
+        role: user.role,
+        account: user.account,
+        name: user.name,
+        jti,
+      },
+    );
   }
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, ip?: string) {
     const existing = await this.prisma.user.findUnique({
       where: { account: dto.account },
     });
@@ -44,48 +64,207 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
-        data: {
-          account: dto.account,
-          name: dto.name,
-          role: Role.STUDENT,
-          passwordHash,
-        },
-      });
+      data: {
+        account: dto.account,
+        name: dto.name,
+        role: Role.STUDENT,
+        passwordHash,
+      },
+    });
+
+    await this.audit.log({
+      action: 'REGISTER',
+      userId: user.id,
+      ip,
+      detail: `New student registration: ${user.account}`,
+    });
 
     const token = this.signToken(user);
     return { token, user: this.sanitizeUser(user) };
   }
 
-  // Pre-hashed dummy value used to ensure constant-time response when the
-  // account does not exist, preventing user enumeration via timing attacks.
   private readonly dummyHash = bcrypt.hashSync('dummy-password-for-timing', 10);
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ip?: string) {
+    // Check account lockout first
+    const lockStatus = await this.lockout.isLocked(dto.account);
+    if (lockStatus.locked) {
+      await this.audit.log({
+        action: 'LOGIN_LOCKED',
+        ip,
+        detail: `Account locked: ${dto.account}, remaining ${lockStatus.remainingSeconds}s`,
+      });
+      throw new ForbiddenException(
+        `Account is temporarily locked. Try again in ${Math.ceil(lockStatus.remainingSeconds / 60)} minutes.`,
+      );
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { account: dto.account },
     });
 
-    // Always run bcrypt.compare to prevent timing-based user enumeration.
-    // If the user doesn't exist, compare against a dummy hash so the
-    // response time is indistinguishable from an invalid-password attempt.
     const hashToCompare = user?.passwordHash ?? this.dummyHash;
     const valid = await bcrypt.compare(dto.password, hashToCompare);
 
-    if (!user) {
+    if (!user || !valid) {
+      // Record failure and potentially lock
+      const result = await this.lockout.recordFailure(dto.account);
+      await this.audit.log({
+        action: 'LOGIN_FAILED',
+        ip,
+        detail: `Failed login for: ${dto.account} (attempt ${result.attempts}${result.locked ? ', now locked' : ''})`,
+      });
+      if (result.locked) {
+        throw new ForbiddenException(
+          'Too many failed attempts. Account is temporarily locked for 15 minutes.',
+        );
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Check isActive after bcrypt to preserve constant-time behavior
-    // while still giving a meaningful error for disabled accounts.
     if (user.isActive === false) {
+      await this.audit.log({
+        action: 'LOGIN_FAILED',
+        userId: user.id,
+        ip,
+        detail: `Disabled account login attempt: ${user.account}`,
+      });
       throw new ForbiddenException('Account is disabled');
     }
 
-    if (!valid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    // Success — reset lockout counter
+    await this.lockout.resetOnSuccess(dto.account);
+    await this.audit.log({
+      action: 'LOGIN_SUCCESS',
+      userId: user.id,
+      ip,
+    });
 
     const token = this.signToken(user);
     return { token, user: this.sanitizeUser(user) };
+  }
+
+  async logout(jti: string, expiresInSeconds: number, userId?: string, ip?: string) {
+    await this.tokenBlacklist.revoke(jti, expiresInSeconds);
+    await this.audit.log({
+      action: 'LOGOUT',
+      userId,
+      ip,
+    });
+  }
+
+  async isTokenRevoked(jti: string): Promise<boolean> {
+    return this.tokenBlacklist.isRevoked(jti);
+  }
+
+  async updateProfile(userId: string, data: { name?: string; email?: string; phone?: string }) {
+    const updateData: Prisma.UserUpdateInput = {};
+    if (data.name?.trim()) updateData.name = data.name.trim();
+    if (data.email !== undefined) updateData.email = data.email?.trim() || null;
+    if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    await this.redis.del(`user:auth:${userId}`).catch(() => {});
+
+    return this.sanitizeUser(user);
+  }
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const valid = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!valid) throw new BadRequestException('Current password is incorrect');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await this.audit.log({
+      action: 'PASSWORD_CHANGE',
+      userId,
+      detail: 'User changed their own password',
+    });
+
+    await this.redis.del(`user:auth:${userId}`).catch(() => {});
+
+    return { ok: true };
+  }
+
+  async sendPasswordResetCode(emailAddress: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { email: emailAddress },
+      select: { id: true, email: true, name: true },
+    });
+    if (!user || !user.email) return { ok: true };
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    await this.redis.set(`pwd-reset:${emailAddress}`, code, 300);
+
+    await this.emailService.send(
+      user.email,
+      'Password Reset Code',
+      `<p>Your password reset code is: <strong>${code}</strong></p><p>This code expires in 5 minutes.</p>`,
+    );
+
+    return { ok: true };
+  }
+
+  async exportUserData(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true, account: true, name: true, role: true, email: true, phone: true,
+        createdAt: true, updatedAt: true,
+      },
+    });
+
+    const submissions = await this.prisma.submission.findMany({
+      where: { studentId: userId },
+      select: {
+        id: true, status: true, totalScore: true, createdAt: true, updatedAt: true,
+        homework: { select: { title: true } },
+        teacherComment: true, manualScore: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    });
+
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId },
+      select: { id: true, type: true, title: true, body: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    return { user, submissions, notifications, exportedAt: new Date().toISOString() };
+  }
+
+  async resetPasswordWithCode(email: string, code: string, newPassword: string) {
+    const storedCode = await this.redis.get(`pwd-reset:${email}`);
+    if (!storedCode || storedCode !== code) {
+      throw new BadRequestException('Invalid or expired code');
+    }
+
+    const user = await this.prisma.user.findFirst({ where: { email } });
+    if (!user) throw new BadRequestException('Invalid or expired code');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await this.redis.del(`pwd-reset:${email}`);
+
+    await this.audit.log({
+      action: 'PASSWORD_RESET',
+      userId: user.id,
+      detail: 'Password reset via email code',
+    });
+
+    return { ok: true };
   }
 }

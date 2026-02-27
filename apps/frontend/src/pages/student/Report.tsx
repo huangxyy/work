@@ -3,7 +3,7 @@ import type { EChartsOption } from 'echarts';
 import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
-import { downloadStudentReportPdf, fetchStudentReportOverview } from '../../api';
+import { downloadStudentReportPdf, fetchClassComparison, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -92,6 +92,40 @@ export const StudentReportPage = () => {
     };
   }, [report?.errorTypes]);
 
+  const comparisonQuery = useQuery({
+    queryKey: ['student-class-comparison', rangeDays],
+    queryFn: () => fetchClassComparison(rangeDays),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const comparisonOption = useMemo<EChartsOption>(() => {
+    const data = comparisonQuery.data || [];
+    return {
+      grid: { left: 24, right: 24, top: 30, bottom: 24, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      legend: { data: [t('student.report.myScore'), t('student.report.classAvg')] },
+      xAxis: {
+        type: 'category',
+        data: data.map((d: { className: string }) => d.className),
+      },
+      yAxis: { type: 'value', max: 100 },
+      series: [
+        {
+          name: t('student.report.myScore'),
+          type: 'bar',
+          data: data.map((d: { studentAvg: number | null }) => d.studentAvg ?? 0),
+          itemStyle: { color: '#22c55e' },
+        },
+        {
+          name: t('student.report.classAvg'),
+          type: 'bar',
+          data: data.map((d: { classAvg: number | null }) => d.classAvg ?? 0),
+          itemStyle: { color: '#94a3b8' },
+        },
+      ],
+    };
+  }, [comparisonQuery.data, t]);
+
   const handleExportPdf = async () => {
     try {
       setExporting(true);
@@ -164,13 +198,13 @@ export const StudentReportPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
 
-      <ProCard bordered style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Space>
+      <ProCard bordered className="apple-soft-card" style={{ marginBottom: 16 }}>
+        <Space wrap className="apple-toolbar">
+          <Space className="apple-toolbar-score-range">
             <Typography.Text>{t('student.report.rangeDays')}</Typography.Text>
             <InputNumber min={1} max={30} value={rangeDays} onChange={(value) => setRangeDays(value || 7)} />
           </Space>
@@ -185,16 +219,16 @@ export const StudentReportPage = () => {
           <ProCard bordered loading />
         ) : !report ? (
           <SoftEmpty description={t('student.report.empty')}>
-            <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
+            <Typography.Paragraph type="secondary" className="apple-empty-hint">
               {t('student.report.emptyHint')}
             </Typography.Paragraph>
           </SoftEmpty>
         ) : (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <ProCard bordered title={t('student.report.summary')}>
+            <ProCard bordered title={t('student.report.summary')} className="apple-soft-card">
               {hasSummary ? (
                 <ProCard gutter={16} wrap>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
@@ -205,7 +239,7 @@ export const StudentReportPage = () => {
                       value={report.summary.avg}
                     />
                   </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
@@ -216,7 +250,7 @@ export const StudentReportPage = () => {
                       value={report.summary.max}
                     />
                   </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
@@ -227,7 +261,7 @@ export const StudentReportPage = () => {
                       value={report.summary.min}
                     />
                   </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
@@ -245,14 +279,14 @@ export const StudentReportPage = () => {
             </ProCard>
 
             <ProCard gutter={16} wrap>
-              <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('student.report.trend')}>
+              <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('student.report.trend')} className="apple-soft-card">
               {report.trend?.length ? (
                 <ChartPanel option={trendOption} height={280} />
               ) : (
                 <SoftEmpty description={t('student.report.noTrend')} />
               )}
             </ProCard>
-            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('student.report.errorTypes')}>
+            <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('student.report.errorTypes')} className="apple-soft-card">
               {report.errorTypes?.length ? (
                 <ChartPanel option={errorOption} />
               ) : (
@@ -261,12 +295,20 @@ export const StudentReportPage = () => {
             </ProCard>
           </ProCard>
 
-            <ProCard bordered title={t('student.report.nextSteps')}>
+            <ProCard bordered colSpan={{ xs: 24 }} title={t('student.report.classComparison')} className="apple-soft-card">
+              {comparisonQuery.data?.length ? (
+                <ChartPanel option={comparisonOption} height={280} />
+              ) : (
+                <SoftEmpty description={t('student.report.noClassData')} />
+              )}
+            </ProCard>
+
+            <ProCard bordered title={t('student.report.nextSteps')} className="apple-soft-card">
               {report.nextSteps?.length ? (
                 <List
                   dataSource={report.nextSteps}
                   renderItem={(item) => (
-                    <List.Item>
+                    <List.Item className="apple-list-row">
                       <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                         <Typography.Text>{item.text}</Typography.Text>
                         <Typography.Text type="secondary">{item.count}</Typography.Text>

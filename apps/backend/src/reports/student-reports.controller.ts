@@ -1,4 +1,5 @@
 import { Controller, Get, Query, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -16,6 +17,7 @@ function sanitizeFilenameParam(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
+@ApiTags('Student Reports')
 @Controller('student/reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.STUDENT)
@@ -25,6 +27,12 @@ export class StudentReportsController {
   @Get('overview')
   async overview(@Query() query: ReportRangeQueryDto, @Req() req: { user: AuthUser }) {
     return this.reportsService.getStudentOverview(req.user.id, query, req.user);
+  }
+
+  @Get('class-comparison')
+  async getClassComparison(@Req() req: { user: AuthUser }, @Query('days') days?: string) {
+    const rangeDays = days ? parseInt(days, 10) : 7;
+    return this.reportsService.getStudentClassComparison(req.user.id, rangeDays);
   }
 
   @Get('pdf')

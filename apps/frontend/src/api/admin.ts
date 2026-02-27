@@ -354,9 +354,15 @@ export const createAdminUser = async (payload: {
   name: string;
   role?: UserRole;
   password: string;
+  classId?: string;
 }) => {
   const response = await api.post('/admin/users', payload);
   return response.data as AdminUser;
+};
+
+export const deleteAdminUser = async (id: string) => {
+  const response = await api.delete(`/admin/users/${id}`);
+  return response.data as { id: string; removed: boolean };
 };
 
 export const updateAdminUser = async (
@@ -371,3 +377,54 @@ export const resetAdminUserPassword = async (id: string, password: string) => {
   const response = await api.post(`/admin/users/${id}/reset-password`, { password });
   return response.data as { id: string; ok: boolean };
 };
+
+export const fetchAdminErrorTrends = async (days = 7) => {
+  const response = await api.get('/admin/error-trends', { params: { days } });
+  return response.data as {
+    total: number;
+    done: number;
+    failed: number;
+    successRate: number;
+    errorBreakdown: Array<{ errorCode: string; count: number }>;
+  };
+};
+
+export async function fetchFeatureFlags(): Promise<Record<string, boolean>> {
+  const res = await api.get('/admin/feature-flags');
+  return res.data;
+}
+
+export async function updateFeatureFlag(flag: string, enabled: boolean) {
+  const res = await api.patch('/admin/feature-flags', { flag, enabled });
+  return res.data;
+}
+
+export async function bulkImportUsers(payload: {
+  text: string;
+  role?: string;
+  classId?: string;
+  defaultPassword?: string;
+}) {
+  const res = await api.post('/admin/users/bulk-import', payload);
+  return res.data as {
+    total: number;
+    created: number;
+    exists: number;
+    errors: number;
+    results: Array<{ account: string; name: string; status: 'created' | 'exists' | 'error'; error?: string }>;
+  };
+}
+
+export async function fetchLlmCostSummary(days = 7) {
+  const res = await api.get('/admin/llm/cost-summary', { params: { days } });
+  return res.data as {
+    days: number;
+    totalCalls: number;
+    totalPromptTokens: number;
+    totalCompletionTokens: number;
+    totalTokens: number;
+    totalCost: number;
+    avgCostPerCall: number;
+    daily: Array<{ date: string; calls: number; tokens: number; cost: number }>;
+  };
+}

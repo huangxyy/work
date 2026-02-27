@@ -1,0 +1,15 @@
+# =============================================================================
+# Server Inventory File
+# Copy: cp deploy/servers.example deploy/servers
+# Format: user@host:port [role1,role2]
+# Roles: all (default), api, worker, web
+# Lines starting with # are ignored
+# =============================================================================
+
+# Single server (runs everything)
+# root@192.168.1.100:22 all
+
+# Multi-server setup:
+# root@192.168.1.101:22 api,web
+# root@192.168.1.102:22 worker
+# root@192.168.1.103:22 api,worker

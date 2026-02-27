@@ -26,7 +26,7 @@ export const fetchClassStudents = async (classId: string) => {
 
 export const importClassStudents = async (
   classId: string,
-  payload: { text?: string; students?: Array<{ account: string; name: string }>; defaultPassword?: string },
+  payload: { text?: string; students?: Array<{ account: string; name?: string }>; defaultPassword?: string },
 ) => {
   const response = await api.post(`/classes/${classId}/students/import`, payload);
   return response.data as {

@@ -34,6 +34,7 @@ export const TeacherStudentReportPage = () => {
     queryKey: ['teacher-student-report', studentId, rangeDays],
     queryFn: () => fetchTeacherStudentReportOverview(studentId || '', rangeDays),
     enabled: !!studentId,
+    staleTime: 2 * 60 * 1000,
   });
 
   const report = reportQuery.data as StudentReport | undefined;
@@ -190,11 +191,11 @@ export const TeacherStudentReportPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
 
-      <ProCard bordered style={{ marginBottom: 16 }}>
+      <ProCard bordered className="apple-soft-card" style={{ marginBottom: 16 }}>
         <Space wrap>
           <Space>
             <Typography.Text>{t('student.report.rangeDays')}</Typography.Text>
@@ -208,7 +209,7 @@ export const TeacherStudentReportPage = () => {
 
       <div ref={reportRef}>
         {reportQuery.isLoading && !report ? (
-          <ProCard bordered loading />
+          <ProCard bordered loading className="apple-soft-card" />
         ) : !report ? (
           <SoftEmpty description={t('student.report.empty')}>
             <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
@@ -217,7 +218,7 @@ export const TeacherStudentReportPage = () => {
           </SoftEmpty>
         ) : (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <ProCard bordered>
+            <ProCard bordered className="apple-soft-card">
               <Space direction="vertical" size={4}>
                 <Typography.Text type="secondary">
                   {t('common.student')}: {report.studentName}
@@ -226,7 +227,7 @@ export const TeacherStudentReportPage = () => {
               </Space>
             </ProCard>
 
-            <ProCard bordered title={t('student.report.summary')}>
+            <ProCard bordered title={t('student.report.summary')} className="apple-soft-card">
               {hasSummary ? (
                 <ProCard gutter={16} wrap>
                   <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
@@ -296,7 +297,7 @@ export const TeacherStudentReportPage = () => {
             </ProCard>
           </ProCard>
 
-            <ProCard bordered title={t('student.report.nextSteps')}>
+            <ProCard bordered title={t('student.report.nextSteps')} className="apple-soft-card">
               {report.nextSteps?.length ? (
                 <List
                   dataSource={report.nextSteps}

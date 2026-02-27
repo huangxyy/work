@@ -1,526 +1,128 @@
-# Optimization Guide
+# 性能优化指南
 
-This guide covers actionable performance, bundle size, and efficiency improvements for the Homework AI monorepo. Items are organized by priority and grouped by subsystem.
+本文档给出 Homework AI 项目的可执行优化项，按“收益/实施成本”排序，便于团队分阶段落地。
 
----
+## 目标指标
 
-## Table of Contents
+- 后端 API：P95 响应时间下降 20%+
+- Worker 吞吐：同机并发下处理速度提升 30%+
+- 前端首屏：打包体积与首屏加载时间下降 20%+
+- 基础设施：发布失败可回滚、监控可定位、备份可恢复
 
-- [Quick Wins (< 1 hour each)](#quick-wins)
-- [Backend: Database & Query Optimization](#backend-database--query-optimization)
-- [Backend: Worker & Async Processing](#backend-worker--async-processing)
-- [Backend: Caching & Compute](#backend-caching--compute)
-- [Frontend: Bundle Size Reduction](#frontend-bundle-size-reduction)
-- [Frontend: Rendering & React Performance](#frontend-rendering--react-performance)
-- [Frontend: Network & API Efficiency](#frontend-network--api-efficiency)
-- [Infrastructure](#infrastructure)
+## 一、快速收益（1 小时内）
 
----
+1. **批量入队并行化**：批改重试/批量提交改为并发入队，减少逐条等待 Redis RTT。
+2. **高频查询补索引**：给 `Submission(homeworkId,status,updatedAt)`、`Submission(studentId,createdAt)` 等路径补联合索引。
+3. **React Query 参数统一**：统一 `staleTime/gcTime/retry`，避免重复请求和抖动。
+4. **前端图表懒加载**：仅在进入可视区时加载 ECharts 页面。
+5. **导出任务异步化**：PDF/CSV 导出使用队列任务，避免接口长时间阻塞。
 
-## Quick Wins
+## 二、后端数据库与查询优化
 
-These deliver the most impact for the least effort. Implement first.
+### 2.1 索引策略
 
-### 1. Parallelize Batch Queue Enqueuing
+- 为常见筛选+排序组合建立联合索引。
+- 对分页接口优先使用“游标分页”，避免深分页成本。
+- 对报表统计增加预聚合表或物化结果（按日/班级）。
 
-**File:** `apps/backend/src/submissions/submissions.service.ts`
+### 2.2 Prisma 查询优化
 
-The `regradeHomeworkSubmissions` and `regradeBatchSubmissions` methods enqueue grading jobs inside a sequential `for` loop. Each `enqueueRegrade` call waits for Redis round-trip before moving to the next.
+- 避免 N+1 查询，尽量使用 `include/select` 一次性拿到页面所需字段。
+- 列表接口不返回大字段（如 OCR 全文、完整评分 JSON）。
+- 大数据量统计使用 SQL 聚合，不在 Node 层循环累加。
 
-```typescript
-// BEFORE — sequential (~50ms × N submissions)
-for (const id of ids) {
-  await this.queueService.enqueueRegrade(id, { mode, needRewrite });
-}
+### 2.3 数据生命周期
 
-// AFTER — parallel (~50ms total)
-await Promise.all(
-  ids.map((id) =>
-    this.queueService.enqueueRegrade(id, { mode, needRewrite }),
-  ),
-);
-```
+- 对历史提交开启分批清理（已在保留策略中支持）。
+- 对大体积日志表（如 LLM 调用日志）设置归档或 TTL。
 
-**Impact:** 100 submissions: ~5 s → ~50 ms.
+## 三、Worker 与异步链路优化
 
----
+### 3.1 队列参数
 
-### 2. Parallelize OCR Image Processing in Worker
+- 按机器核数调整 `WORKER_CONCURRENCY`，先压测再放量。
+- 设置合理重试与退避，避免外部 API 短故障放大。
+- 批次任务拆分为小粒度 job，降低单任务失败影响面。
 
-**File:** `apps/backend/src/worker/grading.processor.ts` (lines 134-156)
+### 3.2 OCR/LLM 调用优化
 
-Images are fetched from storage and OCR-processed one at a time. Since Baidu OCR is an external HTTP call, all images can be processed concurrently.
+- OCR Token 缓存共享（Redis），避免多实例重复换取。
+- LLM Prompt 模板固定化，减少无效上下文。
+- 对超长文本先做截断与清洗，降低 token 成本。
 
-```typescript
-// BEFORE — sequential
-for (let i = 0; i < submission.images.length; i++) {
-  const imageBuffer = await this.storage.getObject(image.objectKey);
-  const ocrResult = await this.baiduOcrService.recognize(imageBuffer, ocrConfig);
-}
+### 3.3 可观测性
 
-// AFTER — parallel
-const ocrResults = await Promise.allSettled(
-  submission.images.map(async (image, i) => {
-    const imageBuffer = await this.storage.getObject(image.objectKey);
-    return this.baiduOcrService.recognize(imageBuffer, ocrConfig);
-  }),
-);
-// Then iterate ocrResults, filter fulfilled vs rejected
-```
+- 为每个 job 打印 `submissionId/jobId/耗时/重试次数`。
+- 增加“队列长度、失败率、平均耗时”指标上报。
 
-**Impact:** 3 images × 150 ms = 450 ms → ~150 ms. Applies to every single submission.
+## 四、前端优化
 
----
+### 4.1 构建与包体
 
-### 3. Increase React Query `staleTime` for Stable Data
+- 保持手动分包（React/AntD/图表/PDF）策略。
+- 路由级懒加载，后台管理页与报表页按需加载。
+- 对体积过大的第三方库优先替换轻量实现。
 
-**File:** `apps/frontend/src/main.tsx` (line 18)
+### 4.2 渲染性能
 
-The global default `staleTime` is 60 s. Data like class lists and homework definitions rarely change, but the app re-fetches them on every page navigation after 1 minute.
+- 表格分页与虚拟滚动结合，避免一次渲染过多行。
+- 大对象计算结果使用 `useMemo`，回调使用 `useCallback`。
+- 避免在列表 `render` 中创建临时函数和复杂对象。
 
-```typescript
-// Set per-query staleTime where appropriate:
-// Classes, user profile → 10 minutes
-// Homework list → 5 minutes
-// Submission status → 30 seconds (already fine)
-useQuery({
-  queryKey: ['classes'],
-  queryFn: fetchClasses,
-  staleTime: 10 * 60 * 1000, // 10 min — this data rarely changes
-});
-```
+### 4.3 请求效率
 
-**Impact:** Reduces redundant API calls by ~30-50% during normal usage.
+- 页面并行请求改为 `Promise.all`。
+- 防抖搜索与取消过期请求，降低无效网络开销。
+- 错误处理统一归口，减少重复重试。
 
----
+## 五、部署与基础设施优化
 
-### 4. Parallelize S3 Deletions in Image Cleanup
+### 5.1 发布可靠性
 
-**File:** `apps/backend/src/submissions/submissions.service.ts` — `cleanupOldSubmissionImages()`
+- 使用部署锁，禁止并发发布。
+- 发布前强制检查 Git 工作区干净（可配置）。
+- 迁移前自动备份数据库，发布后自动健康检查。
 
-Old submission images are deleted sequentially inside a loop. Use `Promise.allSettled` for concurrent deletion.
+### 5.2 回滚能力
 
-```typescript
-// BEFORE
-for (const image of images) {
-  await this.storage.deleteObject(image.objectKey);
-}
+- 记录上次发布版本号，支持一键回滚。
+- 回滚后自动重启服务并执行健康检查。
 
-// AFTER
-await Promise.allSettled(
-  images.map((image) => this.storage.deleteObject(image.objectKey)),
-);
-```
+### 5.3 备份策略
 
----
+- MySQL：每日备份 + 保留周期清理。
+- MinIO：桶镜像备份 + 定期恢复演练。
+- 备份文件与源码分离存储，避免误删同库。
 
-### 5. Add Missing Composite Database Index
+## 六、建议执行顺序
 
-**File:** `apps/backend/prisma/schema.prisma`
+### 阶段 A（本周可完成）
 
-The `Submission` model already has `@@index([homeworkId, status])`, but common query patterns also filter by `(studentId, homeworkId)` together (e.g., the duplicate submission check, student submission listing). Add:
+1. 索引与高频查询优化
+2. 批量入队并发化
+3. 前端懒加载与包体检查
+4. 发布链路健康检查和失败日志完善
 
-```prisma
-model Submission {
-  // ... existing indexes ...
-  @@index([studentId, homeworkId])  // createSubmission duplicate check + student listing
-}
-```
+### 阶段 B（1-2 周）
 
-Run `pnpm prisma:migrate` after adding. Check query plans with `EXPLAIN` to verify impact.
+1. 报表异步化 + 任务状态页
+2. OCR/LLM 缓存与限流策略
+3. 队列可观测性面板
 
----
+### 阶段 C（持续演进）
 
-## Backend: Database & Query Optimization
+1. 数据归档与分层存储
+2. 读写分离/只读副本评估
+3. 压测基线与容量规划
 
-### 6. Batch Late-Submission Config Lookups (N+1)
+## 七、验收方式
 
-**File:** `apps/backend/src/homeworks/homeworks.service.ts` — `getLateSubmissionMap()`
+- 压测前后对比：QPS、P95、错误率、资源占用。
+- 真实业务回归：提交流程、批改流程、导出流程。
+- 故障演练：模拟 MySQL/Redis/LLM 短暂不可用，验证系统退化与恢复能力。
 
-Currently calls `systemConfigService.getValue()` once per homework ID, producing N queries for N homeworks.
+## 八、维护约定
 
-**Fix:** Fetch all relevant config keys in a single query:
-
-```typescript
-// Fetch all late_submission config entries at once
-const keys = uniqueIds.map((id) => `${lateSubmissionConfigKey}:${id}`);
-const configs = await this.prisma.systemConfig.findMany({
-  where: { key: { in: keys } },
-});
-const map = new Map(configs.map((c) => [c.key.replace(`${lateSubmissionConfigKey}:`, ''), c.value]));
-```
-
----
-
-### 7. Reduce Admin Metrics Query Count
-
-**File:** `apps/backend/src/admin/admin.service.ts` — `getMetrics()` (lines 75-95)
-
-Nine separate `COUNT(*)` queries run in parallel. For large tables this is expensive. Consolidate using `groupBy`:
-
-```typescript
-// BEFORE — 4 separate user counts
-const [usersTotal, usersStudents, usersTeachers, usersAdmins] = await Promise.all([
-  this.prisma.user.count(),
-  this.prisma.user.count({ where: { role: 'STUDENT' } }),
-  this.prisma.user.count({ where: { role: 'TEACHER' } }),
-  this.prisma.user.count({ where: { role: 'ADMIN' } }),
-]);
-
-// AFTER — single query
-const usersByRole = await this.prisma.user.groupBy({
-  by: ['role'],
-  _count: { _all: true },
-});
-const usersTotal = usersByRole.reduce((sum, g) => sum + g._count._all, 0);
-```
-
-Reduces 4 queries → 1 query. Apply the same approach to submission counts.
-
----
-
-### 8. Implement Cursor-Based Pagination for Large Lists
-
-**Files:** `submissions.service.ts`, `admin.service.ts`
-
-Several endpoints use `take: 500-5000` without cursor. For large result sets, offset-based pagination degrades because the database still scans skipped rows.
-
-```typescript
-// Cursor-based pagination pattern
-const submissions = await this.prisma.submission.findMany({
-  where: { homeworkId },
-  orderBy: { updatedAt: 'desc' },
-  take: 50,
-  ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-});
-```
-
-Apply to: `listHomeworkSubmissions`, `listBatchUploads`, `admin.listUsers`.
-
----
-
-### 9. Select Only Required Fields
-
-**File:** `apps/backend/src/submissions/submissions.service.ts`
-
-Several queries use `include` to fetch related models, pulling entire objects when only a few fields are needed. Switching from `include` to `select` reduces payload size and DB transfer.
-
-```typescript
-// BEFORE
-include: { student: { select: { id: true, name: true, account: true } } }
-
-// This is already good. But check exportHomeworkCsv which uses full include:
-const submissions = await this.prisma.submission.findMany({
-  where: { homeworkId },
-  include: { student: { select: { id: true, name: true, account: true } } },
-  // gradingJson is fetched but only extractGrading() needs a few fields from it
-});
-```
-
-For CSV export, `gradingJson` can be very large (10-50 KB per record × 5000 records = 50-250 MB in memory). Consider processing in batches of 100.
-
----
-
-## Backend: Worker & Async Processing
-
-### 10. Distribute OCR Token Cache via Redis
-
-**File:** `apps/backend/src/ocr/baidu-ocr.service.ts`
-
-The Baidu OCR access token is cached in-memory per process. If multiple workers run, each independently requests a token.
-
-```typescript
-// Store token in Redis (shared across all worker instances)
-async getAccessToken(config: BaiduOcrConfig): Promise<string> {
-  const cached = await this.redis.get('baidu:ocr:token');
-  if (cached) return cached;
-
-  const token = await this.requestNewToken(config);
-  await this.redis.setex('baidu:ocr:token', 86400, token); // 24h TTL
-  return token;
-}
-```
-
----
-
-### 11. Add Submission Processing Backoff for Polling
-
-**File:** `apps/frontend/src/pages/student/SubmissionResult.tsx` (line 53-59)
-
-Polling runs at a fixed 2-second interval regardless of how long the job has been processing. For submissions that take >2 minutes, this generates unnecessary load.
-
-```typescript
-// Exponential backoff: 2s → 4s → 8s → ... max 15s
-refetchInterval: (query) => {
-  const data = query.state.data as { status: SubmissionStatus } | undefined;
-  if (!data || data.status === 'DONE' || data.status === 'FAILED') return false;
-  const elapsed = Date.now() - (query.state.dataUpdatedAt || Date.now());
-  return Math.min(2000 * Math.pow(2, Math.floor(elapsed / 30000)), 15000);
-},
-```
-
----
-
-## Backend: Caching & Compute
-
-### 12. Cache Class Overview Report Data
-
-**File:** `apps/backend/src/reports/reports.service.ts` — `getClassOverview()`
-
-This endpoint aggregates scores, distributions, trends, and error types across all submissions. The computation is expensive for large classes but the underlying data only changes when grading completes.
-
-**Strategy:** Cache the result in Redis with a 2-minute TTL, invalidated when a grading job completes for the class.
-
-```typescript
-const cacheKey = `report:class:${classId}:${days}`;
-const cached = await this.redis.get(cacheKey);
-if (cached) return JSON.parse(cached);
-
-const result = await this.computeClassOverview(classId, days, user);
-await this.redis.setex(cacheKey, 120, JSON.stringify(result));
-return result;
-```
-
----
-
-### 13. Cache Landing Page Payload Client-Side
-
-**File:** `apps/backend/src/public/public.service.ts`
-
-The landing page payload is already cached server-side (6-hour TTL in SystemConfig). Add HTTP cache headers so browsers and CDNs cache it too:
-
-```typescript
-// In public.controller.ts
-@Get('landing')
-async landing(@Query() query, @Res({ passthrough: true }) res: Response) {
-  const data = await this.publicService.getLanding(query);
-  res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour browser cache
-  return data;
-}
-```
-
----
-
-## Frontend: Bundle Size Reduction
-
-### 14. Dynamic Import for PDF and Chart Libraries
-
-**File:** `apps/frontend/vite.config.ts`
-
-The `manualChunks` config separates `echarts` (400 KB gzip) and `html2canvas + jspdf` (300 KB gzip) into dedicated chunks, but they are still loaded eagerly when their chunk is first referenced.
-
-Ensure these are loaded on-demand at the component level:
-
-```typescript
-// In report components, use dynamic import:
-const exportPdf = async () => {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import('html2canvas'),
-    import('jspdf'),
-  ]);
-  // ... use them
-};
-```
-
-Since routes already use `lazy()`, the `vendor-charts` and `vendor-pdf` chunks should only load when the user navigates to report pages. Verify by checking the network tab.
-
----
-
-### 15. Optimize Ant Design Chunk
-
-**File:** `apps/frontend/vite.config.ts` (line 32)
-
-`@ant-design/pro-components` is bundled with `antd` in a single chunk, which can exceed 1 MB gzipped. Split them:
-
-```typescript
-manualChunks: {
-  'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-  'vendor-antd': ['antd', '@ant-design/icons'],
-  'vendor-antd-pro': ['@ant-design/pro-components'],
-  'vendor-charts': ['echarts'],
-  'vendor-pdf': ['html2canvas', 'jspdf'],
-},
-```
-
-Also add a build target for modern browsers to reduce polyfills:
-
-```typescript
-build: {
-  target: 'es2020',
-  // ...
-},
-```
-
----
-
-### 16. Split Large Page Components
-
-These pages exceed 1000 lines and bundle significant logic that delays initial render:
-
-| File | Lines | Suggested Extraction |
-|------|-------|---------------------|
-| `pages/teacher/HomeworkDetail.tsx` | 1,511 | `SubmissionTable`, `BatchUploadPanel`, `GradingPolicySection` |
-| `pages/admin/Config.tsx` | 1,018 | `LlmProviderConfig`, `OcrConfigPanel`, `BudgetSettings` |
-| `pages/Landing.tsx` | 1,277 | `HeroSection`, `FeaturesGrid`, `FaqSection`, `ConsultForm` |
-
-Extract into separate files and co-locate with the parent page. This improves tree-shaking and makes future lazy-loading possible.
-
----
-
-### 17. Split i18n by Feature Module
-
-**File:** `apps/frontend/src/i18n.ts` (1,655 lines)
-
-The entire translation dictionary for both locales is loaded upfront. Split by feature:
-
-```
-src/i18n/
-  index.ts          // Core i18n setup + common translations
-  zh-CN/
-    student.ts
-    teacher.ts
-    admin.ts
-  en-US/
-    student.ts
-    teacher.ts
-    admin.ts
-```
-
-Lazy-load role-specific translations after login:
-
-```typescript
-const loadTranslations = async (role: string) => {
-  const mod = await import(`./i18n/${language}/${role}.ts`);
-  mergeTranslations(mod.default);
-};
-```
-
----
-
-## Frontend: Rendering & React Performance
-
-### 18. Memoize Computed Dashboard Data
-
-**Files:** `pages/student/Dashboard.tsx`, `pages/teacher/Dashboard.tsx`
-
-Summary card arrays, chart data, and table configurations are recreated on every render even when the underlying data hasn't changed.
-
-```typescript
-// BEFORE — recreated every render
-const summaryCards = [
-  { key: 'total', title: t('dashboard.total'), value: data?.total ?? 0 },
-  // ...
-];
-
-// AFTER — only when data changes
-const summaryCards = useMemo(() => [
-  { key: 'total', title: t('dashboard.total'), value: data?.total ?? 0 },
-  // ...
-], [data, t]);
-```
-
-Apply the same to table column definitions, chart option objects, and filter configurations.
-
----
-
-### 19. Add Image Lazy Loading
-
-Add `loading="lazy"` to all `<img>` tags that appear below the fold, especially in:
-
-- Submission image galleries
-- Batch upload preview grids
-- Landing page sections
-
-```tsx
-<img src={url} loading="lazy" alt={alt} />
-```
-
-For batch upload preview with 30+ thumbnails, consider virtual scrolling with `react-window` if scroll performance is an issue.
-
----
-
-### 20. Batch React Query Cache Invalidation
-
-**File:** `pages/teacher/Homeworks.tsx` and similar
-
-Multiple sequential `invalidateQueries` calls trigger separate re-renders:
-
-```typescript
-// BEFORE — two re-renders
-await queryClient.invalidateQueries({ queryKey: ['homeworks-summary', classId] });
-await queryClient.invalidateQueries({ queryKey: ['homeworks', classId] });
-
-// AFTER — single re-render
-queryClient.invalidateQueries({
-  predicate: (query) =>
-    Array.isArray(query.queryKey) &&
-    typeof query.queryKey[0] === 'string' &&
-    query.queryKey[0].startsWith('homeworks') &&
-    query.queryKey[1] === classId,
-});
-```
-
----
-
-## Infrastructure
-
-### 21. Enable Gzip/Brotli Compression in Nginx
-
-**File:** `deploy/nginx/nginx.conf`
-
-If not already configured, add compression for API responses and static assets:
-
-```nginx
-gzip on;
-gzip_types text/plain application/json text/csv application/pdf application/javascript text/css;
-gzip_min_length 1000;
-gzip_comp_level 6;
-```
-
-For static assets served by Vite, enable Brotli in the build:
-
-```bash
-pnpm add -D vite-plugin-compression
-```
-
-### 22. Add Redis Memory Policy
-
-**File:** `deploy/docker-compose.yml`
-
-Ensure Redis has an eviction policy for when memory fills up:
-
-```yaml
-redis:
-  command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-```
-
----
-
-## Priority Matrix
-
-| # | Item | Impact | Effort | Priority |
-|---|------|--------|--------|----------|
-| 1 | Parallelize batch enqueue | High | 30 min | P0 |
-| 2 | Parallelize OCR processing | High | 45 min | P0 |
-| 3 | Increase React Query staleTime | Medium | 15 min | P0 |
-| 4 | Parallelize S3 deletions | Medium | 15 min | P0 |
-| 5 | Add composite DB index | Medium | 15 min | P0 |
-| 6 | Batch late-submission lookups | Medium | 1 hr | P1 |
-| 7 | Consolidate admin metrics | Medium | 1 hr | P1 |
-| 8 | Cursor-based pagination | Medium | 3 hr | P1 |
-| 9 | Select only required fields | Low | 2 hr | P2 |
-| 10 | Distributed OCR token cache | Low | 1 hr | P2 |
-| 11 | Polling backoff | Low | 30 min | P2 |
-| 12 | Cache class reports | Medium | 1.5 hr | P1 |
-| 13 | Landing page HTTP cache | Low | 15 min | P2 |
-| 14 | Dynamic import PDF/charts | Medium | 1 hr | P1 |
-| 15 | Split antd-pro chunk | Medium | 30 min | P1 |
-| 16 | Split large components | Medium | 4 hr | P2 |
-| 17 | Split i18n by module | Low | 2 hr | P2 |
-| 18 | Memoize dashboard data | Medium | 1 hr | P1 |
-| 19 | Image lazy loading | Low | 30 min | P2 |
-| 20 | Batch cache invalidation | Low | 30 min | P2 |
-| 21 | Nginx compression | Medium | 15 min | P1 |
-| 22 | Redis eviction policy | Low | 5 min | P2 |
-
-**Estimated total impact from P0 items alone:** Worker throughput +2-3x, page load 30-50% faster, API calls reduced ~30%.
+- 每次优化都要记录：变更点、收益、回滚方式。
+- 新增配置项必须补 `host.env.example` 与部署文档。
+- 若影响核心链路，必须附最小可复现实验结果。

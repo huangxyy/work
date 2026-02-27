@@ -16,6 +16,7 @@ export const StudentHomeworkDetailPage = () => {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['student-homeworks'],
     queryFn: fetchStudentHomeworks,
+    staleTime: 2 * 60 * 1000,
   });
 
   const homework = useMemo(
@@ -73,7 +74,7 @@ export const StudentHomeworkDetailPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {isLoading && !data ? (
@@ -88,6 +89,7 @@ export const StudentHomeworkDetailPage = () => {
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <ProCard
             bordered
+            className="apple-soft-card"
               title={homework.title}
               extra={
               <Button
@@ -103,7 +105,7 @@ export const StudentHomeworkDetailPage = () => {
               <Descriptions.Item label={t('common.class')}>{homework.class.name}</Descriptions.Item>
               <Descriptions.Item label={t('common.dueDate')}>{dueAtLabel}</Descriptions.Item>
               <Descriptions.Item label={t('common.status')}>
-                <Tag>{dueTag}</Tag>
+                <Tag className="apple-tag-pill">{dueTag}</Tag>
               </Descriptions.Item>
               {!canSubmit ? (
                 <Descriptions.Item label={t('common.action')}>
@@ -123,6 +125,7 @@ export const StudentHomeworkDetailPage = () => {
           </ProCard>
           <ProCard
             bordered
+            className="apple-soft-card"
             title={t('student.homeworkDetail.submissionHistory')}
             extra={
               <Button onClick={() => navigate('/student/submissions')}>
@@ -149,7 +152,7 @@ export const StudentHomeworkDetailPage = () => {
                         title={
                           <Space>
                             <Typography.Text strong>{item.homeworkTitle}</Typography.Text>
-                            <Tag color={meta.color}>{meta.label}</Tag>
+                            <Tag color={meta.color} className="apple-tag-pill">{meta.label}</Tag>
                           </Space>
                         }
                         description={

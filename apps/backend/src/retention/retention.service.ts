@@ -112,6 +112,14 @@ export class RetentionService {
           );
         }
 
+        if (objectKeys.length > 0 && minioResult.ok === 0) {
+          stats.dbFailed += 1;
+          this.logger.warn(
+            `Retention skipping DB delete for ${submission.id}: all ${objectKeys.length} MinIO deletes failed`,
+          );
+          continue;
+        }
+
         try {
           await this.prisma.$transaction([
             this.prisma.submissionImage.deleteMany({ where: { submissionId: submission.id } }),
@@ -162,7 +170,7 @@ export class RetentionService {
         cron: DEFAULT_RETENTION_CRON,
         runRetention: process.env.RUN_RETENTION === 'true',
       },
-      history,
+      history: history.slice(0, 20),
     };
   }
 
@@ -185,10 +193,10 @@ export class RetentionService {
 
   private async cleanOrphanedBatchUploads(cutoffDate: Date, dryRun: boolean): Promise<number> {
     try {
-      // Find BatchUpload records older than cutoff that have no remaining submissions
       const orphaned = await this.prisma.batchUpload.findMany({
         where: {
           createdAt: { lt: cutoffDate },
+          submissions: { none: {} },
         },
         select: { id: true },
         take: 500,
@@ -197,14 +205,13 @@ export class RetentionService {
       if (!orphaned.length) return 0;
 
       if (dryRun) {
-        this.logger.log(`Retention dry-run: would delete ${orphaned.length} old BatchUpload records`);
+        this.logger.log(`Retention dry-run: would delete ${orphaned.length} orphaned BatchUpload records`);
         return orphaned.length;
       }
 
       const result = await this.prisma.batchUpload.deleteMany({
         where: {
           id: { in: orphaned.map((b) => b.id) },
-          createdAt: { lt: cutoffDate },
         },
       });
 

@@ -1,7 +1,7 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import { useQuery } from '@tanstack/react-query';
-import { Descriptions, Tag, Typography } from 'antd';
+import { Alert, Button, Descriptions, Skeleton, Tag, Typography } from 'antd';
 import { useMemo } from 'react';
 import { fetchAdminConfig, fetchAdminUsage } from '../../api';
 import { ChartPanel } from '../../components/ChartPanel';
@@ -19,8 +19,10 @@ const tooltipTextStyle = { color: '#e2e8f0', fontFamily: chartTextStyle.fontFami
 
 export const AdminSystemBudgetPage = () => {
   const { t } = useI18n();
-  const { data: config } = useQuery({ queryKey: ['admin-config'], queryFn: fetchAdminConfig });
-  const { data: usage } = useQuery({ queryKey: ['admin-usage', 7], queryFn: () => fetchAdminUsage(7) });
+  const configQuery = useQuery({ queryKey: ['admin-config'], queryFn: fetchAdminConfig, staleTime: 5 * 60 * 1000 });
+  const usageQuery = useQuery({ queryKey: ['admin-usage', 7], queryFn: () => fetchAdminUsage(7), staleTime: 2 * 60 * 1000 });
+  const config = configQuery.data;
+  const usage = usageQuery.data;
   const budget = config?.budget;
   const budgetModeLabel =
     budget?.mode === 'hard' ? t('admin.systemBudget.mode.hard') : t('admin.systemBudget.mode.soft');
@@ -85,10 +87,26 @@ export const AdminSystemBudgetPage = () => {
         ],
       }}
     >
-      <ProCard bordered>
+      {(configQuery.isError || usageQuery.isError) ? (
+        <Alert
+          type="error"
+          message={t('admin.systemBudget.loadError') || 'Failed to load budget data'}
+          action={
+            <Button size="small" onClick={() => { configQuery.refetch(); usageQuery.refetch(); }}>
+              {t('common.retry')}
+            </Button>
+          }
+          className="apple-inline-alert"
+        />
+      ) : null}
+      {(configQuery.isLoading || usageQuery.isLoading) && !config && !usage ? (
+        <Skeleton active paragraph={{ rows: 8 }} />
+      ) : (
+      <>
+      <ProCard bordered className="apple-soft-card">
         <Descriptions column={1} bordered>
           <Descriptions.Item label={t('admin.systemBudget.budgetMode')}>
-            {budget?.enabled ? <Tag color="blue">{budgetModeLabel}</Tag> : <Tag>{t('common.disabled')}</Tag>}
+            {budget?.enabled ? <Tag color="blue" className="apple-tag-pill">{budgetModeLabel}</Tag> : <Tag className="apple-tag-pill">{t('common.disabled')}</Tag>}
           </Descriptions.Item>
           <Descriptions.Item label={t('admin.systemBudget.dailyCallLimit')}>
             <Typography.Text type="secondary">
@@ -100,13 +118,15 @@ export const AdminSystemBudgetPage = () => {
           </Descriptions.Item>
         </Descriptions>
       </ProCard>
-      <ProCard bordered title={t('admin.systemBudget.usageTrends')} style={{ marginTop: 16 }}>
+      <ProCard bordered title={t('admin.systemBudget.usageTrends')} className="apple-soft-card" style={{ marginTop: 16 }}>
         {usage?.daily?.length ? (
           <ChartPanel option={trendOption} height={280} />
         ) : (
           <SoftEmpty description={t('admin.systemBudget.empty')} />
         )}
       </ProCard>
+      </>
+      )}
     </PageContainer>
   );
 };

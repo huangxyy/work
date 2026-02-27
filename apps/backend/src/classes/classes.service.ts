@@ -238,15 +238,10 @@ export class ClassesService {
       const account = this.normalizeAccount(student.account || '');
       const name = (student.name || '').trim();
 
-      if (!name) {
-        result.failed.push({ account: account || '-', name: '-', error: 'Student name is required' });
-        continue;
-      }
-
       if (!account || !this.looksLikeAccount(account)) {
         result.failed.push({
           account: account || '-',
-          name,
+          name: name || '-',
           error: 'Account must contain only letters, numbers, or underscore',
         });
         continue;
@@ -258,8 +253,21 @@ export class ClassesService {
         });
 
         if (existing) {
+          if (existing.role !== Role.STUDENT) {
+            result.failed.push({
+              account,
+              name: name || existing.name,
+              error: 'Account exists but is not a student',
+            });
+            continue;
+          }
           studentIds.push(existing.id);
-          result.existing.push({ account, name });
+          result.existing.push({ account, name: existing.name });
+          continue;
+        }
+
+        if (!name) {
+          result.failed.push({ account, name: '-', error: 'Student name is required for new account' });
           continue;
         }
 

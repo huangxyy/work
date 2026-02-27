@@ -9,7 +9,8 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Alert, Button, Modal, Select, Skeleton, Space, Tag, Typography } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ProFormInstance } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,6 +19,8 @@ import {
   fetchClasses,
   fetchHomeworkDeletePreview,
   fetchHomeworksSummaryByClass,
+  fetchTemplates,
+  updateHomework,
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
@@ -52,6 +55,14 @@ export const TeacherHomeworksPage = () => {
   const [deletingHomeworkId, setDeletingHomeworkId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { t } = useI18n();
+
+  const createFormRef = useRef<ProFormInstance>();
+
+  const templatesQuery = useQuery({
+    queryKey: ['homework-templates'],
+    queryFn: fetchTemplates,
+    staleTime: 5 * 60_000,
+  });
 
   const classesQuery = useQuery({
     queryKey: ['classes'],
@@ -156,7 +167,7 @@ export const TeacherHomeworksPage = () => {
       title: t('teacher.homeworkDetail.lateSubmission'),
       dataIndex: 'allowLateSubmission',
       render: (_, item) => (
-        <Tag color={item.allowLateSubmission ? 'success' : 'default'}>
+        <Tag color={item.allowLateSubmission ? 'success' : 'default'} className="apple-tag-pill">
           {item.allowLateSubmission
             ? t('teacher.homeworkDetail.lateSubmissionEnabled')
             : t('teacher.homeworkDetail.lateSubmissionDisabled')}
@@ -177,7 +188,7 @@ export const TeacherHomeworksPage = () => {
         return (
           <Space size={6} wrap>
             <Typography.Text strong>{`${submitted}/${total}`}</Typography.Text>
-            <Tag color={pending > 0 ? 'warning' : 'success'}>
+            <Tag color={pending > 0 ? 'warning' : 'success'} className="apple-tag-pill">
               {`${t('teacher.homeworks.pendingLabel')} ${pending}`}
             </Tag>
           </Space>
@@ -201,7 +212,7 @@ export const TeacherHomeworksPage = () => {
         return (
           <Space size={[4, 4]} wrap>
             {tags.map((entry) => (
-              <Tag key={entry.label} color={entry.color}>{`${entry.label} ${entry.count}`}</Tag>
+              <Tag key={entry.label} color={entry.color} className="apple-tag-pill">{`${entry.label} ${entry.count}`}</Tag>
             ))}
           </Space>
         );
@@ -222,6 +233,36 @@ export const TeacherHomeworksPage = () => {
         >
           {t('common.view')}
         </Button>,
+        <ModalForm
+          key="edit"
+          title={t('teacher.homeworks.editHomework')}
+          trigger={<Button size="small">{t('common.edit')}</Button>}
+          initialValues={{ title: item.title, desc: item.desc, dueAt: item.dueAt }}
+          onFinish={async (values) => {
+            const dueAtValue = values.dueAt as { toISOString?: () => string } | string | undefined;
+            const dueAt = typeof dueAtValue === 'string'
+              ? dueAtValue
+              : dueAtValue?.toISOString?.();
+            await updateHomework(item.id, {
+              title: values.title as string,
+              desc: values.desc as string | undefined,
+              dueAt,
+            });
+            message.success(t('teacher.homeworks.updated'));
+            queryClient.invalidateQueries({ queryKey: ['homeworks-summary', selectedClassId] });
+            return true;
+          }}
+          dateFormatter={false}
+          modalProps={{ destroyOnClose: true }}
+        >
+          <ProFormText
+            name="title"
+            label={t('teacher.homeworks.homeworkTitle')}
+            rules={[{ required: true, message: t('teacher.homeworks.homeworkTitleRequired') }]}
+          />
+          <ProFormTextArea name="desc" label={t('common.description')} fieldProps={{ rows: 3 }} />
+          <ProFormDateTimePicker name="dueAt" label={t('common.dueAt')} />
+        </ModalForm>,
         <Button
           key="delete"
           danger
@@ -260,7 +301,7 @@ export const TeacherHomeworksPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {homeworksQuery.isError ? (
@@ -277,7 +318,7 @@ export const TeacherHomeworksPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {classesQuery.isLoading && !classesQuery.data ? (
@@ -289,10 +330,10 @@ export const TeacherHomeworksPage = () => {
           </Button>
         </SoftEmpty>
       ) : (
-        <ProCard bordered>
-          <Space style={{ marginBottom: 16 }} wrap>
+        <ProCard bordered className="apple-soft-card">
+          <Space className="apple-toolbar" wrap>
             <Select
-              style={{ minWidth: 220 }}
+              className="apple-toolbar-select-wide"
               placeholder={t('teacher.homeworks.selectClass')}
               options={classOptions}
               loading={classesQuery.isLoading}
@@ -301,6 +342,7 @@ export const TeacherHomeworksPage = () => {
             />
               <ModalForm
                 title={t('teacher.homeworks.createHomework')}
+                formRef={createFormRef}
                 trigger={<Button type="primary">{t('teacher.homeworks.createHomework')}</Button>}
                 onFinish={async (values) => {
                   if (!selectedClassId) {
@@ -323,6 +365,23 @@ export const TeacherHomeworksPage = () => {
                 modalProps={{ destroyOnClose: true }}
                 submitter={{ submitButtonProps: { loading: createMutation.isPending } }}
               >
+              {(templatesQuery.data?.length ?? 0) > 0 && (
+                <Select
+                  allowClear
+                  style={{ width: '100%' }}
+                  placeholder={t('teacher.homeworks.selectTemplate')}
+                  options={(templatesQuery.data || []).map((tmpl) => ({ label: tmpl.title, value: tmpl.id }))}
+                  onChange={(templateId) => {
+                    const template = templatesQuery.data?.find((tmpl) => tmpl.id === templateId);
+                    if (template) {
+                      createFormRef.current?.setFieldsValue({
+                        title: template.title,
+                        desc: template.desc || '',
+                      });
+                    }
+                  }}
+                />
+              )}
               <ProFormText
                 name="title"
                 label={t('teacher.homeworks.homeworkTitle')}

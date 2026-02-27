@@ -16,7 +16,9 @@ import {
   Tag,
   Table,
   Typography,
+  Upload,
 } from 'antd';
+import { InboxOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import {
   clearAdminLlmLogs,
@@ -27,6 +29,7 @@ import {
   testAdminOcrHealth,
   updateAdminConfig,
 } from '../../api';
+import { api } from '../../api/client';
 import { useI18n } from '../../i18n';
 import { formatDate } from '../../utils/dateFormat';
 import { useMessage } from '../../hooks/useMessage';
@@ -91,6 +94,9 @@ export const AdminConfigPage = () => {
     source: undefined,
   });
   const [clearDays, setClearDays] = useState(7);
+  const [ocrTestFile, setOcrTestFile] = useState<File | null>(null);
+  const [ocrTestLoading, setOcrTestLoading] = useState(false);
+  const [ocrTestResult, setOcrTestResult] = useState<{ ok: boolean; text?: string; length?: number; error?: string } | null>(null);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['admin-config'],
@@ -401,9 +407,9 @@ export const AdminConfigPage = () => {
         ],
       }}
     >
-      <Card loading={isLoading}>
+      <Card loading={isLoading} className="apple-soft-card">
         <Form layout="vertical" form={form} onFinish={handleFinish}>
-          <ProCard bordered title={t('admin.config.section.llm')} colSpan={24}>
+          <ProCard bordered title={t('admin.config.section.llm')} colSpan={24} className="apple-soft-card">
             <Form.Item label={t('admin.config.providerName')} name={['llm', 'providerName']}>
               <Input placeholder={t('admin.config.providerNamePlaceholder')} />
             </Form.Item>
@@ -499,7 +505,7 @@ export const AdminConfigPage = () => {
 
           <Divider />
 
-          <ProCard bordered title={t('admin.config.section.llmProviders')} colSpan={24}>
+          <ProCard bordered title={t('admin.config.section.llmProviders')} colSpan={24} className="apple-soft-card">
             <Form.List name="llmProviders">
               {(fields, { add, remove }) => (
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -658,7 +664,7 @@ export const AdminConfigPage = () => {
 
           <Divider />
 
-          <ProCard bordered title={t('admin.config.section.ocr')} colSpan={24}>
+          <ProCard bordered title={t('admin.config.section.ocr')} colSpan={24} className="apple-soft-card">
             <Form.Item
               label={t('admin.config.ocrApiKey')}
               name={['ocr', 'apiKey']}
@@ -723,11 +729,53 @@ export const AdminConfigPage = () => {
                 ) : null}
               </Space>
             ) : null}
+            <Divider />
+            <Typography.Text strong>{t('admin.config.ocrTest')}</Typography.Text>
+            <Upload.Dragger
+              maxCount={1}
+              beforeUpload={() => false}
+              accept="image/*"
+              onChange={({ fileList }) => setOcrTestFile(fileList[0]?.originFileObj || null)}
+              style={{ marginTop: 8 }}
+            >
+              <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+              <p>{t('admin.config.ocrTestHint')}</p>
+            </Upload.Dragger>
+            <Button
+              style={{ marginTop: 8 }}
+              onClick={async () => {
+                if (!ocrTestFile) return;
+                setOcrTestLoading(true);
+                try {
+                  const formData = new FormData();
+                  formData.append('image', ocrTestFile);
+                  const res = await api.post('/admin/ocr/test', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                  setOcrTestResult(res.data);
+                } catch {
+                  setOcrTestResult({ ok: false, error: 'Request failed' });
+                } finally {
+                  setOcrTestLoading(false);
+                }
+              }}
+              loading={ocrTestLoading}
+              disabled={!ocrTestFile}
+            >
+              {t('admin.config.ocrTestRun')}
+            </Button>
+            {ocrTestResult ? (
+              <Card size="small" style={{ marginTop: 12 }}>
+                <Tag color={ocrTestResult.ok ? 'green' : 'red'}>{ocrTestResult.ok ? 'OK' : 'ERROR'}</Tag>
+                {ocrTestResult.length ? <Typography.Text type="secondary"> {ocrTestResult.length} chars</Typography.Text> : null}
+                <Typography.Paragraph copyable style={{ whiteSpace: 'pre-wrap', marginTop: 8, maxHeight: 200, overflow: 'auto' }}>
+                  {ocrTestResult.ok ? ocrTestResult.text : ocrTestResult.error}
+                </Typography.Paragraph>
+              </Card>
+            ) : null}
           </ProCard>
 
           <Divider />
 
-          <ProCard bordered title={t('admin.config.section.budget')} colSpan={24}>
+          <ProCard bordered title={t('admin.config.section.budget')} colSpan={24} className="apple-soft-card">
             <Form.Item label={t('admin.config.budgetEnabled')} name={['budget', 'enabled']} valuePropName="checked">
               <Switch />
             </Form.Item>
@@ -756,7 +804,7 @@ export const AdminConfigPage = () => {
 
         <Divider />
 
-        <ProCard bordered title={t('admin.config.section.llmTest')} colSpan={24}>
+        <ProCard bordered title={t('admin.config.section.llmTest')} colSpan={24} className="apple-soft-card">
           <Form
             form={llmTestForm}
             layout="vertical"
@@ -851,7 +899,7 @@ export const AdminConfigPage = () => {
 
         <Divider />
 
-        <ProCard bordered title={t('admin.config.section.llmLogs')} colSpan={24}>
+        <ProCard bordered title={t('admin.config.section.llmLogs')} colSpan={24} className="apple-soft-card">
           <Space wrap style={{ marginBottom: 12 }}>
             <Select
               allowClear

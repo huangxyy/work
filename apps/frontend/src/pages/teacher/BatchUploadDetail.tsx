@@ -1,7 +1,7 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, Descriptions, Input, List, Modal, Space, Tag, Typography } from 'antd';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchTeacherBatchUploadDetail, retrySkippedSubmission, downloadTeacherSubmissionsPdf } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -24,6 +24,7 @@ export const TeacherBatchUploadDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const message = useMessage();
+  const queryClient = useQueryClient();
   // Track fileKeys that have been successfully retried
   const [processedFileKeys, setProcessedFileKeys] = useState<Set<string>>(new Set());
   const [skippedFileNames, setSkippedFileNames] = useState<Record<string, string>>({});
@@ -34,20 +35,20 @@ export const TeacherBatchUploadDetailPage = () => {
     reason: string;
   } | null>(null);
 
-  // Helper function to download blob as file
-  const downloadBlob = (blob: Blob, filename: string) => {
+  const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.click();
     window.URL.revokeObjectURL(url);
-  };
+  }, []);
 
   const detailQuery = useQuery({
     queryKey: ['batch-detail', id],
     queryFn: () => fetchTeacherBatchUploadDetail(id || ''),
     enabled: !!id,
+    staleTime: 60 * 1000,
   });
 
   const statusMeta = useMemo(
@@ -110,7 +111,7 @@ export const TeacherBatchUploadDetailPage = () => {
         delete next[variables.fileKey];
         return next;
       });
-      detailQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['batch-detail', id] });
       setRetryModalVisible(false);
       setCurrentSkippedItem(null);
     },
@@ -165,6 +166,54 @@ export const TeacherBatchUploadDetailPage = () => {
   const batchStatus = data?.status || 'EMPTY';
   const statusTag = statusMeta[batchStatus as keyof typeof statusMeta];
 
+  const submissionColumns = useMemo(
+    () => [
+      {
+        title: t('common.student'),
+        dataIndex: 'studentName' as const,
+        render: (value: React.ReactNode) => <Typography.Text strong>{value}</Typography.Text>,
+      },
+      { title: t('common.account'), dataIndex: 'studentAccount' as const, width: 160 },
+      {
+        title: t('common.status'),
+        dataIndex: 'status' as const,
+        render: (value: React.ReactNode) => {
+          const map = {
+            QUEUED: { label: t('status.queued'), color: 'default' },
+            PROCESSING: { label: t('status.processing'), color: 'processing' },
+            DONE: { label: t('status.done'), color: 'success' },
+            FAILED: { label: t('status.failed'), color: 'error' },
+          } as const;
+          const meta = map[value as keyof typeof map];
+          return meta ? <Tag color={meta.color} className="apple-tag-pill">{meta.label}</Tag> : value;
+        },
+        width: 140,
+      },
+      {
+        title: t('common.score'),
+        dataIndex: 'totalScore' as const,
+        renderText: (value: number | null | undefined) => (typeof value === 'number' ? value : '--'),
+        width: 120,
+      },
+      {
+        title: t('common.lastUpdated'),
+        dataIndex: 'updatedAt' as const,
+        render: (_: unknown, record: BatchSubmissionRow) => formatDateShort(record.updatedAt),
+        width: 200,
+      },
+      {
+        title: t('common.action'),
+        valueType: 'option' as const,
+        render: (_: unknown, row: BatchSubmissionRow) => [
+          <a key="view" onClick={() => navigate(`/teacher/submission/${row.id}`)}>
+            {t('common.view')}
+          </a>,
+        ],
+      },
+    ],
+    [t, navigate],
+  );
+
   return (
     <PageContainer
       title={t('teacher.batchUpload.detailTitle')}
@@ -180,17 +229,22 @@ export const TeacherBatchUploadDetailPage = () => {
           type="error"
           message={t('teacher.batchUpload.detailLoadFailed')}
           description={detailQuery.error instanceof Error ? detailQuery.error.message : t('common.tryAgain')}
-          style={{ marginBottom: 16 }}
+          action={
+            <Button size="small" onClick={() => detailQuery.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+          className="apple-inline-alert"
         />
       ) : null}
 
       {detailQuery.isLoading && !data ? (
-        <ProCard bordered loading />
+        <ProCard bordered loading className="apple-soft-card" />
       ) : !data ? (
         <SoftEmpty description={t('teacher.batchUpload.detailEmpty')} />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <ProCard bordered title={t('teacher.batchUpload.detailSummary')}>
+          <ProCard bordered title={t('teacher.batchUpload.detailSummary')} className="apple-soft-card">
             <Descriptions bordered column={2}>
               <Descriptions.Item label={t('common.homework')}>
                 {data.homework?.title || '--'}
@@ -199,7 +253,7 @@ export const TeacherBatchUploadDetailPage = () => {
                 {data.uploader ? `${data.uploader.name} (${data.uploader.account})` : '--'}
               </Descriptions.Item>
               <Descriptions.Item label={t('teacher.batchUpload.historyStatus')}>
-                {statusTag ? <Tag color={statusTag.color}>{statusTag.label}</Tag> : batchStatus}
+                {statusTag ? <Tag color={statusTag.color} className="apple-tag-pill">{statusTag.label}</Tag> : batchStatus}
               </Descriptions.Item>
               <Descriptions.Item label={t('teacher.batchUpload.mode')}>
                 {data.mode || '--'}
@@ -229,10 +283,10 @@ export const TeacherBatchUploadDetailPage = () => {
                     ({data.statusCounts?.done || 0}/{data.totalImages})
                   </Typography.Text>
                   <Space size={[4, 4]} wrap>
-                    <Tag color="success">{`${t('status.done')} ${data.statusCounts?.done || 0}`}</Tag>
-                    <Tag color="processing">{`${t('status.processing')} ${data.statusCounts?.processing || 0}`}</Tag>
-                    <Tag>{`${t('status.queued')} ${data.statusCounts?.queued || 0}`}</Tag>
-                    <Tag color="error">{`${t('status.failed')} ${data.statusCounts?.failed || 0}`}</Tag>
+                    <Tag color="success" className="apple-tag-pill">{`${t('status.done')} ${data.statusCounts?.done || 0}`}</Tag>
+                    <Tag color="processing" className="apple-tag-pill">{`${t('status.processing')} ${data.statusCounts?.processing || 0}`}</Tag>
+                    <Tag className="apple-tag-pill">{`${t('status.queued')} ${data.statusCounts?.queued || 0}`}</Tag>
+                    <Tag color="error" className="apple-tag-pill">{`${t('status.failed')} ${data.statusCounts?.failed || 0}`}</Tag>
                   </Space>
                 </Space>
               </Descriptions.Item>
@@ -251,7 +305,7 @@ export const TeacherBatchUploadDetailPage = () => {
             </Descriptions>
           </ProCard>
 
-          <ProCard bordered title={t('teacher.batchUpload.detailSkipped')}>
+          <ProCard bordered title={t('teacher.batchUpload.detailSkipped')} className="apple-soft-card">
             {data.skipped && data.skipped.filter((item) => !processedFileKeys.has(item.fileKey || '')).length ? (
               <List
                 dataSource={data.skipped.filter((item) => !processedFileKeys.has(item.fileKey || ''))}
@@ -292,57 +346,14 @@ export const TeacherBatchUploadDetailPage = () => {
             )}
           </ProCard>
 
-          <ProCard bordered title={t('teacher.batchUpload.detailSubmissions')}>
+          <ProCard bordered title={t('teacher.batchUpload.detailSubmissions')} className="apple-soft-card">
             <ProTable<BatchSubmissionRow>
               rowKey="id"
               dataSource={data.submissions}
               search={false}
               pagination={{ pageSize: 8 }}
               options={false}
-              columns={[
-                {
-                  title: t('common.student'),
-                  dataIndex: 'studentName',
-                  render: (value) => <Typography.Text strong>{value}</Typography.Text>,
-                },
-                { title: t('common.account'), dataIndex: 'studentAccount', width: 160 },
-                {
-                  title: t('common.status'),
-                  dataIndex: 'status',
-                  render: (value) => {
-                    const map = {
-                      QUEUED: { label: t('status.queued'), color: 'default' },
-                      PROCESSING: { label: t('status.processing'), color: 'processing' },
-                      DONE: { label: t('status.done'), color: 'success' },
-                      FAILED: { label: t('status.failed'), color: 'error' },
-                    } as const;
-                    const meta = map[value as keyof typeof map];
-                    return meta ? <Tag color={meta.color}>{meta.label}</Tag> : value;
-                  },
-                  width: 140,
-                },
-                {
-                  title: t('common.score'),
-                  dataIndex: 'totalScore',
-                  renderText: (value) => (typeof value === 'number' ? value : '--'),
-                  width: 120,
-                },
-                {
-                  title: t('common.lastUpdated'),
-                  dataIndex: 'updatedAt',
-                  render: (_, record) => formatDateShort(record.updatedAt),
-                  width: 200,
-                },
-                {
-                  title: t('common.action'),
-                  valueType: 'option',
-                  render: (_, row) => [
-                    <a key="view" onClick={() => navigate(`/teacher/submission/${row.id}`)}>
-                      {t('common.view')}
-                    </a>,
-                  ],
-                },
-              ]}
+              columns={submissionColumns}
             />
           </ProCard>
         </Space>

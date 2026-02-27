@@ -3,12 +3,18 @@ import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit';
 import { AuthService } from './auth.service';
+import { AccountLockoutService } from './account-lockout.service';
+import { TokenBlacklistService } from './token-blacklist.service';
 
 describe('AuthService', () => {
   let authService: AuthService;
   let prismaService: jest.Mocked<PrismaService>;
   let jwtService: jest.Mocked<JwtService>;
+  let auditService: jest.Mocked<AuditService>;
+  let lockoutService: jest.Mocked<AccountLockoutService>;
+  let tokenBlacklistService: jest.Mocked<TokenBlacklistService>;
 
   const mockUser = {
     id: 'user-1',
@@ -33,7 +39,41 @@ describe('AuthService', () => {
       sign: jest.fn().mockReturnValue('mock-jwt-token'),
     } as unknown as jest.Mocked<JwtService>;
 
-    authService = new AuthService(prismaService, jwtService);
+    auditService = {
+      log: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<AuditService>;
+
+    lockoutService = {
+      isLocked: jest.fn().mockResolvedValue({ locked: false, remainingSeconds: 0 }),
+      recordFailure: jest.fn().mockResolvedValue({ locked: false, attempts: 1 }),
+      resetOnSuccess: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<AccountLockoutService>;
+
+    tokenBlacklistService = {
+      revoke: jest.fn().mockResolvedValue(undefined),
+      isRevoked: jest.fn().mockResolvedValue(false),
+    } as unknown as jest.Mocked<TokenBlacklistService>;
+
+    const redisService = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      del: jest.fn().mockResolvedValue(undefined),
+    } as any;
+
+    const emailServiceMock = {
+      isConfigured: false,
+      send: jest.fn().mockResolvedValue(false),
+    } as any;
+
+    authService = new AuthService(
+      prismaService,
+      jwtService,
+      auditService,
+      lockoutService,
+      tokenBlacklistService,
+      redisService,
+      emailServiceMock,
+    );
   });
 
   describe('register', () => {

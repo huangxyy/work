@@ -61,6 +61,16 @@ export class HomeworksController {
     return this.homeworksService.updateLateSubmission(id, body.allowLateSubmission, req.user);
   }
 
+  @Patch(':id')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async update(
+    @Param('id', ParseCuidPipe) id: string,
+    @Body() body: { title?: string; desc?: string; dueAt?: string },
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.homeworksService.updateHomework(id, body, req.user);
+  }
+
   @Delete(':id')
   @Roles(Role.TEACHER, Role.ADMIN)
   async remove(

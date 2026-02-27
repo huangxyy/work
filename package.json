@@ -12,6 +12,8 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "test:cov": "pnpm --filter backend test:cov",
-    "typecheck": "pnpm --filter backend exec tsc --noEmit && pnpm --filter frontend exec tsc --noEmit"
+    "typecheck": "pnpm --filter backend exec tsc --noEmit && pnpm --filter frontend exec tsc --noEmit",
+    "handover:package": "powershell -ExecutionPolicy Bypass -File ./scripts/create-handover-package.ps1",
+    "handover:package:with-accounts": "powershell -ExecutionPolicy Bypass -File ./scripts/create-handover-package.ps1 -IncludeAccountFile"
   }
 }

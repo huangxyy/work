@@ -16,7 +16,7 @@ export {
 } from './client';
 
 // Authentication
-export { login } from './auth';
+export { login, logout } from './auth';
 
 // Classes management
 export {
@@ -34,6 +34,7 @@ export {
   fetchHomeworksByClass,
   fetchHomeworksSummaryByClass,
   createHomework,
+  updateHomework,
   updateHomeworkLateSubmission,
   fetchHomeworkDeletePreview,
   deleteHomework,
@@ -44,6 +45,7 @@ export {
   createSubmission,
   fetchSubmission,
   regradeSubmission,
+  addTeacherFeedback,
   fetchStudentSubmissions,
   downloadStudentSubmissionsCsv,
 } from './submissions';
@@ -57,6 +59,7 @@ export {
   downloadTeacherStudentReportPdf,
   fetchStudentReportOverview,
   downloadStudentReportPdf,
+  fetchClassComparison,
 } from './reports';
 
 // Public API
@@ -68,6 +71,7 @@ export {
 
 // Teacher-specific API
 export {
+  fetchUnsubmittedStudents,
   fetchTeacherHomeworkSubmissions,
   fetchTeacherGradingSettings,
   fetchTeacherGradingPolicy,
@@ -92,6 +96,34 @@ export {
   type TeacherBatchPreviewResult,
 } from './teacher';
 
+// Notifications
+export {
+  fetchNotifications,
+  fetchUnreadCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+  type NotificationItem,
+} from './notifications';
+
+// Announcements
+export {
+  fetchAnnouncements,
+  createAnnouncement,
+  deleteAnnouncement,
+  type AnnouncementItem,
+} from './announcements';
+
+// Templates
+export {
+  fetchTemplates,
+  createTemplate,
+  deleteTemplate,
+  type TemplateItem,
+} from './templates';
+
+// Search
+export { globalSearch, type SearchResult } from './search';
+
 // Admin API
 export {
   fetchAdminMetrics,
@@ -100,6 +132,8 @@ export {
   fetchAdminConfig,
   updateAdminConfig,
   fetchAdminUsage,
+  fetchLlmCostSummary,
+  bulkImportUsers,
   fetchAdminQueueMetrics,
   retryAdminFailedJobs,
   cleanAdminQueue,
@@ -113,10 +147,14 @@ export {
   fetchAdminRetentionStatus,
   runAdminRetention,
   createAdminUser,
+  deleteAdminUser,
   updateAdminUser,
   resetAdminUserPassword,
   type AdminMetrics,
   type AdminClassSummary,
   type AdminSystemConfig,
+  fetchAdminErrorTrends,
+  fetchFeatureFlags,
+  updateFeatureFlag,
   type AdminUser,
 } from './admin';

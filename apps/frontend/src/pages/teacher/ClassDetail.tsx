@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Descriptions,
+  Popconfirm,
   Skeleton,
   Space,
   Tabs,
@@ -19,6 +20,7 @@ import {
   fetchClasses,
   fetchHomeworksByClass,
   importClassStudents,
+  removeClassStudent,
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
@@ -132,6 +134,17 @@ export const TeacherClassDetailPage = () => {
         <Button key="pdf" onClick={() => handleDownloadStudentReport(item.id)}>
           {t('teacher.classDetail.downloadReport')}
         </Button>,
+        <Popconfirm
+          key="remove"
+          title={t('teacher.classDetail.removeConfirm')}
+          onConfirm={async () => {
+            await removeClassStudent(id!, item.id);
+            message.success(t('teacher.classDetail.removeSuccess'));
+            studentsQuery.refetch();
+          }}
+        >
+          <Button danger size="small">{t('common.remove')}</Button>
+        </Popconfirm>,
       ],
     },
   ];
@@ -187,7 +200,7 @@ export const TeacherClassDetailPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
       {classesQuery.isLoading && !classesQuery.data ? (
@@ -205,14 +218,14 @@ export const TeacherClassDetailPage = () => {
               key: 'overview',
               label: t('common.overview'),
               children: (
-                <ProCard bordered>
+                <ProCard bordered className="apple-soft-card">
                   <Space direction="vertical" size="large" style={{ width: '100%' }}>
                     <Descriptions column={1} bordered>
                       <Descriptions.Item label={t('teacher.classDetail.className')}>
                         {classItem.name}
                       </Descriptions.Item>
                       <Descriptions.Item label={t('teacher.classDetail.grade')}>
-                        {classItem.grade ? <Tag>{classItem.grade}</Tag> : t('teacher.classDetail.unassigned')}
+                        {classItem.grade ? <Tag className="apple-tag-pill">{classItem.grade}</Tag> : t('teacher.classDetail.unassigned')}
                       </Descriptions.Item>
                     </Descriptions>
                     <ProCard gutter={16} wrap>
@@ -252,9 +265,10 @@ export const TeacherClassDetailPage = () => {
                           {t('common.retry')}
                         </Button>
                       }
+                      className="apple-inline-alert"
                     />
                   ) : null}
-                  <ProCard bordered>
+                  <ProCard bordered className="apple-soft-card">
                     <ProTable<StudentRow>
                       rowKey="id"
                       columns={studentColumns}
@@ -323,9 +337,10 @@ export const TeacherClassDetailPage = () => {
                           {t('common.retry')}
                         </Button>
                       }
+                      className="apple-inline-alert"
                     />
                   ) : null}
-                  <ProCard bordered>
+                  <ProCard bordered className="apple-soft-card">
                     <ProTable<HomeworkRow>
                       rowKey="id"
                       columns={homeworkColumns}

@@ -1,10 +1,21 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { ModalForm, PageContainer, ProCard, ProFormSelect, ProFormText, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Input, Select, Space, Switch, Tag, Typography } from 'antd';
+import {
+  ModalForm,
+  PageContainer,
+  ProCard,
+  ProFormDependency,
+  ProFormSelect,
+  ProFormText,
+  ProFormTextArea,
+  ProTable,
+} from '@ant-design/pro-components';
+import { Alert, Button, Input, Popconfirm, Result, Select, Space, Switch, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
+  bulkImportUsers,
   createAdminUser,
+  deleteAdminUser,
   fetchClasses,
   fetchAdminUsers,
   importClassStudents,
@@ -12,6 +23,7 @@ import {
   updateAdminUser,
   type AdminUser,
 } from '../../api';
+import { api } from '../../api/client';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
@@ -23,6 +35,7 @@ export const AdminUsersPage = () => {
   const [keyword, setKeyword] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
   const roleMeta = useMemo(
     () => ({
@@ -36,6 +49,7 @@ export const AdminUsersPage = () => {
   const { data, isLoading, isError, error, refetch } = useQuery<AdminUser[]>({
     queryKey: ['admin-users'],
     queryFn: () => fetchAdminUsers(),
+    staleTime: 2 * 60 * 1000,
   });
 
   const classesQuery = useQuery({
@@ -57,9 +71,22 @@ export const AdminUsersPage = () => {
     mutationFn: createAdminUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-class-summaries'] });
+      await queryClient.invalidateQueries({ queryKey: ['classes'] });
       message.success(t('admin.users.createSuccess'));
     },
     onError: () => message.error(t('admin.users.createFailed')),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteAdminUser(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-class-summaries'] });
+      await queryClient.invalidateQueries({ queryKey: ['classes'] });
+      message.success(t('admin.users.deleteSuccess'));
+    },
+    onError: () => message.error(t('admin.users.deleteFailed')),
   });
 
   const updateMutation = useMutation({
@@ -108,7 +135,7 @@ export const AdminUsersPage = () => {
     });
   }, [data, keyword, roleFilter, statusFilter]);
 
-  const columns: ProColumns<AdminUser>[] = [
+  const columns = useMemo<ProColumns<AdminUser>[]>(() => [
     {
       title: t('admin.users.name'),
       dataIndex: 'name',
@@ -123,7 +150,7 @@ export const AdminUsersPage = () => {
       dataIndex: 'role',
       render: (_, item) => {
         const meta = roleMeta[item.role];
-        return <Tag color={meta.color}>{meta.label}</Tag>;
+        return <Tag color={meta?.color} className="apple-tag-pill">{meta?.label}</Tag>;
       },
       width: 160,
     },
@@ -131,7 +158,7 @@ export const AdminUsersPage = () => {
       title: t('admin.users.status'),
       dataIndex: 'isActive',
       render: (value) =>
-        value ? <Tag color="green">{t('admin.users.active')}</Tag> : <Tag>{t('common.disabled')}</Tag>,
+        value ? <Tag color="green" className="apple-tag-pill">{t('admin.users.active')}</Tag> : <Tag className="apple-tag-pill">{t('common.disabled')}</Tag>,
       width: 140,
     },
     {
@@ -227,9 +254,25 @@ export const AdminUsersPage = () => {
             }
           />
         </Space>,
+        <Popconfirm
+          key="delete"
+          title={t('admin.users.deleteConfirmTitle')}
+          description={t('admin.users.deleteConfirmDesc')}
+          okText={t('common.remove')}
+          cancelText={t('common.close')}
+          onConfirm={() => deleteMutation.mutate(item.id)}
+        >
+          <Button
+            size="small"
+            danger
+            loading={deleteMutation.isPending && deleteMutation.variables === item.id}
+          >
+            {t('admin.users.deleteUser')}
+          </Button>
+        </Popconfirm>,
       ].filter(Boolean),
     },
-  ];
+  ], [t, roleMeta, classOptions, updateMutation, assignMutation, resetPasswordMutation, deleteMutation]);
 
   return (
     <PageContainer
@@ -251,10 +294,10 @@ export const AdminUsersPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
-      <ProCard bordered>
+      <ProCard bordered className="apple-soft-card">
         <ProTable<AdminUser>
           rowKey="id"
           columns={columns}
@@ -262,29 +305,60 @@ export const AdminUsersPage = () => {
           loading={isLoading}
           search={false}
           pagination={{ pageSize: 8 }}
+          scroll={{ x: 'max-content' }}
           options={false}
+          rowSelection={{
+            selectedRowKeys: selectedUserIds,
+            onChange: (keys) => setSelectedUserIds(keys as string[]),
+          }}
           locale={{
             emptyText: (
               <SoftEmpty description={t('admin.users.empty')}>
-                <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
+                <Typography.Paragraph type="secondary" className="apple-empty-hint">
                   {t('admin.users.emptyHint')}
                 </Typography.Paragraph>
               </SoftEmpty>
             ),
           }}
           toolBarRender={() => [
+            selectedUserIds.length > 0 ? (
+              <Space key="bulk" className="apple-toolbar">
+                <Typography.Text type="secondary">{selectedUserIds.length} {t('admin.users.selected')}</Typography.Text>
+                <Popconfirm
+                  title={t('admin.users.bulkDisableConfirm')}
+                  onConfirm={async () => {
+                    await api.post('/admin/users/bulk-disable', { userIds: selectedUserIds });
+                    message.success(t('admin.users.bulkDisabled'));
+                    queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+                    setSelectedUserIds([]);
+                  }}
+                >
+                  <Button danger size="small" className="apple-tag-pill">{t('admin.users.bulkDisable')}</Button>
+                </Popconfirm>
+                <Popconfirm
+                  title={t('admin.users.bulkResetConfirm')}
+                  onConfirm={async () => {
+                    await api.post('/admin/users/bulk-reset-password', { userIds: selectedUserIds, newPassword: 'Test1234' });
+                    message.success(t('admin.users.bulkResetDone'));
+                    setSelectedUserIds([]);
+                  }}
+                >
+                  <Button size="small" className="apple-tag-pill">{t('admin.users.bulkReset')}</Button>
+                </Popconfirm>
+              </Space>
+            ) : null,
             <Input.Search
               key="search"
+              className="apple-toolbar-search"
               placeholder={t('admin.users.searchPlaceholder')}
               allowClear
               onSearch={(value) => setKeyword(value.trim())}
-              style={{ width: 220 }}
             />,
             <Select
               key="role"
+              className="apple-toolbar-select"
               value={roleFilter}
               onChange={(value) => setRoleFilter(value)}
-              style={{ width: 160 }}
               options={[
                 { label: t('common.allRoles'), value: 'all' },
                 { label: t('role.student'), value: 'STUDENT' },
@@ -294,9 +368,9 @@ export const AdminUsersPage = () => {
             />,
             <Select
               key="status"
+              className="apple-toolbar-select"
               value={statusFilter}
               onChange={(value) => setStatusFilter(value)}
-              style={{ width: 160 }}
               options={[
                 { label: t('common.allStatuses'), value: 'all' },
                 { label: t('admin.users.active'), value: 'true' },
@@ -304,16 +378,75 @@ export const AdminUsersPage = () => {
               ]}
             />,
             <ModalForm
+              key="bulk-import"
+              title={t('admin.users.bulkImport')}
+              trigger={<Button>{t('admin.users.bulkImport')}</Button>}
+              onFinish={async (values) => {
+                try {
+                  const res = await bulkImportUsers({
+                    text: values.text as string,
+                    role: values.role as string | undefined,
+                    classId: values.classId as string | undefined,
+                    defaultPassword: values.defaultPassword as string | undefined,
+                  });
+                  message.success(`${t('admin.users.bulkImportDone')}: ${res.created} ${t('admin.users.bulkCreated')}, ${res.exists} ${t('admin.users.bulkExists')}`);
+                  queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+                  return true;
+                } catch {
+                  message.error(t('admin.users.bulkImportFailed'));
+                  return false;
+                }
+              }}
+              modalProps={{ destroyOnClose: true, width: 600 }}
+            >
+              <Alert
+                type="info"
+                showIcon
+                message={t('admin.users.bulkImportHint')}
+                className="apple-inline-alert"
+              />
+              <ProFormTextArea
+                name="text"
+                label={t('admin.users.bulkImportLabel')}
+                placeholder={t('admin.users.bulkImportPlaceholder')}
+                fieldProps={{ rows: 8, style: { fontFamily: 'monospace' } }}
+                rules={[{ required: true, message: t('admin.users.bulkImportRequired') }]}
+              />
+              <ProFormSelect
+                name="role"
+                label={t('admin.users.role')}
+                initialValue="STUDENT"
+                options={[
+                  { label: t('role.student'), value: 'STUDENT' },
+                  { label: t('role.teacher'), value: 'TEACHER' },
+                ]}
+              />
+              <ProFormSelect
+                name="classId"
+                label={t('admin.users.classOnCreate')}
+                options={classOptions}
+                placeholder={t('admin.users.classOnCreatePlaceholder')}
+                allowClear
+              />
+              <ProFormText
+                name="defaultPassword"
+                label={t('admin.users.defaultPassword')}
+                placeholder="Abc123456"
+              />
+            </ModalForm>,
+            <ModalForm
               key="create"
               title={t('admin.users.createUser')}
               trigger={<Button type="primary">{t('admin.users.createUser')}</Button>}
               onFinish={async (values) => {
                 try {
+                  const role = values.role as 'STUDENT' | 'TEACHER' | 'ADMIN';
                   await createMutation.mutateAsync({
                     account: values.account as string,
                     name: values.name as string,
-                    role: values.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
+                    role,
                     password: values.password as string,
+                    classId: role === 'STUDENT' ? (values.classId as string | undefined) : undefined,
                   });
                   return true;
                 } catch {
@@ -344,6 +477,19 @@ export const AdminUsersPage = () => {
                   { label: t('role.admin'), value: 'ADMIN' },
                 ]}
               />
+              <ProFormDependency name={['role']}>
+                {({ role }) =>
+                  role === 'STUDENT' ? (
+                    <ProFormSelect
+                      name="classId"
+                      label={t('admin.users.classOnCreate')}
+                      options={classOptions}
+                      placeholder={t('admin.users.classOnCreatePlaceholder')}
+                      allowClear
+                    />
+                  ) : null
+                }
+              </ProFormDependency>
               <ProFormText.Password
                 name="password"
                 label={t('admin.users.password')}

@@ -1,6 +1,6 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Descriptions, Form, InputNumber, Space, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Descriptions, Form, InputNumber, Skeleton, Space, Switch, Tag, Typography } from 'antd';
 import { useEffect } from 'react';
 import { fetchAdminRetentionStatus, runAdminRetention } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -53,35 +53,52 @@ export const AdminSystemRetentionPage = () => {
         ],
       }}
     >
-      <ProCard bordered>
+      {statusQuery.isError ? (
+        <Alert
+          type="error"
+          message={t('admin.retention.loadError') || 'Failed to load retention status'}
+          description={statusQuery.error instanceof Error ? statusQuery.error.message : t('common.tryAgain')}
+          action={
+            <Button size="small" onClick={() => statusQuery.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+          className="apple-inline-alert"
+        />
+      ) : null}
+      {statusQuery.isLoading && !statusQuery.data ? (
+        <Skeleton active paragraph={{ rows: 8 }} />
+      ) : (
+      <>
+      <ProCard bordered className="apple-soft-card">
         <Descriptions column={1} bordered>
           <Descriptions.Item label={t('admin.retention.window')}>
-            <Tag>{statusQuery.data?.config.retentionDays ?? 0}d</Tag>
+            <Tag className="apple-tag-pill">{statusQuery.data?.config?.retentionDays ?? 0}d</Tag>
           </Descriptions.Item>
           <Descriptions.Item label={t('admin.retention.nextRun')}>
             <Typography.Text type="secondary">
-              {statusQuery.data?.config.cron || '--'}
+              {statusQuery.data?.config?.cron || '--'}
             </Typography.Text>
           </Descriptions.Item>
           <Descriptions.Item label={t('admin.retention.dryRun')}>
             <Typography.Text type="secondary">
-              {statusQuery.data?.config.dryRunDefault ? t('common.enabled') : t('common.disabled')}
+              {statusQuery.data?.config?.dryRunDefault ? t('common.enabled') : t('common.disabled')}
             </Typography.Text>
           </Descriptions.Item>
           <Descriptions.Item label={t('admin.retention.batchSize')}>
             <Typography.Text type="secondary">
-              {statusQuery.data?.config.batchSizeDefault ?? '--'}
+              {statusQuery.data?.config?.batchSizeDefault ?? '--'}
             </Typography.Text>
           </Descriptions.Item>
           <Descriptions.Item label={t('admin.retention.runRetention')}> 
             <Typography.Text type="secondary">
-              {statusQuery.data?.config.runRetention ? t('common.enabled') : t('common.disabled')}
+              {statusQuery.data?.config?.runRetention ? t('common.enabled') : t('common.disabled')}
             </Typography.Text>
           </Descriptions.Item>
         </Descriptions>
       </ProCard>
 
-      <ProCard bordered title={t('admin.retention.runTitle')} style={{ marginTop: 16 }}>
+      <ProCard bordered title={t('admin.retention.runTitle')} className="apple-soft-card" style={{ marginTop: 16 }}>
         <Form layout="inline" form={form}>
           <Form.Item label={t('admin.retention.window')} name="days">
             <InputNumber min={1} max={365} />
@@ -107,7 +124,7 @@ export const AdminSystemRetentionPage = () => {
         </Form>
       </ProCard>
 
-      <ProCard bordered title={t('admin.retention.lastRun')} style={{ marginTop: 16 }}>
+      <ProCard bordered title={t('admin.retention.lastRun')} className="apple-soft-card" style={{ marginTop: 16 }}>
         {lastRun ? (
           <Descriptions column={2} bordered>
             <Descriptions.Item label={t('admin.retention.ranAt')}>
@@ -128,11 +145,11 @@ export const AdminSystemRetentionPage = () => {
         )}
       </ProCard>
 
-      <ProCard bordered title={t('admin.retention.logsTitle')} style={{ marginTop: 16 }}>
+      <ProCard bordered title={t('admin.retention.logsTitle')} className="apple-soft-card" style={{ marginTop: 16 }}>
         {history.length ? (
           <Space direction="vertical" style={{ width: '100%' }}>
             {history.map((entry) => (
-              <ProCard key={entry.ranAt} bordered>
+              <ProCard key={entry.ranAt} bordered className="apple-soft-card">
                 <Space direction="vertical" size={2}>
                   <Typography.Text strong>{formatDate(entry.ranAt)}</Typography.Text>
                   <Typography.Text type="secondary">
@@ -148,6 +165,8 @@ export const AdminSystemRetentionPage = () => {
           <SoftEmpty description={t('admin.retention.logsEmpty')} />
         )}
       </ProCard>
+      </>
+      )}
     </PageContainer>
   );
 };

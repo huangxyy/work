@@ -3,7 +3,7 @@ import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, DatePicker, Input, InputNumber, Select, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import type { Dayjs } from 'dayjs';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { downloadStudentSubmissionsCsv, fetchStudentSubmissions } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -20,6 +20,7 @@ type SubmissionRow = {
   updatedAt?: string;
   errorCode?: string | null;
   errorMsg?: string | null;
+  imageCount?: number;
 };
 
 export const StudentSubmissionsPage = () => {
@@ -45,6 +46,7 @@ export const StudentSubmissionsPage = () => {
   const { data, isLoading, isError, error, refetch } = useQuery<SubmissionRow[]>({
     queryKey: ['student-submissions'],
     queryFn: () => fetchStudentSubmissions(),
+    staleTime: 60 * 1000,
   });
 
   const filteredData = useMemo(() => {
@@ -88,14 +90,14 @@ export const StudentSubmissionsPage = () => {
     });
   }, [data, keyword, statusFilter, scoreMin, scoreMax, dateRange]);
 
-  const downloadBlob = (blob: Blob, filename: string) => {
+  const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.click();
     setTimeout(() => window.URL.revokeObjectURL(url), 200);
-  };
+  }, []);
 
   const handleExport = async () => {
     try {
@@ -114,18 +116,26 @@ export const StudentSubmissionsPage = () => {
     }
   };
 
-  const columns: ProColumns<SubmissionRow>[] = [
+  const handleViewSubmission = useCallback((id: string) => navigate(`/student/submission/${id}`), [navigate]);
+
+  const columns = useMemo<ProColumns<SubmissionRow>[]>(() => [
     {
       title: t('common.homework'),
       dataIndex: 'homeworkTitle',
       render: (value) => <Typography.Text strong>{value}</Typography.Text>,
     },
     {
+      title: t('student.submissions.images'),
+      dataIndex: 'imageCount',
+      render: (value) => (value ? <Tag className="apple-tag-pill">{value} img</Tag> : '--'),
+      width: 80,
+    },
+    {
       title: t('common.status'),
       dataIndex: 'status',
       render: (_, item) => {
         const meta = statusMeta[item.status];
-        return <Tag color={meta.color}>{meta.label}</Tag>;
+        return <Tag color={meta.color} className="apple-tag-pill">{meta.label}</Tag>;
       },
       width: 140,
     },
@@ -145,12 +155,12 @@ export const StudentSubmissionsPage = () => {
       title: t('common.action'),
       valueType: 'option',
       render: (_, item) => [
-        <Button key="view" onClick={() => navigate(`/student/submission/${item.id}`)}>
+        <Button key="view" onClick={() => handleViewSubmission(item.id)}>
           {t('common.view')}
         </Button>,
       ],
     },
-  ];
+  ], [t, statusMeta, handleViewSubmission]);
 
   return (
     <PageContainer
@@ -172,10 +182,10 @@ export const StudentSubmissionsPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
-      <ProCard bordered>
+      <ProCard bordered className="apple-soft-card">
         <ProTable<SubmissionRow>
           rowKey="id"
           columns={columns}
@@ -183,11 +193,12 @@ export const StudentSubmissionsPage = () => {
           loading={isLoading}
           search={false}
           pagination={{ pageSize: 8 }}
+          scroll={{ x: 'max-content' }}
           options={false}
           locale={{
             emptyText: (
               <SoftEmpty description={t('student.submissions.empty')}>
-                <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
+                <Typography.Paragraph type="secondary" className="apple-empty-hint">
                   {t('student.submissions.emptyHint')}
                 </Typography.Paragraph>
               </SoftEmpty>
@@ -196,16 +207,16 @@ export const StudentSubmissionsPage = () => {
           toolBarRender={() => [
             <Input.Search
               key="search"
+              className="apple-toolbar-search"
               placeholder={t('student.submissions.searchPlaceholder')}
               allowClear
               onSearch={(value) => setKeyword(value.trim())}
-              style={{ width: 220 }}
             />,
             <Select
               key="status"
+              className="apple-toolbar-select"
               value={statusFilter}
               onChange={(value) => setStatusFilter(value)}
-              style={{ width: 160 }}
               options={[
                 { label: t('common.allStatuses'), value: 'all' },
                 { label: t('status.queued'), value: 'QUEUED' },
@@ -214,9 +225,10 @@ export const StudentSubmissionsPage = () => {
                 { label: t('status.failed'), value: 'FAILED' },
               ]}
             />,
-            <Space key="score" size={4}>
+            <Space key="score" className="apple-toolbar-score-range">
               <Typography.Text>{t('student.submissions.scoreRange')}</Typography.Text>
               <InputNumber
+                className="apple-toolbar-score-input"
                 min={0}
                 max={100}
                 placeholder="0"
@@ -225,6 +237,7 @@ export const StudentSubmissionsPage = () => {
               />
               <Typography.Text>~</Typography.Text>
               <InputNumber
+                className="apple-toolbar-score-input"
                 min={0}
                 max={100}
                 placeholder="100"

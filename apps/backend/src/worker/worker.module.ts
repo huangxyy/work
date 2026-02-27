@@ -8,6 +8,7 @@ import { StorageModule } from '../storage/storage.module';
 import { GradingModule } from '../grading/grading.module';
 import { SystemConfigModule } from '../system-config/system-config.module';
 import { OcrModule } from '../ocr/ocr.module';
+import { NotificationModule } from '../notifications/notification.module';
 
 const buildRedisConnection = (redisUrl: string) => {
   try {
@@ -43,6 +44,7 @@ const buildRedisConnection = (redisUrl: string) => {
     QueueModule,
     SystemConfigModule,
     OcrModule,
+    NotificationModule,
   ],
   providers: [GradingProcessor],
 })

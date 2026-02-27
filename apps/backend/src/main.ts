@@ -2,9 +2,11 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters';
+import { validateEnvironment } from './common/security';
 
 const parseCorsOrigins = (rawValue: string | undefined): string[] =>
   (rawValue || '')
@@ -13,18 +15,49 @@ const parseCorsOrigins = (rawValue: string | undefined): string[] =>
     .filter(Boolean);
 
 async function bootstrap() {
+  validateEnvironment();
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
   const corsOrigins = parseCorsOrigins(configService.get<string>('CORS_ORIGIN'));
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'blob:'],
+              connectSrc: ["'self'"],
+              fontSrc: ["'self'", 'data:'],
+              objectSrc: ["'none'"],
+              frameAncestors: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+            },
+          }
+        : false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
   app.set('trust proxy', 1);
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Homework AI API')
+    .setDescription('AI-powered English essay grading system')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
+
   if (corsOrigins.includes('*')) {
-    // Wildcard CORS must NOT send credentials — browsers block
-    // `Access-Control-Allow-Credentials: true` when origin is `*`.
     app.enableCors({ origin: '*', credentials: false });
     Logger.warn('CORS_ORIGIN set to *, allowing all origins without credentials. Avoid this in production.');
   } else if (corsOrigins.length === 0) {

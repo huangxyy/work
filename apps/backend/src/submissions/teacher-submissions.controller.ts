@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -13,6 +14,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RetrySkippedDto } from './dto/retry-skipped.dto';
 import { Role } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
@@ -89,6 +91,7 @@ function sanitizeFilenameParam(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
+@ApiTags('Teacher Submissions')
 @Controller('teacher/submissions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.TEACHER, Role.ADMIN)
@@ -97,6 +100,14 @@ export class TeacherSubmissionsController {
     private readonly submissionsService: SubmissionsService,
     private readonly storage: StorageService,
   ) {}
+
+  @Get('unsubmitted/:homeworkId')
+  async getUnsubmittedStudents(
+    @Param('homeworkId', ParseCuidPipe) homeworkId: string,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.submissionsService.getUnsubmittedStudents(homeworkId, req.user);
+  }
 
   @Get()
   async list(@Query() query: ListHomeworkSubmissionsQueryDto, @Req() req: { user: AuthUser }) {
@@ -253,6 +264,15 @@ export class TeacherSubmissionsController {
     @Req() req: { user: AuthUser },
   ) {
     return this.submissionsService.retrySkippedSubmission(body, req.user);
+  }
+
+  @Patch(':id/feedback')
+  async addFeedback(
+    @Param('id', ParseCuidPipe) id: string,
+    @Body() body: { comment?: string; manualScore?: number },
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.submissionsService.addTeacherFeedback(id, body, req.user);
   }
 
   @Get('thumbnail/:fileKey')

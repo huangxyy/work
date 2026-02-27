@@ -7,9 +7,9 @@ ENV_FILE="${HOST_ENV_FILE:-${SCRIPT_DIR}/host.env}"
 if [ -f "${ENV_FILE}" ]; then
   # shellcheck disable=SC1090
   . "${ENV_FILE}"
-  echo "Loaded host config from ${ENV_FILE}"
+  echo "已加载主机配置：${ENV_FILE}"
 else
-  echo "host.env not found at ${ENV_FILE}, using inline defaults."
+  echo "未找到 host.env（${ENV_FILE}），将使用脚本默认值。"
 fi
 
 APP_DIR="${APP_DIR:-/www/homework-ai}"
@@ -32,6 +32,8 @@ CORS_ORIGIN="${CORS_ORIGIN:-https://${DOMAIN},http://${DOMAIN}}"
 MINIO_DATA="${MINIO_DATA:-/www/minio-data}"
 MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
 MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
+MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://127.0.0.1:9000}"
+MINIO_BUCKET="${MINIO_BUCKET:-submissions}"
 
 BAIDU_OCR_API_KEY="${BAIDU_OCR_API_KEY:-}"
 BAIDU_OCR_SECRET_KEY="${BAIDU_OCR_SECRET_KEY:-}"
@@ -45,7 +47,7 @@ RUN_RETENTION="${RUN_RETENTION:-true}"
 
 require_root() {
   if [ "${EUID}" -ne 0 ]; then
-    echo "Please run as root: sudo bash $0"
+    echo "请使用 root 运行：sudo bash $0"
     exit 1
   fi
 }
@@ -54,7 +56,7 @@ require_value() {
   local name="$1"
   local value="$2"
   if [ "${value}" = "CHANGE_ME" ] || [ -z "${value}" ]; then
-    echo "Set ${name} in deploy/host.env (or export env var) before running."
+    echo "请先在 deploy/host.env（或环境变量）中设置 ${name}。"
     exit 1
   fi
 }
@@ -120,11 +122,11 @@ EOF
 
 setup_mysql() {
   if [ "${SKIP_MYSQL_SETUP}" = "1" ]; then
-    echo "Skipping MySQL setup (SKIP_MYSQL_SETUP=1)."
+    echo "已跳过 MySQL 初始化（SKIP_MYSQL_SETUP=1）。"
     return
   fi
   if ! command -v mysql >/dev/null 2>&1; then
-    echo "mysql client not found. Please install MySQL/MariaDB first."
+    echo "未找到 mysql 客户端，请先安装 MySQL/MariaDB。"
     exit 1
   fi
 
@@ -164,10 +166,10 @@ REDIS_URL=redis://127.0.0.1:6379
 JWT_SECRET=${JWT_SECRET}
 CORS_ORIGIN=${CORS_ORIGIN}
 STORAGE_PROVIDER=minio
-MINIO_ENDPOINT=http://127.0.0.1:9000
+MINIO_ENDPOINT=${MINIO_ENDPOINT}
 MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
 MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
-MINIO_BUCKET=submissions
+MINIO_BUCKET=${MINIO_BUCKET}
 MINIO_REGION=us-east-1
 BAIDU_OCR_API_KEY=${BAIDU_OCR_API_KEY}
 BAIDU_OCR_SECRET_KEY=${BAIDU_OCR_SECRET_KEY}
@@ -334,4 +336,4 @@ if [ -f "${APP_DIR}/deploy/healthcheck.sh" ]; then
     --retry-interval 3
 fi
 
-echo "Done. API should be on http://127.0.0.1:${API_PORT}/api/health"
+echo "部署完成。可访问：http://127.0.0.1:${API_PORT}/api/health"

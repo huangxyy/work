@@ -1,22 +1,29 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, List, Progress, Space, Tag, Typography } from 'antd';
+import { Alert, Button, List, Skeleton, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchStudentHomeworks, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
+import { OnboardingGuide } from '../../components/OnboardingGuide';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
 import { formatDate } from '../../utils/dateFormat';
 
+const REPORT_DAYS = 7;
+
 export const StudentDashboardPage = () => {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['student-homeworks'],
     queryFn: fetchStudentHomeworks,
+    staleTime: 2 * 60 * 1000,
   });
   const reportQuery = useQuery({
     queryKey: ['student-dashboard-report'],
-    queryFn: () => fetchStudentReportOverview(7),
+    queryFn: () => fetchStudentReportOverview(REPORT_DAYS),
+    staleTime: 2 * 60 * 1000,
   });
 
   const homeworkCount = data?.length ?? 0;
@@ -43,7 +50,7 @@ export const StudentDashboardPage = () => {
         key: 'assignments',
         title: (
           <Space size={6} align="center">
-            <span>{t('student.dashboard.assignmentsAvailable')}</span>
+            <span>{t('student.report.totalAssignments')}</span>
             <span className="stat-chip">{t('common.realtime')}</span>
           </Space>
         ),
@@ -53,14 +60,14 @@ export const StudentDashboardPage = () => {
         key: 'submissions',
         title: (
           <Space size={6} align="center">
-            <span>{t('student.dashboard.weeklySubmissions')}</span>
+            <span>{t('student.report.submissions')}</span>
             <span className="stat-chip">{t('common.last7Days')}</span>
           </Space>
         ),
         value: summary?.count,
       },
       {
-        key: 'avg',
+        key: 'avgScore',
         title: (
           <Space size={6} align="center">
             <span>{t('student.report.avgScore')}</span>
@@ -70,7 +77,7 @@ export const StudentDashboardPage = () => {
         value: summary?.avg,
       },
       {
-        key: 'max',
+        key: 'highestScore',
         title: (
           <Space size={6} align="center">
             <span>{t('student.report.highestScore')}</span>
@@ -83,16 +90,6 @@ export const StudentDashboardPage = () => {
     [homeworkCount, summary?.avg, summary?.count, summary?.max, t],
   );
 
-  const getDueStatus = (dueAt?: Date | null) => {
-    if (!dueAt) {
-      return { label: t('status.noDue'), color: 'default' as const };
-    }
-    if (dueAt.getTime() < Date.now()) {
-      return { label: t('status.overdue'), color: 'error' as const };
-    }
-    return { label: t('status.open'), color: 'success' as const };
-  };
-
   return (
     <PageContainer
       title={t('nav.dashboard')}
@@ -103,6 +100,7 @@ export const StudentDashboardPage = () => {
         ],
       }}
     >
+      <OnboardingGuide role="STUDENT" />
       {isError ? (
         <Alert
           type="error"
@@ -116,42 +114,78 @@ export const StudentDashboardPage = () => {
           style={{ marginBottom: 16 }}
         />
       ) : null}
+      {reportQuery.isError ? (
+        <Alert
+          type="error"
+          message={t('student.report.loadError')}
+          description={reportQuery.error instanceof Error ? reportQuery.error.message : t('common.tryAgain')}
+          action={
+            <Button size="small" onClick={() => reportQuery.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+      {upcoming.length > 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={`${t('student.dashboard.pendingReminder')}: ${upcoming.length} ${t('student.dashboard.homeworksToSubmit')}`}
+          description={upcoming.map((u) => u.title).join(', ')}
+          action={
+            <Button type="primary" size="small" onClick={() => navigate('/student/homeworks')}>
+              {t('student.dashboard.goToHomeworks')}
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+      {isLoading && !data ? (
+        <Skeleton active paragraph={{ rows: 8 }} />
+      ) : (
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <ProCard bordered title={t('student.report.summary')}>
-          <ProCard gutter={16} wrap>
+        <ProCard
+          bordered
+          title={t('student.report.summary')}
+          headerBordered
+          className="chart-panel apple-soft-card"
+        >
+          <ProCard gutter={[24, 24]} wrap ghost>
             {summaryCards.map((card) => (
               <ProCard
-                bordered
+                ghost
                 key={card.key}
                 colSpan={{ xs: 24, sm: 12, md: 6 }}
-                loading={isLoading && !data}
               >
-                <AnimatedStatistic title={card.title} value={card.value} />
+                <AnimatedStatistic title={<span className="apple-muted-label">{card.title}</span>} value={card.value} />
                 {card.key === 'assignments' ? (
-                  <Typography.Text type="secondary">{t('student.dashboard.updatedFromList')}</Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: '12px' }}>{t('student.dashboard.updatedFromList')}</Typography.Text>
                 ) : null}
               </ProCard>
             ))}
           </ProCard>
         </ProCard>
 
-        <ProCard gutter={16} wrap>
-          <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('student.report.errorTypes')}>
+        <ProCard gutter={[24, 24]} wrap ghost>
+          <ProCard
+            bordered
+            colSpan={{ xs: 24, lg: 12 }}
+            title={t('student.report.errorTypes')}
+            headerBordered
+            className="chart-panel apple-soft-card"
+          >
             {topErrors.length ? (
               <List
                 dataSource={topErrors}
                 renderItem={(item) => (
-                  <List.Item>
-                    <Space direction="vertical" style={{ width: '100%' }} size={8}>
-                      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                        <Typography.Text>{localizeErrorType(item.type)}</Typography.Text>
-                        <Tag>{item.count}</Tag>
+                  <List.Item className="apple-list-row">
+                    <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                      <Typography.Text style={{ fontWeight: 500, fontSize: '15px' }}>{localizeErrorType(item.type)}</Typography.Text>
+                      <Space>
+                        <Typography.Text style={{ color: 'var(--apple-primary)', fontWeight: 600 }}>{item.count}</Typography.Text>
+                        <Tag color="error" className="apple-tag-pill">{item.ratio}</Tag>
                       </Space>
-                      <Progress
-                        percent={Math.round(item.ratio * 100)}
-                        showInfo={false}
-                        strokeColor="#1d4ed8"
-                      />
                     </Space>
                   </List.Item>
                 )}
@@ -160,16 +194,23 @@ export const StudentDashboardPage = () => {
               <SoftEmpty description={t('student.dashboard.noErrorInsights')} />
             )}
           </ProCard>
-          <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('student.report.nextSteps')}>
+          <ProCard
+            bordered
+            colSpan={{ xs: 24, lg: 12 }}
+            title={t('student.report.nextSteps')}
+            headerBordered
+            className="chart-panel apple-soft-card"
+          >
             {nextSteps.length ? (
               <List
                 dataSource={nextSteps}
-                renderItem={(item) => (
-                  <List.Item>
-                    <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                      <Typography.Text>{item.text}</Typography.Text>
-                      <Typography.Text type="secondary">{item.count}</Typography.Text>
-                    </Space>
+                renderItem={(item, index) => (
+                  <List.Item className="apple-list-row">
+                    <List.Item.Meta
+                      avatar={<Tag color="processing" className="apple-tag-pill">{index + 1}</Tag>}
+                      title={<span style={{ fontWeight: 500, fontSize: '15px' }}>{item.text}</span>}
+                      description={<span style={{ color: 'var(--apple-text-muted)' }}>{item.count}</span>}
+                    />
                   </List.Item>
                 )}
               />
@@ -179,32 +220,42 @@ export const StudentDashboardPage = () => {
           </ProCard>
         </ProCard>
 
-        <ProCard bordered title={t('student.dashboard.upcomingDeadlines')}>
+        <ProCard
+          bordered
+          title={t('student.dashboard.upcomingDeadlines')}
+          headerBordered
+          className="chart-panel apple-soft-card"
+        >
           {upcoming.length ? (
             <List
               dataSource={upcoming}
-              renderItem={(item) => {
-                const status = getDueStatus(item.dueAt);
-                return (
-                  <List.Item>
-                    <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                      <Space direction="vertical" size={0}>
-                        <Typography.Text>{item.title}</Typography.Text>
-                        <Typography.Text type="secondary">
-                          {item.dueAt ? formatDate(item.dueAt) : '--'}
-                        </Typography.Text>
+              renderItem={(item) => (
+                <List.Item className="apple-list-row">
+                  <List.Item.Meta
+                    title={
+                      <Space>
+                        <span style={{ fontWeight: 500, fontSize: '15px' }}>{item.title}</span>
+                        <Tag color="warning" className="apple-tag-pill">{t('student.dashboard.dueSoon')}</Tag>
                       </Space>
-                      <Tag color={status.color}>{status.label}</Tag>
-                    </Space>
-                  </List.Item>
-                );
-              }}
+                    }
+                    description={<span style={{ color: 'var(--apple-text-muted)' }}>{item.dueAt ? formatDate(item.dueAt) : '--'}</span>}
+                  />
+                  <Button
+                    type="primary"
+                    onClick={() => navigate(`/student/homeworks/${item.id}`)}
+                    style={{ borderRadius: '999px' }}
+                  >
+                    {t('student.dashboard.goToSubmit')}
+                  </Button>
+                </List.Item>
+              )}
             />
           ) : (
             <SoftEmpty description={upcomingDeadlineText} />
           )}
         </ProCard>
       </Space>
+      )}
     </PageContainer>
   );
 };

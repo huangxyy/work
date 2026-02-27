@@ -215,6 +215,7 @@ Stop-Process -Id <进程ID> -Force
 - [开发指南](./CLAUDE.md) - 详细的开发文档和架构说明
 - [API 文档](./docs/API.md) - API 接口文档
 - [部署文档](./docs/DEPLOY.md) - 部署指南
+- [交接文档](./docs/HANDOVER.md) - 打包移交与二次部署指南
 
 ## 许可证
 

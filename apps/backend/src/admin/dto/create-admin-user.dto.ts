@@ -21,4 +21,8 @@ export class CreateAdminUserDto {
     message: 'Password must contain at least one letter and one digit',
   })
   password: string;
+
+  @IsOptional()
+  @IsString()
+  classId?: string;
 }

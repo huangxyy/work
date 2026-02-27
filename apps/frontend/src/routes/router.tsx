@@ -4,6 +4,7 @@ import { AdminLayout } from '../layouts/AdminLayout';
 import { TeacherLayout } from '../layouts/TeacherLayout';
 import { StudentLayout } from '../layouts/StudentLayout';
 import { RequireAuth } from '../components/RequireAuth';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { NotFoundPage, PageFallback } from './route-components';
 
 const LoginPage = lazy(() => import('../pages/Login').then((module) => ({ default: module.LoginPage })));
@@ -87,6 +88,42 @@ const TeacherSettingsGradingPage = lazy(() =>
 const TeacherSubmissionDetailPage = lazy(() =>
   import('../pages/teacher/SubmissionDetail').then((module) => ({ default: module.TeacherSubmissionDetailPage })),
 );
+const TermsOfServicePage = lazy(() =>
+  import('../pages/TermsOfService').then((m) => ({ default: m.TermsOfServicePage })),
+);
+const PrivacyPolicyPage = lazy(() =>
+  import('../pages/PrivacyPolicy').then((m) => ({ default: m.PrivacyPolicyPage })),
+);
+const ProfilePage = lazy(() =>
+  import('../pages/ProfilePage').then((module) => ({ default: module.ProfilePage })),
+);
+const StudentAnnouncementsPage = lazy(() =>
+  import('../pages/student/Announcements').then((module) => ({ default: module.StudentAnnouncementsPage })),
+);
+const TeacherAnnouncementsPage = lazy(() =>
+  import('../pages/teacher/Announcements').then((module) => ({ default: module.TeacherAnnouncementsPage })),
+);
+const ForgotPasswordPage = lazy(() =>
+  import('../pages/ForgotPassword').then((module) => ({ default: module.ForgotPasswordPage })),
+);
+const AdminSubmissionDiagnosisPage = lazy(() =>
+  import('../pages/admin/SubmissionDiagnosis').then((m) => ({ default: m.AdminSubmissionDiagnosisPage })),
+);
+const AdminAuditLogsPage = lazy(() =>
+  import('../pages/admin/AuditLogs').then((m) => ({ default: m.AdminAuditLogsPage })),
+);
+const AdminSystemInfoPage = lazy(() =>
+  import('../pages/admin/SystemInfo').then((m) => ({ default: m.AdminSystemInfoPage })),
+);
+const AdminLoginHistoryPage = lazy(() =>
+  import('../pages/admin/LoginHistory').then((m) => ({ default: m.AdminLoginHistoryPage })),
+);
+const AdminFeatureFlagsPage = lazy(() =>
+  import('../pages/admin/FeatureFlags').then((m) => ({ default: m.AdminFeatureFlagsPage })),
+);
+const AdminAnnouncementsPage = lazy(() =>
+  import('../pages/admin/Announcements').then((m) => ({ default: m.AdminAnnouncementsPage })),
+);
 
 const withSuspense = (element: JSX.Element) => (
   <Suspense fallback={<PageFallback />}>{element}</Suspense>
@@ -96,9 +133,12 @@ export const router = createBrowserRouter([
   { path: '/', element: withSuspense(<LandingPage />) },
   { path: '/landing', element: withSuspense(<LandingPage />) },
   { path: '/login', element: withSuspense(<LoginPage />) },
+  { path: '/forgot-password', element: withSuspense(<ForgotPasswordPage />) },
+  { path: '/terms', element: withSuspense(<TermsOfServicePage />) },
+  { path: '/privacy', element: withSuspense(<PrivacyPolicyPage />) },
   {
     path: '/student',
-    element: <RequireAuth allowedRoles={['STUDENT']}><StudentLayout /></RequireAuth>,
+    element: <ErrorBoundary><RequireAuth allowedRoles={['STUDENT']}><StudentLayout /></RequireAuth></ErrorBoundary>,
     children: [
       { index: true, element: <Navigate to="/student/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<StudentDashboardPage />) },
@@ -108,12 +148,14 @@ export const router = createBrowserRouter([
       { path: 'submissions', element: withSuspense(<StudentSubmissionsPage />) },
       { path: 'submission/:id', element: withSuspense(<SubmissionResultPage />) },
       { path: 'report', element: withSuspense(<StudentReportPage />) },
+      { path: 'announcements', element: withSuspense(<StudentAnnouncementsPage />) },
+      { path: 'profile', element: withSuspense(<ProfilePage />) },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
   {
     path: '/teacher',
-    element: <RequireAuth allowedRoles={['TEACHER']}><TeacherLayout /></RequireAuth>,
+    element: <ErrorBoundary><RequireAuth allowedRoles={['TEACHER']}><TeacherLayout /></RequireAuth></ErrorBoundary>,
     children: [
       { index: true, element: <Navigate to="/teacher/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<TeacherDashboardPage />) },
@@ -125,25 +167,35 @@ export const router = createBrowserRouter([
       { path: 'submission/:id', element: withSuspense(<TeacherSubmissionDetailPage />) },
       { path: 'reports', element: withSuspense(<TeacherReportPage />) },
       { path: 'reports/student/:studentId', element: withSuspense(<TeacherStudentReportPage />) },
+      { path: 'announcements', element: withSuspense(<TeacherAnnouncementsPage />) },
       { path: 'settings', element: <Navigate to="/teacher/settings/grading" replace /> },
       { path: 'settings/grading', element: withSuspense(<TeacherSettingsGradingPage />) },
+      { path: 'profile', element: withSuspense(<ProfilePage />) },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
   {
     path: '/admin',
-    element: <RequireAuth allowedRoles={['ADMIN']}><AdminLayout /></RequireAuth>,
+    element: <ErrorBoundary><RequireAuth allowedRoles={['ADMIN']}><AdminLayout /></RequireAuth></ErrorBoundary>,
     children: [
       { index: true, element: <Navigate to="/admin/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<AdminDashboardPage />) },
       { path: 'classes', element: withSuspense(<AdminClassesPage />) },
       { path: 'usage', element: withSuspense(<AdminUsagePage />) },
       { path: 'users', element: withSuspense(<AdminUsersPage />) },
+      { path: 'config', element: <Navigate to="/admin/system/config" replace /> },
       { path: 'system', element: <Navigate to="/admin/system/budget" replace /> },
       { path: 'system/config', element: withSuspense(<AdminConfigPage />) },
       { path: 'system/budget', element: withSuspense(<AdminSystemBudgetPage />) },
       { path: 'system/retention', element: withSuspense(<AdminSystemRetentionPage />) },
       { path: 'system/queue', element: withSuspense(<AdminQueuePage />) },
+      { path: 'diagnosis', element: withSuspense(<AdminSubmissionDiagnosisPage />) },
+      { path: 'audit-logs', element: withSuspense(<AdminAuditLogsPage />) },
+      { path: 'system/info', element: withSuspense(<AdminSystemInfoPage />) },
+      { path: 'login-history', element: withSuspense(<AdminLoginHistoryPage />) },
+      { path: 'feature-flags', element: withSuspense(<AdminFeatureFlagsPage />) },
+      { path: 'announcements', element: withSuspense(<AdminAnnouncementsPage />) },
+      { path: 'profile', element: withSuspense(<ProfilePage />) },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

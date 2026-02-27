@@ -1,8 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags } from '@nestjs/swagger';
+import { memoryStorage } from 'multer';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import type { Response } from 'express';
 import { AuthUser } from '../auth/auth.types';
 import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { AdminService } from './admin.service';
@@ -19,6 +23,7 @@ import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
 
+@ApiTags('Admin')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -45,6 +50,14 @@ export class AdminController {
     return this.adminService.testOcrConnection();
   }
 
+  @Get('users/export')
+  async exportUsers(@Res({ passthrough: true }) res: Response) {
+    const csv = await this.adminService.exportUsersCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+    return csv;
+  }
+
   @Get('users')
   async listUsers(@Query() query: ListUsersQueryDto) {
     return this.adminService.listUsers(query);
@@ -53,6 +66,11 @@ export class AdminController {
   @Post('users')
   async createUser(@Body() body: CreateAdminUserDto) {
     return this.adminService.createUser(body);
+  }
+
+  @Delete('users/:id')
+  async deleteUser(@Param('id', ParseCuidPipe) id: string, @Req() req: { user: AuthUser }) {
+    return this.adminService.deleteUser(id, req.user);
   }
 
   @Patch('users/:id')
@@ -117,5 +135,64 @@ export class AdminController {
   @Post('queue/resume')
   async resumeQueue() {
     return this.adminService.resumeQueue();
+  }
+
+  @Get('feature-flags')
+  async getFeatureFlags() {
+    return this.adminService.getFeatureFlags();
+  }
+
+  @Patch('feature-flags')
+  async updateFeatureFlag(@Body() body: { flag: string; enabled: boolean }) {
+    return this.adminService.updateFeatureFlag(body.flag, body.enabled);
+  }
+
+  @Get('submissions/:id/diagnosis')
+  async getSubmissionDiagnosis(@Param('id', ParseCuidPipe) id: string) {
+    return this.adminService.getSubmissionDiagnosis(id);
+  }
+
+  @Post('ocr/test')
+  @UseInterceptors(FileInterceptor('image', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
+  async testOcr(@UploadedFile() file: Express.Multer.File) {
+    return this.adminService.testOcrWithImage(file.buffer);
+  }
+
+  @Get('error-trends')
+  async getErrorTrends(@Query('days') days?: string) {
+    return this.adminService.getErrorTrends(days ? parseInt(days, 10) : 7);
+  }
+
+  @Get('system-info')
+  async getSystemInfo() {
+    return this.adminService.getSystemInfo();
+  }
+
+  @Post('users/bulk-import')
+  async bulkImportUsers(@Body() body: { text: string; role?: string; classId?: string; defaultPassword?: string }) {
+    return this.adminService.bulkImportUsers(body);
+  }
+
+  @Post('users/bulk-disable')
+  async bulkDisableUsers(@Body() body: { userIds: string[] }) {
+    return this.adminService.bulkDisableUsers(body.userIds);
+  }
+
+  @Post('users/bulk-reset-password')
+  async bulkResetPassword(@Body() body: { userIds: string[]; newPassword: string }) {
+    return this.adminService.bulkResetPassword(body.userIds, body.newPassword);
+  }
+
+  @Get('llm/cost-summary')
+  async getLlmCostSummary(@Query('days') days?: string) {
+    return this.adminService.getLlmCostSummary(days ? parseInt(days, 10) : 7);
+  }
+
+  @Get('audit-logs')
+  async getAuditLogs(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.adminService.getAuditLogs(
+      limit ? parseInt(limit, 10) : 50,
+      offset ? parseInt(offset, 10) : 0,
+    );
   }
 }

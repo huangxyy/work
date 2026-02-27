@@ -2,9 +2,10 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import { Alert, Button, Dropdown, InputNumber, List, Select, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   downloadTeacherClassReportCsv,
+  downloadTeacherClassReportPdf,
   fetchClasses,
   fetchTeacherClassReportOverview,
 } from '../../api';
@@ -71,7 +72,7 @@ export const TeacherReportPage = () => {
   const classesQuery = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export const TeacherReportPage = () => {
     queryKey: ['teacher-report', selectedClassId, rangeDays],
     queryFn: () => fetchTeacherClassReportOverview(selectedClassId, rangeDays),
     enabled: !!selectedClassId,
+    staleTime: 2 * 60 * 1000,
   });
 
   const classOptions = useMemo(
@@ -176,52 +178,29 @@ export const TeacherReportPage = () => {
     };
   }, [report?.errorTypes]);
 
-  const downloadBlob = (blob: Blob, filename: string) => {
+  const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.click();
-    setTimeout(() => window.URL.revokeObjectURL(url), 200);
-  };
+    window.URL.revokeObjectURL(url);
+  }, []);
 
   const handleExportPdf = async () => {
     if (!selectedClassId) {
       message.warning(t('teacher.reports.selectClassHint'));
       return;
     }
-    if (!reportRef.current) {
-      message.error(t('teacher.reports.exportFailed'));
-      return;
-    }
     try {
       setExporting(true);
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let position = 0;
-      let heightLeft = imgHeight;
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      pdf.save(`class-${selectedClassId}-report.pdf`);
+      const blob = await downloadTeacherClassReportPdf(selectedClassId, rangeDays, language);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `class-${selectedClassId}-report.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
     } catch {
       message.error(t('teacher.reports.exportFailed'));
     } finally {
@@ -262,21 +241,21 @@ export const TeacherReportPage = () => {
               {t('common.retry')}
             </Button>
           }
-          style={{ marginBottom: 16 }}
+          className="apple-inline-alert"
         />
       ) : null}
 
-      <ProCard bordered style={{ marginBottom: 16 }}>
-        <Space wrap>
+      <ProCard bordered className="apple-soft-card apple-section-card">
+        <Space wrap className="apple-toolbar">
           <Select
             placeholder={t('teacher.reports.selectClass')}
-            style={{ minWidth: 220 }}
+            className="apple-toolbar-select-wide"
             options={classOptions}
             loading={classesQuery.isLoading}
             value={selectedClassId || undefined}
             onChange={(value) => setSelectedClassId(value)}
           />
-          <Space>
+          <Space className="apple-toolbar-score-range">
             <Typography.Text>{t('teacher.reports.rangeDays')}</Typography.Text>
             <InputNumber min={1} max={30} value={rangeDays} onChange={(value) => setRangeDays(value || 7)} />
           </Space>
@@ -308,46 +287,51 @@ export const TeacherReportPage = () => {
           <SoftEmpty description={t('teacher.reports.noData')} />
         ) : (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <ProCard bordered title={t('teacher.reports.insightsTitle')}>
-              <ProCard gutter={16} wrap>
-                <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+            <ProCard 
+              title={t('teacher.reports.insightsTitle')} 
+              headerBordered 
+              bordered 
+              className="chart-panel apple-soft-card"
+            >
+              <ProCard gutter={[24, 24]} wrap ghost>
+                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                   <AnimatedStatistic
                     title={
                       <Space size={6} align="center">
-                        <span>{t('teacher.reports.totalStudents')}</span>
+                        <span className="apple-muted-label">{t('teacher.reports.totalStudents')}</span>
                         <span className="stat-chip">{t('common.realtime')}</span>
                       </Space>
                     }
                     value={report.totalStudents}
                   />
                 </ProCard>
-                <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                   <AnimatedStatistic
                     title={
                       <Space size={6} align="center">
-                        <span>{t('teacher.reports.submittedStudents')}</span>
+                        <span className="apple-muted-label">{t('teacher.reports.submittedStudents')}</span>
                         <span className="stat-chip">{rangeTag}</span>
                       </Space>
                     }
                     value={report.submittedStudents}
                   />
                 </ProCard>
-                <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                   <AnimatedStatistic
                     title={
                       <Space size={6} align="center">
-                        <span>{t('teacher.reports.pendingStudents')}</span>
+                        <span className="apple-muted-label">{t('teacher.reports.pendingStudents')}</span>
                         <span className="stat-chip">{rangeTag}</span>
                       </Space>
                     }
                     value={report.pendingStudents}
                   />
                 </ProCard>
-                <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                   <AnimatedStatistic
                     title={
                       <Space size={6} align="center">
-                        <span>{t('teacher.reports.submissionRate')}</span>
+                        <span className="apple-muted-label">{t('teacher.reports.submissionRate')}</span>
                         <span className="stat-chip">{rangeTag}</span>
                       </Space>
                     }
@@ -357,47 +341,52 @@ export const TeacherReportPage = () => {
                 </ProCard>
               </ProCard>
             </ProCard>
-            <ProCard bordered title={t('teacher.reports.summary')}>
+            <ProCard 
+              title={t('teacher.reports.summary')} 
+              headerBordered 
+              bordered 
+              className="chart-panel apple-soft-card"
+            >
               {hasSummary ? (
-                <ProCard gutter={16} wrap>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                <ProCard gutter={[24, 24]} wrap ghost>
+                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
-                          <span>{t('teacher.reports.avgScore')}</span>
+                          <span className="apple-muted-label">{t('teacher.reports.avgScore')}</span>
                           <span className="stat-chip">{rangeTag}</span>
                         </Space>
                       }
                       value={report.summary.avg}
                     />
                   </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
-                          <span>{t('teacher.reports.highestScore')}</span>
+                          <span className="apple-muted-label">{t('teacher.reports.highestScore')}</span>
                           <span className="stat-chip">{rangeTag}</span>
                         </Space>
                       }
                       value={report.summary.max}
                     />
                   </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
-                          <span>{t('teacher.reports.lowestScore')}</span>
+                          <span className="apple-muted-label">{t('teacher.reports.lowestScore')}</span>
                           <span className="stat-chip">{rangeTag}</span>
                         </Space>
                       }
                       value={report.summary.min}
                     />
                   </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
                     <AnimatedStatistic
                       title={
                         <Space size={6} align="center">
-                          <span>{t('teacher.reports.submissions')}</span>
+                          <span className="apple-muted-label">{t('teacher.reports.submissions')}</span>
                           <span className="stat-chip">{rangeTag}</span>
                         </Space>
                       }
@@ -410,15 +399,27 @@ export const TeacherReportPage = () => {
               )}
             </ProCard>
 
-            <ProCard gutter={16} wrap>
-              <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.reports.scoreDistribution')}>
+            <ProCard gutter={[24, 24]} wrap ghost>
+              <ProCard 
+                colSpan={{ xs: 24, lg: 12 }} 
+                title={t('teacher.reports.scoreDistribution')} 
+                headerBordered 
+                bordered 
+                className="chart-panel apple-soft-card"
+              >
                 {report.distribution?.length ? (
                   <ChartPanel option={distributionOption} />
                 ) : (
                   <SoftEmpty description={t('teacher.reports.noDistribution')} />
                 )}
               </ProCard>
-              <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.reports.trend')}>
+              <ProCard 
+                colSpan={{ xs: 24, lg: 12 }} 
+                title={t('teacher.reports.trend')} 
+                headerBordered 
+                bordered 
+                className="chart-panel apple-soft-card"
+              >
                 {report.trend?.length ? (
                   <ChartPanel option={trendOption} height={280} />
                 ) : (
@@ -427,16 +428,22 @@ export const TeacherReportPage = () => {
               </ProCard>
             </ProCard>
 
-            <ProCard gutter={16} wrap>
-              <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.reports.topStudents')}>
+            <ProCard gutter={[24, 24]} wrap ghost>
+              <ProCard 
+                colSpan={{ xs: 24, lg: 12 }} 
+                title={t('teacher.reports.topStudents')} 
+                headerBordered 
+                bordered 
+                className="chart-panel apple-soft-card"
+              >
                 {report.topRank?.length ? (
                   <List
                     dataSource={report.topRank}
                     renderItem={(item) => (
-                      <List.Item>
+                      <List.Item className="apple-list-row">
                         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                          <Typography.Text>{item.name}</Typography.Text>
-                          <Typography.Text>
+                          <Typography.Text style={{ fontWeight: 500, fontSize: '15px' }}>{item.name}</Typography.Text>
+                          <Typography.Text style={{ color: 'var(--apple-primary)', fontWeight: 600 }}>
                             {t('common.avgShort')} {item.avgScore}
                           </Typography.Text>
                         </Space>
@@ -447,7 +454,13 @@ export const TeacherReportPage = () => {
                   <SoftEmpty description={t('teacher.reports.noRanking')} />
                 )}
               </ProCard>
-              <ProCard bordered colSpan={{ xs: 24, lg: 12 }} title={t('teacher.reports.topErrorTypes')}>
+              <ProCard 
+                colSpan={{ xs: 24, lg: 12 }} 
+                title={t('teacher.reports.topErrorTypes')} 
+                headerBordered 
+                bordered 
+                className="chart-panel apple-soft-card"
+              >
                 {report.errorTypes?.length ? (
                   <ChartPanel option={errorOption} />
                 ) : (

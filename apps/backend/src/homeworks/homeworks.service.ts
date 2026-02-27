@@ -108,6 +108,21 @@ export class HomeworksService {
     }));
   }
 
+  async updateHomework(
+    id: string,
+    data: { title?: string; desc?: string; dueAt?: string },
+    user: AuthUser,
+  ) {
+    await this.ensureHomeworkAccess(id, user);
+
+    const updateData: Partial<{ title: string; desc: string | null; dueAt: Date | null }> = {};
+    if (data.title?.trim()) updateData.title = data.title.trim();
+    if (data.desc !== undefined) updateData.desc = data.desc || null;
+    if (data.dueAt !== undefined) updateData.dueAt = data.dueAt ? new Date(data.dueAt) : null;
+
+    return this.prisma.homework.update({ where: { id }, data: updateData });
+  }
+
   async createHomework(dto: CreateHomeworkDto, user: AuthUser) {
     await this.ensureClassAccess(dto.classId, user);
     const dueAt = dto.dueAt ? new Date(dto.dueAt) : undefined;
@@ -142,6 +157,13 @@ export class HomeworksService {
 
     const homeworks = await this.prisma.homework.findMany({
       where: { classId },
+      select: {
+        id: true,
+        title: true,
+        desc: true,
+        dueAt: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
@@ -150,19 +172,21 @@ export class HomeworksService {
       return [];
     }
 
-    const totalStudents = await this.prisma.enrollment.count({ where: { classId } });
     const homeworkIds = homeworks.map((homework) => homework.id);
 
-    const statusGroups = await this.prisma.submission.groupBy({
-      by: ['homeworkId', 'status'],
-      where: { homeworkId: { in: homeworkIds } },
-      _count: { _all: true },
-    });
-
-    const studentGroups = await this.prisma.submission.groupBy({
-      by: ['homeworkId', 'studentId'],
-      where: { homeworkId: { in: homeworkIds } },
-    });
+    const [totalStudents, statusGroups, studentGroups] = await Promise.all([
+      this.prisma.enrollment.count({ where: { classId } }),
+      this.prisma.submission.groupBy({
+        by: ['homeworkId', 'status'],
+        where: { homeworkId: { in: homeworkIds } },
+        _count: { _all: true },
+      }),
+      this.prisma.submission.groupBy({
+        by: ['homeworkId', 'studentId'],
+        where: { homeworkId: { in: homeworkIds } },
+        _count: { _all: true },
+      }),
+    ]);
 
     const statusMap = new Map<
       string,

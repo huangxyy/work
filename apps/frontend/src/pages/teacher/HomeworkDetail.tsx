@@ -36,6 +36,7 @@ import {
   createTeacherBatchSubmissions,
   deleteHomework,
   fetchHomeworkDeletePreview,
+  fetchUnsubmittedStudents,
   importClassStudents,
   fetchTeacherHomeworkSubmissions,
   fetchTeacherBatchUploads,
@@ -179,6 +180,13 @@ export const TeacherHomeworkDetailPage = () => {
     queryKey: ['homework-submissions', id],
     queryFn: () => fetchTeacherHomeworkSubmissions(id || ''),
     enabled: !!id,
+  });
+
+  const unsubmittedQuery = useQuery({
+    queryKey: ['unsubmitted-students', id],
+    queryFn: () => fetchUnsubmittedStudents(id || ''),
+    enabled: !!id,
+    staleTime: 60_000,
   });
 
   const batchesQuery = useQuery<BatchHistoryRow[]>({
@@ -940,6 +948,20 @@ export const TeacherHomeworkDetailPage = () => {
               label: t('nav.submissions'),
               children: (
                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  {(unsubmittedQuery.data?.length ?? 0) > 0 && (
+                    <ProCard
+                      bordered
+                      title={`${t('teacher.homeworkDetail.unsubmitted')} (${unsubmittedQuery.data!.length})`}
+                    >
+                      <Space wrap size={[8, 8]}>
+                        {unsubmittedQuery.data!.map((s) => (
+                          <Tag key={s.id} color="warning">
+                            {s.name} ({s.account})
+                          </Tag>
+                        ))}
+                      </Space>
+                    </ProCard>
+                  )}
                   {submissionsQuery.isError ? (
                     <Alert
                       type="error"
@@ -964,6 +986,7 @@ export const TeacherHomeworkDetailPage = () => {
                       loading={submissionsQuery.isLoading}
                       search={false}
                       pagination={{ pageSize: 8 }}
+                      scroll={{ x: 'max-content' }}
                       options={false}
                       locale={{
                         emptyText: (
