@@ -46,7 +46,10 @@ export class AnnouncementService {
   async listByClass(classId: string, limit = 20) {
     return this.prisma.announcement.findMany({
       where: { classId },
-      include: { author: { select: { id: true, name: true } } },
+      include: {
+        author: { select: { id: true, name: true } },
+        class: { select: { id: true, name: true } },
+      },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
@@ -61,6 +64,38 @@ export class AnnouncementService {
 
     return this.prisma.announcement.findMany({
       where: { OR: [{ classId: { in: classIds } }, { classId: null }] },
+      include: { author: { select: { id: true, name: true } }, class: { select: { id: true, name: true } } },
+      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+    });
+  }
+
+  async listForTeacher(teacherId: string, classId?: string, limit = 20) {
+    const classes = await this.prisma.class.findMany({
+      where: { teachers: { some: { id: teacherId } } },
+      select: { id: true },
+    });
+    const classIds = classes.map((c) => c.id);
+
+    if (classId && !classIds.includes(classId)) {
+      throw new ForbiddenException('Not authorized for this class');
+    }
+
+    const where = classId
+      ? { OR: [{ classId }, { classId: null }] }
+      : { OR: [{ classId: { in: classIds } }, { classId: null }] };
+
+    return this.prisma.announcement.findMany({
+      where,
+      include: { author: { select: { id: true, name: true } }, class: { select: { id: true, name: true } } },
+      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+    });
+  }
+
+  async listForAdmin(classId?: string, limit = 20) {
+    return this.prisma.announcement.findMany({
+      where: classId ? { classId } : {},
       include: { author: { select: { id: true, name: true } }, class: { select: { id: true, name: true } } },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: limit,

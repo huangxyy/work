@@ -27,8 +27,11 @@ export class AnnouncementController {
     if (req.user.role === 'STUDENT') {
       return this.service.listForStudent(req.user.id);
     }
-    if (classId) {
-      return this.service.listByClass(classId);
+    if (req.user.role === 'TEACHER') {
+      return this.service.listForTeacher(req.user.id, classId);
+    }
+    if (req.user.role === 'ADMIN') {
+      return this.service.listForAdmin(classId);
     }
     return [];
   }
