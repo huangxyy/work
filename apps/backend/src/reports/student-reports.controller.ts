@@ -30,9 +30,8 @@ export class StudentReportsController {
   }
 
   @Get('class-comparison')
-  async getClassComparison(@Req() req: { user: AuthUser }, @Query('days') days?: string) {
-    const rangeDays = days ? parseInt(days, 10) : 7;
-    return this.reportsService.getStudentClassComparison(req.user.id, rangeDays);
+  async getClassComparison(@Req() req: { user: AuthUser }, @Query() query: ReportRangeQueryDto) {
+    return this.reportsService.getStudentClassComparison(req.user.id, query.days ?? 7);
   }
 
   @Get('pdf')

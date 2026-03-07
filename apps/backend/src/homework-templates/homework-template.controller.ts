@@ -5,6 +5,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
+import { CreateHomeworkTemplateDto } from './dto/create-homework-template.dto';
+import { UpdateHomeworkTemplateDto } from './dto/update-homework-template.dto';
 import { HomeworkTemplateService } from './homework-template.service';
 
 @ApiTags('Homework Templates')
@@ -15,7 +18,7 @@ export class HomeworkTemplateController {
   constructor(private readonly service: HomeworkTemplateService) {}
 
   @Post()
-  async create(@Body() body: { title: string; desc?: string }, @Req() req: { user: AuthUser }) {
+  async create(@Body() body: CreateHomeworkTemplateDto, @Req() req: { user: AuthUser }) {
     return this.service.create(body, req.user);
   }
 
@@ -25,12 +28,12 @@ export class HomeworkTemplateController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() body: { title?: string; desc?: string }, @Req() req: { user: AuthUser }) {
+  async update(@Param('id', ParseCuidPipe) id: string, @Body() body: UpdateHomeworkTemplateDto, @Req() req: { user: AuthUser }) {
     return this.service.update(id, body, req.user);
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string, @Req() req: { user: AuthUser }) {
+  async delete(@Param('id', ParseCuidPipe) id: string, @Req() req: { user: AuthUser }) {
     return this.service.delete(id, req.user);
   }
 }

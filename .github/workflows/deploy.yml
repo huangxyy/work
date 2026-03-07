@@ -124,12 +124,13 @@ jobs:
           RUN_MIGRATIONS: ${{ steps.params.outputs.run_migrations }}
           BACKUP_BEFORE_MIGRATION: ${{ steps.params.outputs.backup_before_migration }}
           REQUIRE_HEALTHY: ${{ steps.params.outputs.require_healthy }}
+          DEPLOY_TAG: prod-${{ github.run_number }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           port="${DEPLOY_PORT:-22}"
           app_dir="${DEPLOY_APP_DIR:-/www/homework-ai}"
           if ssh -p "${port}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "APP_DIR='${app_dir}' BRANCH='${BRANCH}' RUN_MIGRATIONS='${RUN_MIGRATIONS}' BACKUP_BEFORE_MIGRATION='${BACKUP_BEFORE_MIGRATION}' CHECK_HEALTH='1' REQUIRE_HEALTHY='${REQUIRE_HEALTHY}' bash '${app_dir}/deploy/update-host.sh'"; then
+            "APP_DIR='${app_dir}' BRANCH='${BRANCH}' RUN_MIGRATIONS='${RUN_MIGRATIONS}' BACKUP_BEFORE_MIGRATION='${BACKUP_BEFORE_MIGRATION}' CHECK_HEALTH='1' REQUIRE_HEALTHY='${REQUIRE_HEALTHY}' DEPLOY_CHANNEL='prod' DEPLOY_TAG='${DEPLOY_TAG}' bash '${app_dir}/deploy/update-host.sh'"; then
             echo "deploy_status=success" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_status=failed" >> "$GITHUB_OUTPUT"
@@ -175,12 +176,35 @@ jobs:
             echo "external health check failed: ${DEPLOY_HEALTH_URL}" >&2
           fi
 
+      - name: 部署后远程探针（可选）
+        id: post_deploy_probe
+        if: steps.remote_deploy.outputs.deploy_status == 'success'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+          DEPLOY_LOGIN_PROBE_URL: ${{ secrets.DEPLOY_LOGIN_PROBE_URL }}
+          DEPLOY_LOGIN_PROBE_BODY: ${{ secrets.DEPLOY_LOGIN_PROBE_BODY }}
+        run: |
+          set -euo pipefail
+          port="${DEPLOY_PORT:-22}"
+          app_dir="${DEPLOY_APP_DIR:-/www/homework-ai}"
+          if ssh -p "${port}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "cd '${app_dir}' && LOGIN_PROBE_URL='${DEPLOY_LOGIN_PROBE_URL}' LOGIN_PROBE_BODY='${DEPLOY_LOGIN_PROBE_BODY}' bash deploy/monitoring/post-deploy-probe.sh"; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            echo "post deploy probe failed" >&2
+          fi
+
       - name: 执行远程回滚（自动）
         id: auto_rollback
         if: |
           steps.params.outputs.auto_rollback_on_failure == '1' &&
           (steps.remote_deploy.outputs.deploy_status != 'success' ||
-           steps.external_health.outputs.status == 'failed')
+           steps.external_health.outputs.status == 'failed' ||
+           steps.post_deploy_probe.outputs.status == 'failed')
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -208,6 +232,7 @@ jobs:
           AUTO_ROLLBACK: ${{ steps.params.outputs.auto_rollback_on_failure }}
           DEPLOY_STATUS: ${{ steps.remote_deploy.outputs.deploy_status }}
           EXTERNAL_HEALTH: ${{ steps.external_health.outputs.status }}
+          POST_DEPLOY_PROBE: ${{ steps.post_deploy_probe.outputs.status }}
           ROLLBACK_STATUS: ${{ steps.auto_rollback.outputs.rollback_status }}
         run: |
           {
@@ -219,6 +244,7 @@ jobs:
             echo "- 自动回滚: \`${AUTO_ROLLBACK}\`"
             echo "- 远程部署: \`${DEPLOY_STATUS:-unknown}\`"
             echo "- 外部健康检查: \`${EXTERNAL_HEALTH:-skipped}\`"
+            echo "- 部署后探针: \`${POST_DEPLOY_PROBE:-skipped}\`"
             echo "- 自动回滚结果: \`${ROLLBACK_STATUS:-not-run}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -227,6 +253,7 @@ jobs:
         env:
           DEPLOY_STATUS: ${{ steps.remote_deploy.outputs.deploy_status }}
           EXTERNAL_HEALTH: ${{ steps.external_health.outputs.status }}
+          POST_DEPLOY_PROBE: ${{ steps.post_deploy_probe.outputs.status }}
           AUTO_ROLLBACK: ${{ steps.params.outputs.auto_rollback_on_failure }}
           ROLLBACK_STATUS: ${{ steps.auto_rollback.outputs.rollback_status }}
         run: |
@@ -236,6 +263,9 @@ jobs:
             failed=1
           fi
           if [ "${EXTERNAL_HEALTH:-skipped}" = "failed" ]; then
+            failed=1
+          fi
+          if [ "${POST_DEPLOY_PROBE:-skipped}" = "failed" ]; then
             failed=1
           fi
 

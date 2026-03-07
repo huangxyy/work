@@ -3,23 +3,21 @@ import {
   BookOutlined,
   ClusterOutlined,
   DashboardOutlined,
-  LogoutOutlined,
   NotificationOutlined,
   SettingOutlined,
   SlidersOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import { ProLayout } from '@ant-design/pro-components';
 import type { ProLayoutProps } from '@ant-design/pro-components';
-import { Button, Tooltip } from 'antd';
 import { useMemo } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { logout } from '../api/auth';
-import { GlobalSearch } from '../components/GlobalSearch';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
-import { NotificationBell } from '../components/NotificationBell';
-import { ThemeToggle } from '../components/ThemeToggle';
 import { useI18n } from '../i18n';
+import {
+  buildLayoutActions,
+  sharedLayoutContentStyle,
+  sharedProLayoutMenuProps,
+  sharedProLayoutToken,
+} from './layoutShared';
 
 export const TeacherLayout = () => {
   const location = useLocation();
@@ -83,28 +81,8 @@ export const TeacherLayout = () => {
       fixSiderbar
       route={routeConfig}
       location={{ pathname: location.pathname }}
-      token={{
-        header: {
-          colorBgHeader: 'var(--apple-surface)',
-          colorHeaderTitle: 'var(--apple-text-main)',
-          heightLayoutHeader: 64,
-        },
-        sider: {
-          colorMenuBackground: 'var(--apple-surface-soft)',
-          colorTextMenu: 'var(--apple-text-muted)',
-          colorTextMenuSelected: 'var(--apple-text-main)',
-          colorBgMenuItemSelected: 'var(--apple-primary-soft)',
-          colorTextMenuActive: 'var(--apple-primary)',
-        },
-        pageContainer: {
-          paddingBlockPageContainerContent: 24,
-          paddingInlinePageContainerContent: 24,
-        },
-      }}
-      menuProps={{
-        inlineIndent: 18,
-        style: { padding: '12px 10px 20px' },
-      }}
+      token={sharedProLayoutToken}
+      menuProps={sharedProLayoutMenuProps}
       menuHeaderRender={() => (
         <div className="app-pro-layout__brand">
           <div className="app-pro-layout__brand-title">{t('app.title')}</div>
@@ -120,31 +98,12 @@ export const TeacherLayout = () => {
           dom
         )
       }
-      actionsRender={() => [
-        <GlobalSearch key="search" />,
-        <NotificationBell key="notifications" />,
-        <ThemeToggle key="theme" />,
-        <LanguageSwitcher key="lang" />,
-        <Tooltip key="profile" title={t('profile.title')}>
-          <Button
-            type="text"
-            icon={<UserOutlined />}
-            className="apple-icon-btn"
-            onClick={() => navigate('/teacher/profile')}
-          />
-        </Tooltip>,
-        <Tooltip key="logout" title={t('nav.logout')}>
-          <Button
-            type="text"
-            icon={<LogoutOutlined />}
-            className="apple-icon-btn"
-            onClick={() => logout().then(() => navigate('/login'))}
-          />
-        </Tooltip>,
-      ]}
-      contentStyle={{ padding: '24px 28px 40px' }}
+      actionsRender={() => buildLayoutActions({ navigate, t, profilePath: '/teacher/profile' })}
+      contentStyle={sharedLayoutContentStyle}
     >
-      <Outlet />
+      <div className="apple-route-shell">
+        <Outlet />
+      </div>
     </ProLayout>
   );
 };

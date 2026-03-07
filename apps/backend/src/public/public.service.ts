@@ -225,9 +225,10 @@ export class PublicService {
 
   async getOverview(query: PublicOverviewQueryDto) {
     const days = query.days ?? 7;
+    const startedAt = Date.now();
     const cutoff = new Date(Date.now() - days * DAY_MS);
 
-    const [homeworks, submissions, completed] = await this.prisma.$transaction([
+    const [homeworks, submissions, completed] = await Promise.all([
       this.prisma.homework.count(),
       this.prisma.submission.count({ where: { createdAt: { gte: cutoff } } }),
       this.prisma.submission.count({
@@ -236,6 +237,10 @@ export class PublicService {
     ]);
 
     const completionRate = submissions ? completed / submissions : 0;
+
+    this.logger.debug(
+      `Public overview fetched days=${days} homeworks=${homeworks} submissions=${submissions} completed=${completed} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       days,
@@ -247,14 +252,24 @@ export class PublicService {
   }
 
   async getLanding(query: PublicLandingQueryDto) {
+    const startedAt = Date.now();
     const refresh = Boolean(query.refresh);
     const cached = await this.systemConfigService.getValue<LandingPayload>(LANDING_CONFIG_KEY);
     if (!refresh && cached && this.isLandingFresh(cached)) {
+      this.logger.debug(
+        `Public landing cache hit generatedAt=${cached.generatedAt} durationMs=${Date.now() - startedAt}`,
+      );
       return cached;
     }
 
+    const regenerateReason = refresh ? 'refresh' : cached ? 'stale' : 'missing';
     const generated = await this.generateLandingConfig();
     await this.systemConfigService.setValue(LANDING_CONFIG_KEY, generated);
+
+    this.logger.log(
+      `Public landing regenerated reason=${regenerateReason} generatedAt=${generated.generatedAt} durationMs=${Date.now() - startedAt}`,
+    );
+
     return generated;
   }
 
@@ -268,6 +283,7 @@ export class PublicService {
   }
 
   private async generateLandingConfig(): Promise<LandingPayload> {
+    const startedAt = Date.now();
     const base = {
       ...DEFAULT_LANDING_PAYLOAD,
       generatedAt: new Date().toISOString(),
@@ -283,13 +299,21 @@ export class PublicService {
     }
 
     if (!runtime?.baseUrl || !runtime.model) {
+      this.logger.debug(`Landing config using default payload reason=missing_runtime durationMs=${Date.now() - startedAt}`);
       return base;
     }
 
     const generated = await this.requestLandingFromLlm(runtime);
     if (!generated) {
+      this.logger.debug(
+        `Landing config using default payload reason=llm_fallback model=${runtime.model} durationMs=${Date.now() - startedAt}`,
+      );
       return base;
     }
+
+    this.logger.debug(
+      `Landing config generated via llm model=${runtime.model} durationMs=${Date.now() - startedAt}`,
+    );
 
     return this.mergeLandingPayload(base, generated);
   }
@@ -409,6 +433,7 @@ export class PublicService {
   }
 
   private async requestLandingFromLlm(runtime: LlmRuntimeConfig): Promise<Partial<LandingPayload> | null> {
+    const startedAt = Date.now();
     const payload: Record<string, unknown> = {
       model: runtime.model,
       messages: [
@@ -427,21 +452,30 @@ export class PublicService {
       errorText: string;
       data: { choices?: Array<{ message?: { content?: string }; text?: string }> } | null;
     };
+    let usedResponseFormatFallback = false;
     try {
       response = await this.fetchCompletion(apiUrl, payload, runtime);
       if (!response.ok && this.isResponseFormatUnsupported(response.status, response.errorText)) {
+        usedResponseFormatFallback = true;
+        this.logger.debug(
+          `Landing LLM retrying without response_format model=${runtime.model} status=${response.status} durationMs=${Date.now() - startedAt}`,
+        );
         const fallbackPayload = { ...payload };
         delete (fallbackPayload as { response_format?: unknown }).response_format;
         response = await this.fetchCompletion(apiUrl, fallbackPayload, runtime);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`Landing LLM request failed: ${message}`);
+      this.logger.warn(
+        `Landing LLM request failed model=${runtime.model} fallback=${usedResponseFormatFallback} durationMs=${Date.now() - startedAt}: ${message}`,
+      );
       return null;
     }
 
     if (!response.ok) {
-      this.logger.warn(`Landing LLM request failed: ${response.status} ${response.errorText}`);
+      this.logger.warn(
+        `Landing LLM request failed model=${runtime.model} status=${response.status} fallback=${usedResponseFormatFallback} durationMs=${Date.now() - startedAt}: ${response.errorText}`,
+      );
       return null;
     }
 
@@ -450,14 +484,23 @@ export class PublicService {
       content = this.extractLlmContent(response.data);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Missing response content';
-      this.logger.warn(`Landing LLM response missing content: ${message}`);
+      this.logger.warn(
+        `Landing LLM response missing content model=${runtime.model} fallback=${usedResponseFormatFallback} durationMs=${Date.now() - startedAt}: ${message}`,
+      );
       return null;
     }
 
     const parsed = this.tryParseJson(content);
     if (!parsed || typeof parsed !== 'object') {
+      this.logger.warn(
+        `Landing LLM response invalid json model=${runtime.model} fallback=${usedResponseFormatFallback} durationMs=${Date.now() - startedAt}`,
+      );
       return null;
     }
+
+    this.logger.debug(
+      `Landing LLM response parsed model=${runtime.model} fallback=${usedResponseFormatFallback} durationMs=${Date.now() - startedAt}`,
+    );
 
     return parsed as Partial<LandingPayload>;
   }

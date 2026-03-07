@@ -270,11 +270,11 @@ export const TeacherSubmissionDetailPage = () => {
                 option={{
                   radar: {
                     indicator: [
-                      { name: t('submission.dim.grammar'), max: 100 },
-                      { name: t('submission.dim.vocabulary'), max: 100 },
-                      { name: t('submission.dim.structure'), max: 100 },
-                      { name: t('submission.dim.content'), max: 100 },
-                      { name: t('submission.dim.coherence'), max: 100 },
+                      { name: t('submission.dim.grammar'), max: 20 },
+                      { name: t('submission.dim.vocabulary'), max: 20 },
+                      { name: t('submission.dim.structure'), max: 20 },
+                      { name: t('submission.dim.content'), max: 20 },
+                      { name: t('submission.dim.coherence'), max: 20 },
                     ],
                     radius: '65%',
                   },

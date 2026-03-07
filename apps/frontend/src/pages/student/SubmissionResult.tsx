@@ -231,7 +231,14 @@ export const SubmissionResultPage = () => {
           description={failureMessage}
           action={
             data?.homework?.id ? (
-              <Button type="primary" onClick={() => navigate(`/student/submit/${data.homework.id}`)}>
+              <Button
+                type="primary"
+                onClick={() => {
+                  if (data?.homework?.id) {
+                    navigate(`/student/submit/${data.homework.id}`);
+                  }
+                }}
+              >
                 {t('submission.resubmit')}
               </Button>
             ) : null
@@ -289,11 +296,11 @@ export const SubmissionResultPage = () => {
                 option={{
                   radar: {
                     indicator: [
-                      { name: t('submission.dim.grammar'), max: 100 },
-                      { name: t('submission.dim.vocabulary'), max: 100 },
-                      { name: t('submission.dim.structure'), max: 100 },
-                      { name: t('submission.dim.content'), max: 100 },
-                      { name: t('submission.dim.coherence'), max: 100 },
+                      { name: t('submission.dim.grammar'), max: 20 },
+                      { name: t('submission.dim.vocabulary'), max: 20 },
+                      { name: t('submission.dim.structure'), max: 20 },
+                      { name: t('submission.dim.content'), max: 20 },
+                      { name: t('submission.dim.coherence'), max: 20 },
                     ],
                     radius: '65%',
                   },

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { RuntimeConfigService } from '../system-config/runtime-config.service';
 
 type HealthStatus = 'healthy' | 'unhealthy' | 'degraded';
 
@@ -25,34 +25,22 @@ type OverallHealth = {
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
-  private readonly s3Client: S3Client;
-  private readonly storageBucket: string;
+  private s3Client: S3Client | null = null;
+  private storageBucket = 'submissions';
+  private storageSignature = '';
   private readonly startTime: number;
   private redisClient: import('ioredis').default | null = null;
-  private readonly redisUrl: string;
+  private redisSignature = '';
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly runtimeConfigService: RuntimeConfigService,
   ) {
     this.startTime = Date.now();
-    this.redisUrl = this.config.get<string>('REDIS_URL') || 'redis://localhost:6379';
-
-    const endpoint = this.config.get<string>('MINIO_ENDPOINT');
-    const accessKeyId = this.config.get<string>('MINIO_ACCESS_KEY');
-    const secretAccessKey = this.config.get<string>('MINIO_SECRET_KEY');
-    this.storageBucket = this.config.get<string>('MINIO_BUCKET') || 'submissions';
-    const region = this.config.get<string>('MINIO_REGION') || 'us-east-1';
-
-    this.s3Client = new S3Client({
-      region,
-      endpoint,
-      forcePathStyle: true,
-      credentials: accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined,
-    });
   }
 
   async getHealth(): Promise<OverallHealth> {
+    const startedAt = Date.now();
     const [database, redis, storage] = await Promise.all([
       this.checkDatabase(),
       this.checkRedis(),
@@ -63,6 +51,13 @@ export class HealthService {
     const anyUnhealthy = [database, redis, storage].some((s) => s.status === 'unhealthy');
 
     const status: HealthStatus = allHealthy ? 'healthy' : anyUnhealthy ? 'unhealthy' : 'degraded';
+
+    const summary = `Health snapshot status=${status} db=${database.status}/${database.responseTime ?? -1} redis=${redis.status}/${redis.responseTime ?? -1} storage=${storage.status}/${storage.responseTime ?? -1} durationMs=${Date.now() - startedAt}`;
+    if (status === 'healthy') {
+      this.logger.debug(summary);
+    } else {
+      this.logger.warn(summary);
+    }
 
     return {
       status,
@@ -85,11 +80,13 @@ export class HealthService {
         responseTime: Date.now() - start,
       };
     } catch (error) {
-      this.logger.error('Database health check failed', error);
+      const responseTime = Date.now() - start;
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Database health check failed durationMs=${responseTime}: ${message}`);
       return {
         status: 'unhealthy',
         message: 'Database connection failed',
-        responseTime: Date.now() - start,
+        responseTime,
       };
     }
   }
@@ -99,7 +96,16 @@ export class HealthService {
    * Reconnects lazily if the previous client was disconnected.
    */
   private async getRedisClient(): Promise<import('ioredis').default> {
-    if (this.redisClient && this.redisClient.status === 'ready') {
+    const config = await this.runtimeConfigService.getRedisRuntimeConfig();
+    const signature = JSON.stringify({
+      host: config.host || '',
+      port: config.port || 6379,
+      db: config.db || 0,
+      username: config.username || '',
+      passwordSet: Boolean(config.password),
+      tls: Boolean(config.tls),
+    });
+    if (this.redisClient && this.redisClient.status === 'ready' && this.redisSignature === signature) {
       return this.redisClient;
     }
     // Clean up stale client
@@ -108,14 +114,41 @@ export class HealthService {
       this.redisClient = null;
     }
     const Redis = (await import('ioredis')).default;
-    const client = new Redis(this.redisUrl, {
+    const client = new Redis({
+      ...config,
       maxRetriesPerRequest: 1,
       lazyConnect: true,
       enableOfflineQueue: false,
     });
     await client.connect();
     this.redisClient = client;
+    this.redisSignature = signature;
     return client;
+  }
+
+  private async getStorageContext(): Promise<{ client: S3Client; bucket: string }> {
+    const config = await this.runtimeConfigService.getStorageRuntimeConfig();
+    const signature = JSON.stringify({
+      endpoint: config.endpoint || '',
+      bucket: config.bucket || 'submissions',
+      region: config.region || 'us-east-1',
+      accessKeySet: Boolean(config.accessKeyId),
+      secretKeySet: Boolean(config.secretAccessKey),
+    });
+    if (!this.s3Client || this.storageSignature !== signature) {
+      this.storageBucket = config.bucket || 'submissions';
+      this.storageSignature = signature;
+      this.s3Client = new S3Client({
+        region: config.region || 'us-east-1',
+        endpoint: config.endpoint || undefined,
+        forcePathStyle: true,
+        credentials:
+          config.accessKeyId && config.secretAccessKey
+            ? { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey }
+            : undefined,
+      });
+    }
+    return { client: this.s3Client, bucket: this.storageBucket };
   }
 
   private async checkRedis(): Promise<ServiceHealth> {
@@ -137,7 +170,9 @@ export class HealthService {
         responseTime: Date.now() - start,
       };
     } catch (error) {
-      this.logger.error('Redis health check failed', error);
+      const responseTime = Date.now() - start;
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Redis health check failed durationMs=${responseTime}: ${message}`);
       // Reset the client so next check retries a fresh connection
       if (this.redisClient) {
         try { this.redisClient.disconnect(); } catch { /* ignore */ }
@@ -146,7 +181,7 @@ export class HealthService {
       return {
         status: 'degraded',
         message: 'Cache service unavailable',
-        responseTime: Date.now() - start,
+        responseTime,
       };
     }
   }
@@ -154,10 +189,11 @@ export class HealthService {
   private async checkStorage(): Promise<ServiceHealth> {
     const start = Date.now();
     try {
+      const { client, bucket } = await this.getStorageContext();
       // Add timeout to prevent health check from hanging if MinIO is unresponsive
-      const storageCheck = this.s3Client.send(
+      const storageCheck = client.send(
         new HeadBucketCommand({
-          Bucket: this.storageBucket,
+          Bucket: bucket,
         }),
       );
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -170,12 +206,13 @@ export class HealthService {
         responseTime: Date.now() - start,
       };
     } catch (error) {
+      const responseTime = Date.now() - start;
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Storage health check failed: ${msg}`);
+      this.logger.error(`Storage health check failed durationMs=${responseTime}: ${msg}`);
       return {
         status: 'degraded',
         message: 'Storage service unavailable',
-        responseTime: Date.now() - start,
+        responseTime,
       };
     }
   }

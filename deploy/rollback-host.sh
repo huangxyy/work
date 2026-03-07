@@ -13,6 +13,7 @@ fi
 APP_DIR="${APP_DIR:-/www/homework-ai}"
 WEB_ROOT="${WEB_ROOT:-/www/wwwroot/aigzy.cn}"
 PNPM_VERSION="${PNPM_VERSION:-8.15.9}"
+MIN_NODE_MAJOR="${MIN_NODE_MAJOR:-20}"
 USE_SUDO="${USE_SUDO:-1}"
 API_SERVICE="${API_SERVICE:-homework-ai-api}"
 WORKER_SERVICE="${WORKER_SERVICE:-homework-ai-worker}"
@@ -25,6 +26,8 @@ HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-20}"
 HEALTH_RETRY_INTERVAL="${HEALTH_RETRY_INTERVAL:-3}"
 LOCK_FILE="${LOCK_FILE:-/tmp/homework-ai-deploy.lock}"
 ROLLBACK_REF="${ROLLBACK_REF:-}"
+ROLLBACK_TAG_FILE="${ROLLBACK_TAG_FILE:-${APP_DIR}/.deploy-last-successful-tag}"
+ROLLBACK_REF_FILE="${ROLLBACK_REF_FILE:-${APP_DIR}/.deploy-last-successful}"
 
 SUDO=""
 if [ "${USE_SUDO}" = "1" ] && [ "$(id -u)" -ne 0 ]; then
@@ -36,8 +39,20 @@ if [ "${USE_SUDO}" = "1" ] && [ "$(id -u)" -ne 0 ]; then
   fi
 fi
 
+log_now() {
+  date '+%Y-%m-%d %H:%M:%S'
+}
+
+log_info() {
+  echo "[$(log_now)] [INFO] $*"
+}
+
+log_error() {
+  echo "[$(log_now)] [ERROR] $*" >&2
+}
+
 run_cmd() {
-  echo "==> $*"
+  log_info "执行：$*"
   "$@"
 }
 
@@ -69,8 +84,13 @@ resolve_target_ref() {
     return
   fi
 
-  if [ -f "${APP_DIR}/.deploy-previous" ]; then
-    head -n 1 "${APP_DIR}/.deploy-previous"
+  if [ -f "${ROLLBACK_TAG_FILE}" ]; then
+    head -n 1 "${ROLLBACK_TAG_FILE}"
+    return
+  fi
+
+  if [ -f "${ROLLBACK_REF_FILE}" ]; then
+    head -n 1 "${ROLLBACK_REF_FILE}"
     return
   fi
 
@@ -84,9 +104,20 @@ fi
 
 acquire_lock
 
+if ! command -v node >/dev/null 2>&1; then
+  log_error "缺少 node 命令，无法执行回滚。"
+  exit 1
+fi
+
+node_major="$(node -p 'process.versions.node.split(\".\")[0]')"
+if [ "${node_major}" -lt "${MIN_NODE_MAJOR}" ]; then
+  log_error "Node 版本过低：${node_major}，要求 >= ${MIN_NODE_MAJOR}"
+  exit 1
+fi
+
 target_ref="$(resolve_target_ref)"
 if [ -z "${target_ref}" ]; then
-  echo "无法解析回滚目标版本。" >&2
+  log_error "无法解析回滚目标版本。"
   exit 1
 fi
 
@@ -129,5 +160,5 @@ if [ "${CHECK_HEALTH}" = "1" ]; then
 fi
 
 printf '%s\n' "${target_ref}" > "${APP_DIR}/.deploy-last-rollback"
-echo "回滚完成，当前版本：${target_ref}"
-echo "如需恢复按分支发布，请执行 deploy/update-host.sh"
+log_info "回滚完成，当前版本：${target_ref}"
+log_info "如需恢复按分支发布，请执行 deploy/update-host.sh"

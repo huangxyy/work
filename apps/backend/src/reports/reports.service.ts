@@ -134,45 +134,50 @@ export class ReportsService {
     const cacheKey = this.getClassOverviewCacheKey(classId, days, topN);
     const cached = this.getCachedClassOverview(cacheKey);
     if (cached) {
+      this.logger.debug(`Class overview cache hit key=${cacheKey}`);
       return cached;
     }
 
     const inflight = this.classOverviewInflight.get(cacheKey);
     if (inflight) {
+      this.logger.debug(`Class overview inflight reuse key=${cacheKey}`);
       return inflight;
     }
+
+    const startedAt = Date.now();
 
     const computePromise = (async (): Promise<ClassOverview> => {
       const cutoff = new Date(Date.now() - days * DAY_MS);
 
-      const totalStudents = await this.prisma.enrollment.count({ where: { classId } });
-      const submittedStudents = await this.prisma.submission.groupBy({
-        by: ['studentId'],
-        where: {
-          homework: { classId },
-          createdAt: { gte: cutoff },
-        },
-      });
+      const [totalStudents, submittedStudents, submissions] = await Promise.all([
+        this.prisma.enrollment.count({ where: { classId } }),
+        this.prisma.submission.groupBy({
+          by: ['studentId'],
+          where: {
+            homework: { classId },
+            createdAt: { gte: cutoff },
+          },
+        }),
+        this.prisma.submission.findMany({
+          where: {
+            homework: { classId },
+            createdAt: { gte: cutoff },
+            status: SubmissionStatus.DONE,
+            totalScore: { not: null },
+          },
+          select: {
+            id: true,
+            createdAt: true,
+            totalScore: true,
+            gradingJson: true,
+            student: { select: { id: true, name: true } },
+          },
+          take: 5000,
+        }),
+      ]);
       const submittedCount = submittedStudents.length;
       const pendingStudents = Math.max(0, totalStudents - submittedCount);
       const submissionRate = totalStudents ? this.roundRatio(submittedCount / totalStudents) : 0;
-
-      const submissions = await this.prisma.submission.findMany({
-        where: {
-          homework: { classId },
-          createdAt: { gte: cutoff },
-          status: SubmissionStatus.DONE,
-          totalScore: { not: null },
-        },
-        select: {
-          id: true,
-          createdAt: true,
-          totalScore: true,
-          gradingJson: true,
-          student: { select: { id: true, name: true } },
-        },
-        take: 5000,
-      });
 
       const scores = this.collectScores(submissions);
 
@@ -192,6 +197,9 @@ export class ReportsService {
       };
 
       this.setCachedClassOverview(cacheKey, result);
+      this.logger.debug(
+        `Class overview computed key=${cacheKey} totalStudents=${totalStudents} submissions=${submissions.length} durationMs=${Date.now() - startedAt}`,
+      );
       return result;
     })();
 
@@ -208,6 +216,7 @@ export class ReportsService {
   }
 
   async exportClassCsv(classId: string, query: ReportRangeQueryDto, user: AuthUser) {
+    const startedAt = Date.now();
     const klass = await this.ensureClassAccess(classId, user);
     const days = query.days ?? 7;
     const cutoff = new Date(Date.now() - days * DAY_MS);
@@ -248,15 +257,24 @@ export class ReportsService {
       ]);
     }
 
-    return rows.map((row) => this.toCsvRow(row)).join('\n');
+    const csv = rows.map((row) => this.toCsvRow(row)).join('\n');
+    this.logger.log(
+      `Class report CSV exported classId=${classId} days=${days} submissions=${submissions.length} rows=${rows.length - 1} durationMs=${Date.now() - startedAt}`,
+    );
+    return csv;
   }
 
   async exportClassPdf(classId: string, query: ReportRangeQueryDto, user: AuthUser) {
+    const startedAt = Date.now();
     const report = await this.getClassOverview(classId, query, user);
-    const isZh = this.isZhLang(query.lang);
+    const requestedZh = this.isZhLang(query.lang);
     const font = this.resolvePdfFont(query.lang);
-    return this.renderPdf((doc) => {
-      doc.font(font);
+    const isZh = requestedZh && font !== 'Helvetica';
+    if (requestedZh && !isZh) {
+      this.logger.warn('CJK font not found for class report PDF, fallback to English template');
+    }
+    const buffer = await this.renderPdf((doc) => {
+      doc.font(isZh ? font : 'Helvetica');
       this.writeHeader(doc, isZh ? '班级报告' : 'Class Report', [
         isZh ? `班级：${report.className}` : `Class: ${report.className}`,
         isZh ? `班级ID：${report.classId}` : `Class ID: ${report.classId}`,
@@ -329,6 +347,10 @@ export class ReportsService {
         });
       });
     });
+    this.logger.log(
+      `Class report PDF exported classId=${report.classId} days=${report.rangeDays} submissions=${report.summary.count} bytes=${buffer.length} durationMs=${Date.now() - startedAt}`,
+    );
+    return buffer;
   }
 
   async getStudentOverview(
@@ -371,10 +393,14 @@ export class ReportsService {
 
   async exportStudentPdf(studentId: string, query: ReportRangeQueryDto, user: AuthUser) {
     const report = await this.getStudentOverview(studentId, query, user);
-    const isZh = this.isZhLang(query.lang);
+    const requestedZh = this.isZhLang(query.lang);
     const font = this.resolvePdfFont(query.lang);
+    const isZh = requestedZh && font !== 'Helvetica';
+    if (requestedZh && !isZh) {
+      this.logger.warn('CJK font not found for student report PDF, fallback to English template');
+    }
     return this.renderPdf((doc) => {
-      doc.font(font);
+      doc.font(isZh ? font : 'Helvetica');
       this.writeHeader(doc, isZh ? '学生报告' : 'Student Report', [
         isZh ? `学生：${report.studentName}` : `Student: ${report.studentName}`,
         isZh ? `学生ID：${report.studentId}` : `Student ID: ${report.studentId}`,

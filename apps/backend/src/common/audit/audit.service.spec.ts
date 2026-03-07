@@ -69,6 +69,7 @@ describe('AuditService', () => {
     it('should use default limit of 50', async () => {
       await service.listRecent();
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith({
+        where: undefined,
         orderBy: { createdAt: 'desc' },
         take: 50,
         skip: 0,
@@ -76,16 +77,30 @@ describe('AuditService', () => {
     });
 
     it('should cap limit at 200', async () => {
-      await service.listRecent(500);
+      await service.listRecent({ limit: 500 });
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 200 }),
       );
     });
 
     it('should pass offset correctly', async () => {
-      await service.listRecent(20, 40);
+      await service.listRecent({ limit: 20, offset: 40 });
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 20, skip: 40 }),
+      );
+    });
+
+    it('should filter by a single action', async () => {
+      await service.listRecent({ action: 'LOGIN_SUCCESS' });
+      expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { action: 'LOGIN_SUCCESS' } }),
+      );
+    });
+
+    it('should filter by multiple actions', async () => {
+      await service.listRecent({ actions: ['LOGIN_SUCCESS', 'LOGOUT'] });
+      expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { action: { in: ['LOGIN_SUCCESS', 'LOGOUT'] } } }),
       );
     });
   });

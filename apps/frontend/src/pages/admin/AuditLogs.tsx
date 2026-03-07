@@ -24,17 +24,19 @@ export const AdminAuditLogsPage = () => {
     queryKey: ['admin-audit-logs', page, actionFilter],
     queryFn: async () => {
       const offset = (page - 1) * pageSize;
-      const res = await api.get('/admin/audit-logs', { params: { limit: pageSize, offset } });
+      const res = await api.get('/admin/audit-logs', {
+        params: {
+          limit: pageSize,
+          offset,
+          ...(actionFilter ? { action: actionFilter } : {}),
+        },
+      });
       return res.data;
     },
     staleTime: 15_000,
   });
 
-  const filteredLogs = useMemo(() => {
-    const logs = logsQuery.data || [];
-    if (!actionFilter) return logs;
-    return logs.filter((l: { action: string }) => l.action === actionFilter);
-  }, [logsQuery.data, actionFilter]);
+  const filteredLogs = useMemo(() => logsQuery.data || [], [logsQuery.data]);
 
   const columns = useMemo(() => [
     { title: t('admin.auditLogs.time'), dataIndex: 'createdAt', render: (v: string) => formatDate(v), width: 180 },
@@ -66,7 +68,7 @@ export const AdminAuditLogsPage = () => {
           columns={columns}
           dataSource={filteredLogs}
           loading={logsQuery.isLoading}
-          pagination={actionFilter ? { pageSize } : { current: page, pageSize, onChange: setPage, showSizeChanger: false }}
+          pagination={{ current: page, pageSize, onChange: setPage, showSizeChanger: false }}
           size="small"
         />
       </ProCard>

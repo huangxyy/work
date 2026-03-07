@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import Redis from 'ioredis';
+import * as nodemailer from 'nodemailer';
 import type { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { RuntimeConfigService } from '../system-config/runtime-config.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { LlmConfigService, type LlmProviderConfig } from '../llm/llm-config.service';
 import { LlmLogsService } from '../llm/llm-logs.service';
@@ -11,12 +15,14 @@ import { QueueService } from '../queue/queue.service';
 import { BaiduOcrService } from '../ocr/baidu-ocr.service';
 import { AuditService } from '../common/audit/audit.service';
 import { RedisService } from '../common/redis';
-import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
+import { AuditLogsQueryDto } from './dto/audit-logs-query.dto';
+import { BulkImportUsersDto } from './dto/bulk-import-users.dto';
+import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
-import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
+import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
 
 type LlmConfig = {
   providerName?: string;
@@ -48,6 +54,28 @@ type BudgetConfig = {
   mode?: 'soft' | 'hard';
 };
 
+type StorageConfig = {
+  endpoint?: string;
+  bucket?: string;
+  region?: string;
+};
+
+type EmailConfig = {
+  host?: string;
+  port?: number;
+  user?: string;
+  from?: string;
+  secure?: boolean;
+};
+
+type RedisConfig = {
+  host?: string;
+  port?: number;
+  db?: number;
+  username?: string;
+  tls?: boolean;
+};
+
 type HealthStatus = {
   ok: boolean;
   checkedAt: string;
@@ -65,6 +93,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly systemConfigService: SystemConfigService,
+    private readonly runtimeConfigService: RuntimeConfigService,
     private readonly llmConfigService: LlmConfigService,
     private readonly llmLogsService: LlmLogsService,
     private readonly queueService: QueueService,
@@ -74,6 +103,7 @@ export class AdminService {
   ) {}
 
   async getMetrics() {
+    const startedAt = Date.now();
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -95,6 +125,10 @@ export class AdminService {
     const usersTeachers = usersByRole.find((item) => item.role === Role.TEACHER)?._count._all || 0;
     const usersAdmins = usersByRole.find((item) => item.role === Role.ADMIN)?._count._all || 0;
 
+    this.logger.debug(
+      `Admin metrics fetched users=${usersTotal} classes=${classesTotal} submissions=${submissionsTotal} today=${submissionsToday} durationMs=${Date.now() - startedAt}`,
+    );
+
     return {
       users: {
         total: usersTotal,
@@ -111,6 +145,7 @@ export class AdminService {
   }
 
   async getUsage(query: AdminUsageQueryDto) {
+    const startedAt = Date.now();
     const days = query.days ?? 7;
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -171,10 +206,15 @@ export class AdminService {
       count: g._count._all,
     }));
 
+    this.logger.debug(
+      `Admin usage fetched days=${days} dailyPoints=${daily.length} errorGroups=${errors.length} total=${summary.total} durationMs=${Date.now() - startedAt}`,
+    );
+
     return { days, summary, daily, errors, updatedAt: new Date().toISOString() };
   }
 
   async exportUsersCsv() {
+    const startedAt = Date.now();
     const users = await this.prisma.user.findMany({
       select: { id: true, account: true, name: true, role: true, email: true, phone: true, isActive: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
@@ -186,7 +226,12 @@ export class AdminService {
       `${u.id},${u.account},"${u.name}",${u.role},${u.email || ''},${u.phone || ''},${u.isActive},${u.createdAt.toISOString()}`
     ).join('\n');
 
-    return '\uFEFF' + header + rows;
+    const csv = '\uFEFF' + header + rows;
+    this.logger.log(
+      `Admin users CSV exported users=${users.length} bytes=${Buffer.byteLength(csv, 'utf8')} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return csv;
   }
 
   async listUsers(query: ListUsersQueryDto) {
@@ -332,7 +377,7 @@ export class AdminService {
       detail: `Deleted user role=${existing.role}`,
     });
 
-    await this.redis.del(`user:auth:${id}`).catch(() => {});
+    await this.clearUserAuthCache([id]);
 
     return { id, removed: true };
   }
@@ -403,7 +448,7 @@ export class AdminService {
       });
     }
 
-    await this.redis.del(`user:auth:${id}`).catch(() => {});
+    await this.clearUserAuthCache([id]);
 
     return {
       id: user.id,
@@ -435,7 +480,7 @@ export class AdminService {
       targetId: id,
     });
 
-    await this.redis.del(`user:auth:${id}`).catch(() => {});
+    await this.clearUserAuthCache([id]);
 
     return { id, ok: true };
   }
@@ -467,13 +512,16 @@ export class AdminService {
   }
 
   async getSystemConfig() {
-    const [llmConfig, ocrConfig, budgetConfig, llmHealth, ocrHealth, llmProviders] = await Promise.all([
+    const [llmConfig, ocrConfig, budgetConfig, llmHealth, ocrHealth, llmProviders, storage, email, redis] = await Promise.all([
       this.systemConfigService.getValue<LlmConfig>('llm'),
       this.systemConfigService.getValue<OcrConfig>('ocr'),
       this.systemConfigService.getValue<BudgetConfig>('budget'),
       this.systemConfigService.getValue<HealthStatus>('health:llm'),
       this.systemConfigService.getValue<HealthStatus>('health:ocr'),
       this.llmConfigService.getProviders(),
+      this.runtimeConfigService.getStorageAdminConfig(),
+      this.runtimeConfigService.getEmailAdminConfig(),
+      this.runtimeConfigService.getRedisAdminConfig(),
     ]);
 
     const resolvedLlm = this.buildLlmConfig(llmConfig);
@@ -485,6 +533,9 @@ export class AdminService {
       llmProviders: this.sanitizeProviders(llmProviders),
       ocr: resolvedOcr,
       budget: resolvedBudget,
+      storage,
+      email,
+      redis,
       health: {
         llm: llmHealth ?? null,
         ocr: ocrHealth ?? null,
@@ -517,10 +568,22 @@ export class AdminService {
   }
 
   async updateFeatureFlag(flag: string, enabled: boolean) {
-    return this.systemConfigService.setFeatureFlag(flag, enabled);
+    const normalizedFlag = this.normalizeText(flag);
+    if (!normalizedFlag) {
+      throw new BadRequestException('Flag is required');
+    }
+
+    const result = await this.systemConfigService.setFeatureFlag(normalizedFlag, enabled);
+    await this.audit.log({
+      action: 'CONFIG_UPDATE',
+      targetId: normalizedFlag,
+      detail: `Updated feature flag ${normalizedFlag}=${enabled}`,
+    });
+    return result;
   }
 
   async getSubmissionDiagnosis(submissionId: string) {
+    const startedAt = Date.now();
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
@@ -529,13 +592,20 @@ export class AdminService {
         homework: { select: { id: true, title: true, class: { select: { id: true, name: true } } } },
       },
     });
-    if (!submission) return null;
+    if (!submission) {
+      this.logger.debug(`Admin submission diagnosis miss submissionId=${submissionId} durationMs=${Date.now() - startedAt}`);
+      return null;
+    }
 
     const llmLogs = await this.prisma.llmCallLog.findMany({
       where: { submissionId },
       orderBy: { createdAt: 'desc' },
       take: 10,
     });
+
+    this.logger.debug(
+      `Admin submission diagnosis fetched submissionId=${submissionId} images=${submission.images.length} llmLogs=${llmLogs.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       id: submission.id,
@@ -557,18 +627,108 @@ export class AdminService {
   }
 
   async testOcrWithImage(imageBuffer: Buffer) {
+    const startedAt = Date.now();
     try {
-      const result = await this.baiduOcrService.recognize(imageBuffer);
+      const ocrConfig = await this.systemConfigService.getValue<OcrConfig>('ocr');
+      const apiKey = this.normalizeText(ocrConfig?.apiKey) ||
+        this.configService.get<string>('BAIDU_OCR_API_KEY') || '';
+      const secretKey = this.normalizeText(ocrConfig?.secretKey) ||
+        this.configService.get<string>('BAIDU_OCR_SECRET_KEY') || '';
+      const config: Partial<{ apiKey: string; secretKey: string }> = {};
+      if (apiKey) config.apiKey = apiKey;
+      if (secretKey) config.secretKey = secretKey;
+
+      const result = await this.baiduOcrService.recognize(imageBuffer, config);
+      this.logger.debug(`Admin OCR test completed textLength=${result.text.length} durationMs=${Date.now() - startedAt}`);
       return { ok: true, text: result.text, length: result.text.length };
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.warn(`Admin OCR test failed durationMs=${Date.now() - startedAt}: ${msg}`);
       return { ok: false, error: msg };
     }
   }
 
+  async testStorageConnection() {
+    const startedAt = Date.now();
+    const config = await this.runtimeConfigService.getStorageRuntimeConfig();
+    if (!config.endpoint || !config.bucket) {
+      return { ok: false, latencyMs: Date.now() - startedAt, reason: 'Storage endpoint/bucket is not configured' };
+    }
+    if (!config.accessKeyId || !config.secretAccessKey) {
+      return { ok: false, latencyMs: Date.now() - startedAt, reason: 'MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be configured in env' };
+    }
+    const client = new S3Client({
+      region: config.region || 'us-east-1',
+      endpoint: config.endpoint,
+      forcePathStyle: true,
+      credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+    });
+    try {
+      await Promise.race([
+        client.send(new HeadBucketCommand({ Bucket: config.bucket })),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Storage test timed out')), 5000)),
+      ]);
+      return { ok: true, latencyMs: Date.now() - startedAt };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown storage error';
+      return { ok: false, latencyMs: Date.now() - startedAt, reason };
+    }
+  }
+
+  async testEmailConnection() {
+    const startedAt = Date.now();
+    const config = await this.runtimeConfigService.getEmailRuntimeConfig();
+    if (!config.host || !config.user) {
+      return { ok: false, latencyMs: Date.now() - startedAt, reason: 'SMTP host/user is not configured' };
+    }
+    if (!config.password) {
+      return { ok: false, latencyMs: Date.now() - startedAt, reason: 'SMTP_PASS must be configured in env' };
+    }
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: { user: config.user, pass: config.password },
+    });
+    try {
+      await transporter.verify();
+      return { ok: true, latencyMs: Date.now() - startedAt };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown SMTP error';
+      return { ok: false, latencyMs: Date.now() - startedAt, reason };
+    }
+  }
+
+  async testRedisConnection() {
+    const startedAt = Date.now();
+    const options = await this.runtimeConfigService.getRedisRuntimeConfig();
+    const client = new Redis({
+      ...options,
+      maxRetriesPerRequest: 1,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+    });
+    try {
+      await client.connect();
+      await client.ping();
+      return { ok: true, latencyMs: Date.now() - startedAt };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown Redis error';
+      return { ok: false, latencyMs: Date.now() - startedAt, reason };
+    } finally {
+      try {
+        await client.quit();
+      } catch {
+        client.disconnect();
+      }
+    }
+  }
+
   async getErrorTrends(days: number) {
+    const safeDays = this.clampDays(days);
+    const startedAt = Date.now();
     const since = new Date();
-    since.setDate(since.getDate() - days);
+    since.setDate(since.getDate() - safeDays);
 
     const [failures, total, done, failed] = await Promise.all([
       this.prisma.submission.groupBy({
@@ -581,6 +741,10 @@ export class AdminService {
       this.prisma.submission.count({ where: { status: 'DONE', updatedAt: { gte: since } } }),
       this.prisma.submission.count({ where: { status: 'FAILED', updatedAt: { gte: since } } }),
     ]);
+
+    this.logger.debug(
+      `Admin error trends fetched days=${safeDays} total=${total} done=${done} failed=${failed} errorGroups=${failures.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       total,
@@ -595,17 +759,21 @@ export class AdminService {
   }
 
   async getSystemInfo() {
-    const [userCount, submissionCount, classCount, homeworkCount] = await Promise.all([
+    const startedAt = Date.now();
+    const [userCount, submissionCount, classCount, homeworkCount, dbSize] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.submission.count(),
       this.prisma.class.count(),
       this.prisma.homework.count(),
+      this.prisma.$queryRaw<Array<{ size: string }>>`
+        SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as size
+        FROM information_schema.tables WHERE table_schema = DATABASE()
+      `,
     ]);
 
-    const dbSize = await this.prisma.$queryRaw<Array<{ size: string }>>`
-      SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as size
-      FROM information_schema.tables WHERE table_schema = DATABASE()
-    `;
+    this.logger.debug(
+      `Admin system info fetched users=${userCount} submissions=${submissionCount} classes=${classCount} homeworks=${homeworkCount} dbSizeMb=${dbSize[0]?.size || '0'} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       node: process.version,
@@ -623,98 +791,182 @@ export class AdminService {
     };
   }
 
-  async bulkImportUsers(opts: { text: string; role?: string; classId?: string; defaultPassword?: string }) {
-    const lines = opts.text
+  async bulkImportUsers(dto: BulkImportUsersDto) {
+    const startedAt = Date.now();
+    const lines = dto.text
       .split(/\r?\n/)
-      .map((l) => l.trim())
+      .map((line) => line.trim())
       .filter(Boolean);
 
-    if (!lines.length) throw new BadRequestException('No valid lines');
+    if (!lines.length) {
+      throw new BadRequestException('No valid lines');
+    }
 
-    const role = (opts.role as Role) || Role.STUDENT;
-    const defaultPwd = opts.defaultPassword || 'Abc123456';
-    const passwordHash = await bcrypt.hash(defaultPwd, 10);
+    const role = dto.role ?? Role.STUDENT;
+    const classId = this.normalizeText(dto.classId) || undefined;
+    if (classId && role !== Role.STUDENT) {
+      throw new BadRequestException('Only students can be assigned to class during bulk import');
+    }
 
-    const results: { account: string; name: string; status: 'created' | 'exists' | 'error'; error?: string }[] = [];
-
-    for (const line of lines) {
-      const parts = line.split(/[\t,\s]+/).filter(Boolean);
-      const account = parts[0];
-      const name = parts.slice(1).join(' ') || account;
-
-      if (!account) {
-        results.push({ account: '', name: '', status: 'error', error: 'Empty line' });
-        continue;
-      }
-
-      try {
-        const existing = await this.prisma.user.findUnique({ where: { account } });
-        if (existing) {
-          if (opts.classId && role === Role.STUDENT) {
-            const enrolled = await this.prisma.enrollment.findFirst({
-              where: { studentId: existing.id, classId: opts.classId },
-            });
-            if (!enrolled) {
-              await this.prisma.enrollment.create({
-                data: { studentId: existing.id, classId: opts.classId },
-              });
-            }
-          }
-          results.push({ account, name, status: 'exists' });
-          continue;
-        }
-
-        const user = await this.prisma.user.create({
-          data: { account, name, role, passwordHash, isActive: true },
-        });
-
-        if (opts.classId && role === Role.STUDENT) {
-          await this.prisma.enrollment.create({
-            data: { studentId: user.id, classId: opts.classId },
-          });
-        }
-
-        results.push({ account, name, status: 'created' });
-      } catch (e) {
-        results.push({ account, name, status: 'error', error: String(e) });
+    if (classId) {
+      const klass = await this.prisma.class.findUnique({ where: { id: classId }, select: { id: true } });
+      if (!klass) {
+        throw new BadRequestException('Class not found');
       }
     }
 
-    const created = results.filter((r) => r.status === 'created').length;
-    const exists = results.filter((r) => r.status === 'exists').length;
-    const errors = results.filter((r) => r.status === 'error').length;
+    const defaultPwd = dto.defaultPassword || 'Abc123456';
+    const passwordHash = await bcrypt.hash(defaultPwd, 10);
+
+    const parsedEntries = lines.map((line) => {
+      const parts = line.split(/[\t,\s]+/).filter(Boolean);
+      const account = this.normalizeText(parts[0]);
+      const name = this.normalizeText(parts.slice(1).join(' ')) || account;
+      return { account, name };
+    });
+
+    const accounts = Array.from(new Set(parsedEntries.map((entry) => entry.account).filter(Boolean)));
+    const existingUsers = accounts.length
+      ? await this.prisma.user.findMany({
+          where: { account: { in: accounts } },
+          select: { id: true, account: true },
+        })
+      : [];
+    const existingUserMap = new Map(existingUsers.map((user) => [user.account, user]));
+    const enrolledStudentIds = new Set<string>();
+
+    if (classId && role === Role.STUDENT && existingUsers.length > 0) {
+      const enrollments = await this.prisma.enrollment.findMany({
+        where: { classId, studentId: { in: existingUsers.map((user) => user.id) } },
+        select: { studentId: true },
+      });
+      for (const enrollment of enrollments) {
+        enrolledStudentIds.add(enrollment.studentId);
+      }
+    }
+
+    const seenAccounts = new Set<string>();
+    type BulkImportResult = {
+      account: string;
+      name: string;
+      status: 'created' | 'exists' | 'error';
+      error?: string;
+    };
+    const results: Array<BulkImportResult | null> = new Array(parsedEntries.length).fill(null);
+    const processableEntries: Array<{ index: number; account: string; name: string }> = [];
+
+    parsedEntries.forEach((entry, index) => {
+      const { account, name } = entry;
+
+      if (!account) {
+        results[index] = { account: '', name: '', status: 'error', error: 'Empty line' };
+        return;
+      }
+
+      if (seenAccounts.has(account)) {
+        results[index] = { account, name, status: 'error', error: 'Duplicate account in payload' };
+        return;
+      }
+
+      seenAccounts.add(account);
+      processableEntries.push({ index, account, name });
+    });
+
+    const IMPORT_CONCURRENCY = 10;
+    for (let index = 0; index < processableEntries.length; index += IMPORT_CONCURRENCY) {
+      const chunk = processableEntries.slice(index, index + IMPORT_CONCURRENCY);
+      const chunkResults = await Promise.all(
+        chunk.map(async (entry) => {
+          const { account, name } = entry;
+
+          try {
+            const existing = existingUserMap.get(account);
+            if (existing) {
+              if (classId && role === Role.STUDENT && !enrolledStudentIds.has(existing.id)) {
+                await this.prisma.enrollment.create({
+                  data: { studentId: existing.id, classId },
+                });
+                enrolledStudentIds.add(existing.id);
+              }
+
+              return {
+                index: entry.index,
+                result: { account, name, status: 'exists' } as BulkImportResult,
+              };
+            }
+
+            const user = await this.prisma.user.create({
+              data: { account, name, role, passwordHash, isActive: true },
+            });
+
+            if (classId && role === Role.STUDENT) {
+              await this.prisma.enrollment.create({
+                data: { studentId: user.id, classId },
+              });
+              enrolledStudentIds.add(user.id);
+            }
+
+            return {
+              index: entry.index,
+              result: { account, name, status: 'created' } as BulkImportResult,
+            };
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+              index: entry.index,
+              result: { account, name, status: 'error', error: message } as BulkImportResult,
+            };
+          }
+        }),
+      );
+
+      chunkResults.forEach(({ index: resultIndex, result }) => {
+        results[resultIndex] = result;
+      });
+    }
+
+    const finalizedResults = results.filter((result): result is BulkImportResult => result !== null);
+
+    const created = finalizedResults.filter((result) => result.status === 'created').length;
+    const exists = finalizedResults.filter((result) => result.status === 'exists').length;
+    const errors = finalizedResults.filter((result) => result.status === 'error').length;
+
+    this.logger.log(
+      `Admin bulk import completed total=${lines.length} processable=${processableEntries.length} created=${created} exists=${exists} errors=${errors} role=${role}${classId ? ` classId=${classId}` : ''} durationMs=${Date.now() - startedAt}`,
+    );
 
     await this.audit.log({
       action: 'USER_CREATE',
-      detail: `Bulk imported ${created} users (${exists} existing, ${errors} errors)`,
+      detail: `Bulk imported ${created} users (${exists} existing, ${errors} errors) role=${role}${classId ? ` classId=${classId}` : ''}`,
     });
 
-    return { total: lines.length, created, exists, errors, results };
+    return { total: lines.length, created, exists, errors, results: finalizedResults };
   }
 
   async getLlmCostSummary(days: number) {
+    const safeDays = this.clampDays(days);
+    const startedAt = Date.now();
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - (days - 1));
+    start.setDate(start.getDate() - (safeDays - 1));
 
-    const dailyStats = await this.prisma.$queryRaw<
-      Array<{ d: string; calls: bigint; tokens: bigint; totalCost: number }>
-    >`
-      SELECT DATE(createdAt) AS d,
-             COUNT(*) AS calls,
-             COALESCE(SUM(totalTokens), 0) AS tokens,
-             COALESCE(SUM(cost), 0) AS totalCost
-      FROM LlmCallLog
-      WHERE createdAt >= ${start}
-      GROUP BY d
-      ORDER BY d
-    `;
-
-    const totals = await this.prisma.llmCallLog.aggregate({
-      where: { createdAt: { gte: start } },
-      _sum: { promptTokens: true, completionTokens: true, totalTokens: true, cost: true },
-      _count: { _all: true },
-    });
+    const [dailyStats, totals] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ d: string; calls: bigint; tokens: bigint; totalCost: number }>>`
+        SELECT DATE(createdAt) AS d,
+               COUNT(*) AS calls,
+               COALESCE(SUM(totalTokens), 0) AS tokens,
+               COALESCE(SUM(cost), 0) AS totalCost
+        FROM LlmCallLog
+        WHERE createdAt >= ${start}
+        GROUP BY d
+        ORDER BY d
+      `,
+      this.prisma.llmCallLog.aggregate({
+        where: { createdAt: { gte: start } },
+        _sum: { promptTokens: true, completionTokens: true, totalTokens: true, cost: true },
+        _count: { _all: true },
+      }),
+    ]);
 
     const daily = dailyStats.map((row) => ({
       date: typeof row.d === 'string' ? row.d.slice(0, 10) : new Date(row.d).toISOString().slice(0, 10),
@@ -723,8 +975,12 @@ export class AdminService {
       cost: Number(row.totalCost),
     }));
 
+    this.logger.debug(
+      `Admin llm cost summary fetched days=${safeDays} totalCalls=${totals._count._all} dailyPoints=${daily.length} totalCost=${Number((totals._sum.cost || 0).toFixed(6))} durationMs=${Date.now() - startedAt}`,
+    );
+
     return {
-      days,
+      days: safeDays,
       totalCalls: totals._count._all,
       totalPromptTokens: totals._sum.promptTokens || 0,
       totalCompletionTokens: totals._sum.completionTokens || 0,
@@ -738,39 +994,91 @@ export class AdminService {
   }
 
   async bulkDisableUsers(userIds: string[]) {
+    const startedAt = Date.now();
+    const normalizedUserIds = this.normalizeUserIds(userIds);
+    if (!normalizedUserIds.length) {
+      throw new BadRequestException('At least one userId is required');
+    }
+
+    const adminsToDisable = await this.prisma.user.count({
+      where: { id: { in: normalizedUserIds }, role: Role.ADMIN, isActive: true },
+    });
+    if (adminsToDisable > 0) {
+      const remainingActiveAdmins = await this.prisma.user.count({
+        where: { role: Role.ADMIN, isActive: true, id: { notIn: normalizedUserIds } },
+      });
+      if (remainingActiveAdmins === 0) {
+        throw new BadRequestException('Cannot disable the last active admin');
+      }
+    }
+
     const result = await this.prisma.user.updateMany({
-      where: { id: { in: userIds } },
+      where: { id: { in: normalizedUserIds } },
       data: { isActive: false },
     });
-    for (const id of userIds) {
-      await this.redis.del(`user:auth:${id}`).catch(() => {});
-    }
-    return { updated: result.count };
+
+    await Promise.all([
+      this.clearUserAuthCache(normalizedUserIds),
+      this.audit.log({
+        action: 'USER_DISABLE',
+        detail: `Bulk disabled ${result.count} user(s)`,
+      }),
+    ]);
+
+    this.logger.log(
+      `Admin bulk disable completed requested=${normalizedUserIds.length} updated=${result.count} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return { requested: normalizedUserIds.length, updated: result.count };
   }
 
   async bulkResetPassword(userIds: string[], newPassword: string) {
+    const startedAt = Date.now();
+    const normalizedUserIds = this.normalizeUserIds(userIds);
+    if (!normalizedUserIds.length) {
+      throw new BadRequestException('At least one userId is required');
+    }
+
     const hash = await bcrypt.hash(newPassword, 10);
     const result = await this.prisma.user.updateMany({
-      where: { id: { in: userIds } },
+      where: { id: { in: normalizedUserIds } },
       data: { passwordHash: hash },
     });
-    for (const id of userIds) {
-      await this.redis.del(`user:auth:${id}`).catch(() => {});
-    }
-    return { updated: result.count };
+
+    await Promise.all([
+      this.clearUserAuthCache(normalizedUserIds),
+      this.audit.log({
+        action: 'PASSWORD_RESET',
+        detail: `Bulk reset passwords for ${result.count} user(s)`,
+      }),
+    ]);
+
+    this.logger.log(
+      `Admin bulk password reset completed requested=${normalizedUserIds.length} updated=${result.count} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return { requested: normalizedUserIds.length, updated: result.count };
   }
 
-  async getAuditLogs(limit: number, offset: number) {
-    return this.audit.listRecent(limit, offset);
+  async getAuditLogs(query: AuditLogsQueryDto) {
+    return this.audit.listRecent({
+      limit: query.limit,
+      offset: query.offset,
+      action: query.action,
+      actions: query.actions,
+    });
   }
 
   async updateSystemConfig(dto: UpdateSystemConfigDto) {
     // Fetch all needed existing configs in parallel
-    const [existingLlm, existingProviders, existingOcr, existingBudget] = await Promise.all([
+    const [existingLlm, existingProviders, existingOcr, existingBudget, existingStorage, existingEmail, existingRedis] = await Promise.all([
       dto.llm ? this.systemConfigService.getValue<LlmConfig>('llm') : null,
       dto.llmProviders ? this.systemConfigService.getValue<LlmProviderConfig[]>('llmProviders') : null,
       dto.ocr ? this.systemConfigService.getValue<OcrConfig>('ocr') : null,
       dto.budget ? this.systemConfigService.getValue<BudgetConfig>('budget') : null,
+      dto.storage ? this.systemConfigService.getValue<StorageConfig>('storage') : null,
+      dto.email ? this.systemConfigService.getValue<EmailConfig>('email') : null,
+      dto.redis ? this.systemConfigService.getValue<RedisConfig>('redis') : null,
     ]);
 
     const writes: Promise<void>[] = [];
@@ -892,6 +1200,44 @@ export class AdminService {
       writes.push(this.systemConfigService.setValue('budget', this.stripUndefined(next)));
     }
 
+    if (dto.storage) {
+      const next: StorageConfig = { ...(existingStorage || {}) };
+      this.applyTextUpdate(next, 'endpoint', dto.storage.endpoint);
+      this.applyTextUpdate(next, 'bucket', dto.storage.bucket);
+      this.applyTextUpdate(next, 'region', dto.storage.region);
+      writes.push(this.systemConfigService.setValue('storage', this.stripUndefined(next)));
+    }
+
+    if (dto.email) {
+      const next: EmailConfig = { ...(existingEmail || {}) };
+      this.applyTextUpdate(next, 'host', dto.email.host);
+      this.applyTextUpdate(next, 'user', dto.email.user);
+      this.applyTextUpdate(next, 'from', dto.email.from);
+      if (dto.email.port !== undefined) {
+        next.port = dto.email.port;
+      }
+      if (dto.email.secure !== undefined) {
+        next.secure = dto.email.secure;
+      }
+      writes.push(this.systemConfigService.setValue('email', this.stripUndefined(next)));
+    }
+
+    if (dto.redis) {
+      const next: RedisConfig = { ...(existingRedis || {}) };
+      this.applyTextUpdate(next, 'host', dto.redis.host);
+      this.applyTextUpdate(next, 'username', dto.redis.username);
+      if (dto.redis.port !== undefined) {
+        next.port = dto.redis.port;
+      }
+      if (dto.redis.db !== undefined) {
+        next.db = dto.redis.db;
+      }
+      if (dto.redis.tls !== undefined) {
+        next.tls = dto.redis.tls;
+      }
+      writes.push(this.systemConfigService.setValue('redis', this.stripUndefined(next)));
+    }
+
     await Promise.all(writes);
 
     const sections = [
@@ -899,10 +1245,22 @@ export class AdminService {
       dto.llmProviders && 'llmProviders',
       dto.ocr && 'ocr',
       dto.budget && 'budget',
+      dto.storage && 'storage',
+      dto.email && 'email',
+      dto.redis && 'redis',
     ].filter(Boolean);
+    const changedFields = [
+      ...this.collectChangedFields('llm', dto.llm),
+      ...this.collectChangedFields('ocr', dto.ocr),
+      ...this.collectChangedFields('budget', dto.budget),
+      ...this.collectChangedFields('storage', dto.storage),
+      ...this.collectChangedFields('email', dto.email),
+      ...this.collectChangedFields('redis', dto.redis),
+      ...(dto.llmProviders ? ['llmProviders'] : []),
+    ];
     await this.audit.log({
       action: 'CONFIG_UPDATE',
-      detail: `Updated config sections: ${sections.join(', ')}`,
+      detail: `Updated config sections: ${sections.join(', ')}; fields: ${changedFields.join(', ')}`,
     });
 
     return this.getSystemConfig();
@@ -1361,6 +1719,48 @@ export class AdminService {
   private normalizeText(value?: string) {
     const trimmed = value?.trim();
     return trimmed ? trimmed : '';
+  }
+
+  private normalizeUserIds(userIds: string[]) {
+    return Array.from(new Set(userIds.map((entry) => entry.trim()).filter(Boolean)));
+  }
+
+  private clampDays(days?: number, fallback = 7) {
+    if (typeof days !== 'number' || !Number.isFinite(days)) {
+      return fallback;
+    }
+    return Math.min(Math.max(Math.trunc(days), 1), 30);
+  }
+
+  private async clearUserAuthCache(userIds: string[]) {
+    const normalizedUserIds = this.normalizeUserIds(userIds);
+    if (!normalizedUserIds.length) {
+      return;
+    }
+
+    const startedAt = Date.now();
+
+    const results = await Promise.allSettled(
+      normalizedUserIds.map((id) => this.redis.del(`user:auth:${id}`)),
+    );
+    const failedCount = results.filter((result) => result.status === 'rejected').length;
+    if (failedCount > 0) {
+      this.logger.warn(`Failed to clear auth cache for ${failedCount} user(s)`);
+    }
+
+    this.logger.debug(
+      `Cleared auth cache requested=${normalizedUserIds.length} failed=${failedCount} durationMs=${Date.now() - startedAt}`,
+    );
+  }
+
+  private collectChangedFields(section: string, payload?: object) {
+    if (!payload) {
+      return [] as string[];
+    }
+    const secretFields = new Set(['apiKey', 'secretKey', 'clearApiKey', 'clearSecretKey']);
+    return Object.keys(payload as Record<string, unknown>)
+      .filter((key) => !secretFields.has(key))
+      .map((key) => `${section}.${key}`);
   }
 
   private async storeHealthStatus(target: 'llm' | 'ocr', status: HealthStatus) {

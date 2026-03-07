@@ -4,6 +4,8 @@ import { Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit';
+import { RedisService } from '../common/redis';
+import { EmailService } from '../email/email.service';
 import { AuthService } from './auth.service';
 import { AccountLockoutService } from './account-lockout.service';
 import { TokenBlacklistService } from './token-blacklist.service';
@@ -58,12 +60,12 @@ describe('AuthService', () => {
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue(undefined),
       del: jest.fn().mockResolvedValue(undefined),
-    } as any;
+    } as unknown as RedisService;
 
     const emailServiceMock = {
       isConfigured: false,
       send: jest.fn().mockResolvedValue(false),
-    } as any;
+    } as unknown as EmailService;
 
     authService = new AuthService(
       prismaService,
@@ -171,7 +173,8 @@ describe('AuthService', () => {
     });
 
     it('should throw ForbiddenException if account is disabled', async () => {
-      const disabledUser = { ...mockUser, isActive: false };
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      const disabledUser = { ...mockUser, isActive: false, passwordHash: hashedPassword };
       prismaService.user.findUnique = jest.fn().mockResolvedValue(disabledUser);
 
       await expect(
@@ -180,6 +183,23 @@ describe('AuthService', () => {
           password: 'password123',
         }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should trim account before lockout and lookup', async () => {
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      const userWithHash = { ...mockUser, passwordHash: hashedPassword };
+      prismaService.user.findUnique = jest.fn().mockResolvedValue(userWithHash);
+
+      await authService.login({
+        account: '  testuser  ',
+        password: 'password123',
+      });
+
+      expect(lockoutService.isLocked).toHaveBeenCalledWith('testuser');
+      expect(prismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { account: 'testuser' },
+      });
+      expect(lockoutService.resetOnSuccess).toHaveBeenCalledWith('testuser');
     });
 
     it('should throw UnauthorizedException if password is incorrect', async () => {

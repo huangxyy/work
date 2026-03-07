@@ -15,10 +15,9 @@ import { RedisService } from '../common/redis';
 import { EmailService } from '../email/email.service';
 import { AccountLockoutService } from './account-lockout.service';
 import { TokenBlacklistService } from './token-blacklist.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-
-const TOKEN_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 @Injectable()
 export class AuthService {
@@ -54,8 +53,11 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto, ip?: string) {
+    const account = dto.account.trim();
+    const name = dto.name.trim();
+
     const existing = await this.prisma.user.findUnique({
-      where: { account: dto.account },
+      where: { account },
     });
 
     if (existing) {
@@ -65,8 +67,8 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
       data: {
-        account: dto.account,
-        name: dto.name,
+        account,
+        name,
         role: Role.STUDENT,
         passwordHash,
       },
@@ -86,13 +88,18 @@ export class AuthService {
   private readonly dummyHash = bcrypt.hashSync('dummy-password-for-timing', 10);
 
   async login(dto: LoginDto, ip?: string) {
+    const account = dto.account.trim();
+    if (!account) {
+      throw new BadRequestException('Account is required');
+    }
+
     // Check account lockout first
-    const lockStatus = await this.lockout.isLocked(dto.account);
+    const lockStatus = await this.lockout.isLocked(account);
     if (lockStatus.locked) {
       await this.audit.log({
         action: 'LOGIN_LOCKED',
         ip,
-        detail: `Account locked: ${dto.account}, remaining ${lockStatus.remainingSeconds}s`,
+        detail: `Account locked: ${account}, remaining ${lockStatus.remainingSeconds}s`,
       });
       throw new ForbiddenException(
         `Account is temporarily locked. Try again in ${Math.ceil(lockStatus.remainingSeconds / 60)} minutes.`,
@@ -100,7 +107,7 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findUnique({
-      where: { account: dto.account },
+      where: { account },
     });
 
     const hashToCompare = user?.passwordHash ?? this.dummyHash;
@@ -108,11 +115,11 @@ export class AuthService {
 
     if (!user || !valid) {
       // Record failure and potentially lock
-      const result = await this.lockout.recordFailure(dto.account);
+      const result = await this.lockout.recordFailure(account);
       await this.audit.log({
         action: 'LOGIN_FAILED',
         ip,
-        detail: `Failed login for: ${dto.account} (attempt ${result.attempts}${result.locked ? ', now locked' : ''})`,
+        detail: `Failed login for: ${account} (attempt ${result.attempts}${result.locked ? ', now locked' : ''})`,
       });
       if (result.locked) {
         throw new ForbiddenException(
@@ -133,7 +140,7 @@ export class AuthService {
     }
 
     // Success — reset lockout counter
-    await this.lockout.resetOnSuccess(dto.account);
+    await this.lockout.resetOnSuccess(account);
     await this.audit.log({
       action: 'LOGIN_SUCCESS',
       userId: user.id,
@@ -157,10 +164,10 @@ export class AuthService {
     return this.tokenBlacklist.isRevoked(jti);
   }
 
-  async updateProfile(userId: string, data: { name?: string; email?: string; phone?: string }) {
+  async updateProfile(userId: string, data: UpdateProfileDto) {
     const updateData: Prisma.UserUpdateInput = {};
     if (data.name?.trim()) updateData.name = data.name.trim();
-    if (data.email !== undefined) updateData.email = data.email?.trim() || null;
+    if (data.email !== undefined) updateData.email = data.email?.trim().toLowerCase() || null;
     if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
 
     const user = await this.prisma.user.update({
@@ -168,7 +175,7 @@ export class AuthService {
       data: updateData,
     });
 
-    await this.redis.del(`user:auth:${userId}`).catch(() => {});
+    await this.clearUserAuthCache(userId);
 
     return this.sanitizeUser(user);
   }
@@ -179,6 +186,9 @@ export class AuthService {
 
     const valid = await bcrypt.compare(oldPassword, user.passwordHash);
     if (!valid) throw new BadRequestException('Current password is incorrect');
+    if (oldPassword === newPassword) {
+      throw new BadRequestException('New password must be different from current password');
+    }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await this.prisma.user.update({
@@ -192,20 +202,21 @@ export class AuthService {
       detail: 'User changed their own password',
     });
 
-    await this.redis.del(`user:auth:${userId}`).catch(() => {});
+    await this.clearUserAuthCache(userId);
 
     return { ok: true };
   }
 
   async sendPasswordResetCode(emailAddress: string) {
+    const email = emailAddress.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
-      where: { email: emailAddress },
+      where: { email },
       select: { id: true, email: true, name: true },
     });
     if (!user || !user.email) return { ok: true };
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    await this.redis.set(`pwd-reset:${emailAddress}`, code, 300);
+    await this.redis.set(`pwd-reset:${email}`, code, 300);
 
     await this.emailService.send(
       user.email,
@@ -247,17 +258,28 @@ export class AuthService {
   }
 
   async resetPasswordWithCode(email: string, code: string, newPassword: string) {
-    const storedCode = await this.redis.get(`pwd-reset:${email}`);
-    if (!storedCode || storedCode !== code) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedCode = code.trim();
+
+    const storedCode = await this.redis.get(`pwd-reset:${normalizedEmail}`);
+    if (!storedCode || storedCode !== normalizedCode) {
       throw new BadRequestException('Invalid or expired code');
     }
 
-    const user = await this.prisma.user.findFirst({ where: { email } });
+    const user = await this.prisma.user.findFirst({ where: { email: normalizedEmail } });
     if (!user) throw new BadRequestException('Invalid or expired code');
+
+    const isSamePassword = await bcrypt.compare(newPassword, user.passwordHash);
+    if (isSamePassword) {
+      throw new BadRequestException('New password must be different from current password');
+    }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
-    await this.redis.del(`pwd-reset:${email}`);
+    await Promise.all([
+      this.redis.del(`pwd-reset:${normalizedEmail}`),
+      this.clearUserAuthCache(user.id),
+    ]);
 
     await this.audit.log({
       action: 'PASSWORD_RESET',
@@ -266,5 +288,9 @@ export class AuthService {
     });
 
     return { ok: true };
+  }
+
+  private async clearUserAuthCache(userId: string) {
+    await this.redis.del(`user:auth:${userId}`).catch(() => {});
   }
 }

@@ -29,15 +29,19 @@ export class AccountLockoutService {
   async recordFailure(account: string): Promise<{ locked: boolean; attempts: number }> {
     const count = await this.redis.incr(this.failKey(account), ATTEMPT_WINDOW_SECONDS);
     if (count >= MAX_ATTEMPTS) {
-      await this.redis.set(this.lockKey(account), '1', LOCKOUT_SECONDS);
-      await this.redis.del(this.failKey(account));
+      await Promise.all([
+        this.redis.set(this.lockKey(account), '1', LOCKOUT_SECONDS),
+        this.redis.del(this.failKey(account)),
+      ]);
       return { locked: true, attempts: count };
     }
     return { locked: false, attempts: count };
   }
 
   async resetOnSuccess(account: string): Promise<void> {
-    await this.redis.del(this.failKey(account));
-    await this.redis.del(this.lockKey(account));
+    await Promise.all([
+      this.redis.del(this.failKey(account)),
+      this.redis.del(this.lockKey(account)),
+    ]);
   }
 }

@@ -1,21 +1,25 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
 import { AuthUser } from '../auth/auth.types';
+import { CreateAnnouncementDto } from './dto/create-announcement.dto';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AnnouncementService {
+  private readonly logger = new Logger(AnnouncementService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
   ) {}
 
-  async create(data: { classId?: string; title: string; content: string; pinned?: boolean }, author: AuthUser) {
+  async create(data: CreateAnnouncementDto, author: AuthUser) {
     if (data.classId) {
       const isTeacher = await this.prisma.class.findFirst({
         where: { id: data.classId, teachers: { some: { id: author.id } } },
       });
-      if (!isTeacher && author.role !== 'ADMIN') throw new ForbiddenException('Not authorized for this class');
+      if (!isTeacher && author.role !== Role.ADMIN) throw new ForbiddenException('Not authorized for this class');
     }
 
     const announcement = await this.prisma.announcement.create({
@@ -35,9 +39,7 @@ export class AnnouncementService {
         body: data.content.slice(0, 200),
         linkTo: `/student/announcements`,
       }));
-      for (const n of notifs) {
-        await this.notifications.create(n).catch(() => {});
-      }
+      await this.dispatchNotifications(notifs);
     }
 
     return announcement;
@@ -105,8 +107,40 @@ export class AnnouncementService {
   async delete(id: string, user: AuthUser) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
     if (!announcement) throw new NotFoundException('Announcement not found');
-    if (announcement.authorId !== user.id && user.role !== 'ADMIN') throw new ForbiddenException('Not authorized');
+    if (announcement.authorId !== user.id && user.role !== Role.ADMIN) throw new ForbiddenException('Not authorized');
     await this.prisma.announcement.delete({ where: { id } });
     return { ok: true };
+  }
+
+  private async dispatchNotifications(
+    notifications: Array<{
+      userId: string;
+      type: string;
+      title: string;
+      body?: string;
+      linkTo?: string;
+    }>,
+  ) {
+    if (!notifications.length) {
+      return;
+    }
+
+    const batchSize = 50;
+    let failedCount = 0;
+
+    for (let index = 0; index < notifications.length; index += batchSize) {
+      const batch = notifications.slice(index, index + batchSize);
+      const results = await Promise.allSettled(
+        batch.map((notification) => this.notifications.create(notification)),
+      );
+      failedCount += results.reduce(
+        (count, result) => (result.status === 'rejected' ? count + 1 : count),
+        0,
+      );
+    }
+
+    if (failedCount > 0) {
+      this.logger.warn(`Failed to create ${failedCount}/${notifications.length} announcement notifications`);
+    }
   }
 }

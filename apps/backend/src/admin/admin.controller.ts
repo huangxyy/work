@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
@@ -11,7 +11,12 @@ import { AuthUser } from '../auth/auth.types';
 import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { AdminService } from './admin.service';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
+import { AuditLogsQueryDto } from './dto/audit-logs-query.dto';
+import { BulkDisableUsersDto } from './dto/bulk-disable-users.dto';
+import { BulkImportUsersDto } from './dto/bulk-import-users.dto';
+import { BulkResetPasswordDto } from './dto/bulk-reset-password.dto';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
+import { DaysRangeQueryDto } from './dto/days-range-query.dto';
 import { LlmLogsClearDto } from './dto/llm-logs-clear.dto';
 import { LlmLogsQueryDto } from './dto/llm-logs-query.dto';
 import { LlmTestDto } from './dto/llm-test.dto';
@@ -21,6 +26,7 @@ import { QueueCleanDto } from './dto/queue-clean.dto';
 import { QueueRetryDto } from './dto/queue-retry.dto';
 import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
+import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
 import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
 
 @ApiTags('Admin')
@@ -48,6 +54,21 @@ export class AdminController {
   @Get('health/ocr')
   async ocrHealth() {
     return this.adminService.testOcrConnection();
+  }
+
+  @Get('health/storage')
+  async storageHealth() {
+    return this.adminService.testStorageConnection();
+  }
+
+  @Get('health/email')
+  async emailHealth() {
+    return this.adminService.testEmailConnection();
+  }
+
+  @Get('health/redis')
+  async redisHealth() {
+    return this.adminService.testRedisConnection();
   }
 
   @Get('users/export')
@@ -143,7 +164,7 @@ export class AdminController {
   }
 
   @Patch('feature-flags')
-  async updateFeatureFlag(@Body() body: { flag: string; enabled: boolean }) {
+  async updateFeatureFlag(@Body() body: UpdateFeatureFlagDto) {
     return this.adminService.updateFeatureFlag(body.flag, body.enabled);
   }
 
@@ -155,12 +176,15 @@ export class AdminController {
   @Post('ocr/test')
   @UseInterceptors(FileInterceptor('image', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
   async testOcr(@UploadedFile() file: Express.Multer.File) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Image file is required');
+    }
     return this.adminService.testOcrWithImage(file.buffer);
   }
 
   @Get('error-trends')
-  async getErrorTrends(@Query('days') days?: string) {
-    return this.adminService.getErrorTrends(days ? parseInt(days, 10) : 7);
+  async getErrorTrends(@Query() query: DaysRangeQueryDto) {
+    return this.adminService.getErrorTrends(query.days ?? 7);
   }
 
   @Get('system-info')
@@ -169,30 +193,27 @@ export class AdminController {
   }
 
   @Post('users/bulk-import')
-  async bulkImportUsers(@Body() body: { text: string; role?: string; classId?: string; defaultPassword?: string }) {
+  async bulkImportUsers(@Body() body: BulkImportUsersDto) {
     return this.adminService.bulkImportUsers(body);
   }
 
   @Post('users/bulk-disable')
-  async bulkDisableUsers(@Body() body: { userIds: string[] }) {
+  async bulkDisableUsers(@Body() body: BulkDisableUsersDto) {
     return this.adminService.bulkDisableUsers(body.userIds);
   }
 
   @Post('users/bulk-reset-password')
-  async bulkResetPassword(@Body() body: { userIds: string[]; newPassword: string }) {
+  async bulkResetPassword(@Body() body: BulkResetPasswordDto) {
     return this.adminService.bulkResetPassword(body.userIds, body.newPassword);
   }
 
   @Get('llm/cost-summary')
-  async getLlmCostSummary(@Query('days') days?: string) {
-    return this.adminService.getLlmCostSummary(days ? parseInt(days, 10) : 7);
+  async getLlmCostSummary(@Query() query: DaysRangeQueryDto) {
+    return this.adminService.getLlmCostSummary(query.days ?? 7);
   }
 
   @Get('audit-logs')
-  async getAuditLogs(@Query('limit') limit?: string, @Query('offset') offset?: string) {
-    return this.adminService.getAuditLogs(
-      limit ? parseInt(limit, 10) : 50,
-      offset ? parseInt(offset, 10) : 0,
-    );
+  async getAuditLogs(@Query() query: AuditLogsQueryDto) {
+    return this.adminService.getAuditLogs(query);
   }
 }

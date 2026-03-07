@@ -58,13 +58,17 @@ export class RetentionService {
 
     let cursor: { createdAt: Date; id: string } | null = null;
     let hasMore = true;
+    let page = 0;
 
     while (hasMore) {
+      const pageNumber = page + 1;
+      const pageStartedAt = Date.now();
       const submissions = await this.findExpiredSubmissions(cutoffDate, batchSize, cursor);
       if (!submissions.length) {
         hasMore = false;
         break;
       }
+      page = pageNumber;
 
       // Batch-fetch all images for this page of submissions to avoid N+1 queries
       const submissionIds = submissions.map((s) => s.id);
@@ -79,8 +83,9 @@ export class RetentionService {
         imagesBySubmission.set(img.submissionId, keys);
       }
 
+      stats.scanned += submissions.length;
+
       for (const submission of submissions) {
-        stats.scanned += 1;
         if (stats.sampleSubmissionIds.length < 10) {
           stats.sampleSubmissionIds.push(submission.id);
         }
@@ -97,40 +102,81 @@ export class RetentionService {
         }
 
         if (dryRun) {
-          stats.deleted += 1;
-          stats.minioOk += objectKeys.length;
           continue;
         }
+      }
 
-        const minioResult = await this.storage.deleteObjects(objectKeys);
-        stats.minioOk += minioResult.ok;
-        stats.minioFailed += minioResult.failed.length;
+      if (dryRun) {
+        stats.deleted += submissions.length;
+        stats.minioOk += allImages.length;
 
-        if (minioResult.failed.length > 0) {
-          this.logger.warn(
-            `Retention MinIO delete failed for submission ${submission.id} (${minioResult.failed.length} objects)`,
+        this.logger.debug(
+          `Retention page processed page=${page} submissions=${submissions.length} objectKeys=${allImages.length} deleted=${submissions.length} minioOk=${allImages.length} minioFailed=0 dbFailed=0 dryRun=true durationMs=${Date.now() - pageStartedAt}`,
+        );
+      } else {
+        const PAGE_CONCURRENCY = 10;
+        let pageDeleted = 0;
+        let pageMinioOk = 0;
+        let pageMinioFailed = 0;
+        let pageDbFailed = 0;
+
+        for (let index = 0; index < submissions.length; index += PAGE_CONCURRENCY) {
+          const chunk = submissions.slice(index, index + PAGE_CONCURRENCY);
+          const outcomes = await Promise.all(
+            chunk.map(async (submission) => {
+              const objectKeys = imagesBySubmission.get(submission.id) || [];
+              let minioOk = 0;
+              let minioFailed = 0;
+
+              if (objectKeys.length > 0) {
+                const minioResult = await this.storage.deleteObjects(objectKeys);
+                minioOk = minioResult.ok;
+                minioFailed = minioResult.failed.length;
+
+                if (minioResult.failed.length > 0) {
+                  this.logger.warn(
+                    `Retention MinIO delete failed for submission ${submission.id} (${minioResult.failed.length} objects)`,
+                  );
+                }
+
+                if (minioResult.ok === 0) {
+                  this.logger.warn(
+                    `Retention skipping DB delete for ${submission.id}: all ${objectKeys.length} MinIO deletes failed`,
+                  );
+                  return { deleted: 0, minioOk, minioFailed, dbFailed: 1 };
+                }
+              }
+
+              try {
+                await this.prisma.$transaction([
+                  this.prisma.submissionImage.deleteMany({ where: { submissionId: submission.id } }),
+                  this.prisma.submission.delete({ where: { id: submission.id } }),
+                ]);
+                return { deleted: 1, minioOk, minioFailed, dbFailed: 0 };
+              } catch (error) {
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                this.logger.error(`Retention DB delete failed for ${submission.id}: ${message}`);
+                return { deleted: 0, minioOk, minioFailed, dbFailed: 1 };
+              }
+            }),
           );
+
+          outcomes.forEach((outcome) => {
+            pageDeleted += outcome.deleted;
+            pageMinioOk += outcome.minioOk;
+            pageMinioFailed += outcome.minioFailed;
+            pageDbFailed += outcome.dbFailed;
+          });
         }
 
-        if (objectKeys.length > 0 && minioResult.ok === 0) {
-          stats.dbFailed += 1;
-          this.logger.warn(
-            `Retention skipping DB delete for ${submission.id}: all ${objectKeys.length} MinIO deletes failed`,
-          );
-          continue;
-        }
+        stats.deleted += pageDeleted;
+        stats.minioOk += pageMinioOk;
+        stats.minioFailed += pageMinioFailed;
+        stats.dbFailed += pageDbFailed;
 
-        try {
-          await this.prisma.$transaction([
-            this.prisma.submissionImage.deleteMany({ where: { submissionId: submission.id } }),
-            this.prisma.submission.delete({ where: { id: submission.id } }),
-          ]);
-          stats.deleted += 1;
-        } catch (error) {
-          stats.dbFailed += 1;
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.error(`Retention DB delete failed for ${submission.id}: ${message}`);
-        }
+        this.logger.debug(
+          `Retention page processed page=${page} submissions=${submissions.length} objectKeys=${allImages.length} deleted=${pageDeleted} minioOk=${pageMinioOk} minioFailed=${pageMinioFailed} dbFailed=${pageDbFailed} dryRun=false durationMs=${Date.now() - pageStartedAt}`,
+        );
       }
 
       const last = submissions[submissions.length - 1];
@@ -192,6 +238,7 @@ export class RetentionService {
   }
 
   private async cleanOrphanedBatchUploads(cutoffDate: Date, dryRun: boolean): Promise<number> {
+    const startedAt = Date.now();
     try {
       const orphaned = await this.prisma.batchUpload.findMany({
         where: {
@@ -202,10 +249,15 @@ export class RetentionService {
         take: 500,
       });
 
-      if (!orphaned.length) return 0;
+      if (!orphaned.length) {
+        this.logger.debug(`Retention orphan cleanup skipped count=0 dryRun=${dryRun} durationMs=${Date.now() - startedAt}`);
+        return 0;
+      }
 
       if (dryRun) {
-        this.logger.log(`Retention dry-run: would delete ${orphaned.length} orphaned BatchUpload records`);
+        this.logger.log(
+          `Retention dry-run: would delete ${orphaned.length} orphaned BatchUpload records durationMs=${Date.now() - startedAt}`,
+        );
         return orphaned.length;
       }
 
@@ -215,11 +267,15 @@ export class RetentionService {
         },
       });
 
-      this.logger.log(`Retention: deleted ${result.count} orphaned BatchUpload records`);
+      this.logger.log(
+        `Retention: deleted ${result.count} orphaned BatchUpload records durationMs=${Date.now() - startedAt}`,
+      );
       return result.count;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`Failed to clean orphaned BatchUpload records: ${message}`);
+      this.logger.warn(
+        `Failed to clean orphaned BatchUpload records after ${Date.now() - startedAt}ms: ${message}`,
+      );
       return 0;
     }
   }

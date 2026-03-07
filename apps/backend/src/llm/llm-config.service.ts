@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SystemConfigService } from '../system-config/system-config.service';
 
@@ -69,6 +69,8 @@ export type LlmRuntimeConfig = {
 
 @Injectable()
 export class LlmConfigService {
+  private readonly logger = new Logger(LlmConfigService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly systemConfigService: SystemConfigService,
@@ -111,6 +113,48 @@ export class LlmConfigService {
   }
 
   async getProviders(): Promise<LlmProviderConfig[]> {
+    return this.getProvidersWithDefaults();
+  }
+
+  async resolveRuntimeConfig(): Promise<LlmRuntimeConfig> {
+    const startedAt = Date.now();
+    const defaults = await this.getDefaults();
+    const providers = await this.getProvidersWithDefaults(defaults);
+
+    const activeProvider = this.resolveActiveProvider(defaults, providers);
+    const runtime = this.buildRuntimeConfig(defaults, activeProvider);
+
+    this.logger.debug(
+      `LLM runtime config resolved providerId=${runtime.providerId || 'none'} providerName=${runtime.providerName} model=${runtime.model || 'none'} providers=${providers.length} hasApiKey=${Boolean(runtime.apiKey)} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return runtime;
+  }
+
+  async resolveRuntimeConfigForProvider(
+    providerId?: string,
+    overrides?: Partial<LlmDefaultsConfig>,
+  ): Promise<LlmRuntimeConfig> {
+    const startedAt = Date.now();
+    const defaults = await this.getDefaults();
+    const overrideValues = this.stripUndefined(overrides);
+    const mergedDefaults = { ...defaults, ...overrideValues };
+    const providers = await this.getProvidersWithDefaults(defaults);
+
+    const selectedProvider = providerId
+      ? providers.find((provider) => provider.id === providerId)
+      : this.resolveActiveProvider(mergedDefaults, providers);
+
+    const runtime = this.buildRuntimeConfig(mergedDefaults, selectedProvider);
+
+    this.logger.debug(
+      `LLM runtime config resolved for provider requested=${providerId || 'auto'} providerId=${runtime.providerId || 'none'} model=${runtime.model || 'none'} providers=${providers.length} overrides=${Object.keys(overrideValues).length} hasApiKey=${Boolean(runtime.apiKey)} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return runtime;
+  }
+
+  private async getProvidersWithDefaults(defaults?: LlmDefaultsConfig): Promise<LlmProviderConfig[]> {
     const stored = (await this.systemConfigService.getValue<LlmProviderConfig[]>('llmProviders')) || [];
     const normalized = stored
       .map((provider) => this.normalizeProvider(provider))
@@ -121,41 +165,37 @@ export class LlmConfigService {
       return normalized;
     }
 
-    const defaults = await this.getDefaults();
-    if (!defaults.baseUrl) {
+    const resolvedDefaults = defaults || await this.getDefaults();
+    if (!resolvedDefaults.baseUrl) {
       return [];
     }
 
     return [
       {
         id: 'default',
-        name: defaults.providerName || 'llm',
-        baseUrl: defaults.baseUrl,
-        apiKey: defaults.apiKey,
-        models: defaults.model
-          ? [{ name: defaults.model, isDefault: true }]
+        name: resolvedDefaults.providerName || 'llm',
+        baseUrl: resolvedDefaults.baseUrl,
+        apiKey: resolvedDefaults.apiKey,
+        models: resolvedDefaults.model
+          ? [{ name: resolvedDefaults.model, isDefault: true }]
           : undefined,
         enabled: true,
       },
     ];
   }
 
-  async resolveRuntimeConfig(): Promise<LlmRuntimeConfig> {
-    const defaults = await this.getDefaults();
-    const providers = await this.getProviders();
-
-    const activeProvider = this.resolveActiveProvider(defaults, providers);
-    const providerName = activeProvider?.name || defaults.providerName || 'llm';
-    const baseUrl = activeProvider?.baseUrl || defaults.baseUrl || '';
-    const apiKey = activeProvider?.apiKey || defaults.apiKey || undefined;
-    const headers = this.buildHeaders(activeProvider?.headers || []);
-    const model = defaults.model || this.resolveDefaultModel(activeProvider);
+  private buildRuntimeConfig(defaults: LlmDefaultsConfig, provider?: LlmProviderConfig): LlmRuntimeConfig {
+    const providerName = provider?.name || defaults.providerName || 'llm';
+    const baseUrl = provider?.baseUrl || defaults.baseUrl || '';
+    const apiKey = provider?.apiKey || defaults.apiKey || undefined;
+    const headers = this.buildHeaders(provider?.headers || []);
+    const model = defaults.model || this.resolveDefaultModel(provider);
 
     return {
-      providerId: activeProvider?.id,
+      providerId: provider?.id,
       providerName,
       baseUrl,
-      path: activeProvider?.path,
+      path: provider?.path,
       apiKey,
       headers,
       model,
@@ -170,48 +210,7 @@ export class LlmConfigService {
       stop: this.normalizeStop(defaults.stop),
       responseFormat: defaults.responseFormat,
       systemPrompt: defaults.systemPrompt,
-      prices: this.buildPriceMap(activeProvider?.models || []),
-    };
-  }
-
-  async resolveRuntimeConfigForProvider(
-    providerId?: string,
-    overrides?: Partial<LlmDefaultsConfig>,
-  ): Promise<LlmRuntimeConfig> {
-    const defaults = await this.getDefaults();
-    const mergedDefaults = { ...defaults, ...this.stripUndefined(overrides) };
-    const providers = await this.getProviders();
-
-    const selectedProvider = providerId
-      ? providers.find((provider) => provider.id === providerId)
-      : this.resolveActiveProvider(mergedDefaults, providers);
-
-    const providerName = selectedProvider?.name || mergedDefaults.providerName || 'llm';
-    const baseUrl = selectedProvider?.baseUrl || mergedDefaults.baseUrl || '';
-    const apiKey = selectedProvider?.apiKey || mergedDefaults.apiKey || undefined;
-    const headers = this.buildHeaders(selectedProvider?.headers || []);
-    const model = mergedDefaults.model || this.resolveDefaultModel(selectedProvider);
-
-    return {
-      providerId: selectedProvider?.id,
-      providerName,
-      baseUrl,
-      path: selectedProvider?.path,
-      apiKey,
-      headers,
-      model,
-      cheaperModel: mergedDefaults.cheaperModel,
-      qualityModel: mergedDefaults.qualityModel,
-      maxTokens: mergedDefaults.maxTokens,
-      temperature: mergedDefaults.temperature,
-      topP: mergedDefaults.topP,
-      presencePenalty: mergedDefaults.presencePenalty,
-      frequencyPenalty: mergedDefaults.frequencyPenalty,
-      timeoutMs: mergedDefaults.timeoutMs,
-      stop: this.normalizeStop(mergedDefaults.stop),
-      responseFormat: mergedDefaults.responseFormat,
-      systemPrompt: mergedDefaults.systemPrompt,
-      prices: this.buildPriceMap(selectedProvider?.models || []),
+      prices: this.buildPriceMap(provider?.models || []),
     };
   }
 

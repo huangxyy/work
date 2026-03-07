@@ -81,8 +81,10 @@ export const fetchHomeworkDeletePreview = async (homeworkId: string) => {
   };
 };
 
-export const deleteHomework = async (homeworkId: string) => {
-  const response = await api.delete(`/homeworks/${homeworkId}`);
+export const deleteHomework = async (homeworkId: string, force = false) => {
+  const response = await api.delete(`/homeworks/${homeworkId}`, {
+    params: force ? { force: 'true' } : undefined,
+  });
   return response.data as {
     homeworkId: string;
     deleted: boolean;

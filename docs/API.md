@@ -163,9 +163,25 @@ Authorization: Bearer <token>
 {
   "id": "submission-id",
   "status": "DONE",
+  "images": [
+    {
+      "id": "image-id",
+      "url": "https://example.com/presigned-url"
+    }
+  ],
+  "student": {
+    "id": "student-id",
+    "name": "张三",
+    "account": "student01"
+  },
+  "homework": {
+    "id": "homework-id",
+    "title": "英语作文"
+  },
   "ocrText": "recognized text...",
   "totalScore": 85,
   "gradingJson": {
+    "totalScore": 85,
     "dimensionScores": {
       "grammar": 18,
       "vocabulary": 17,
@@ -173,21 +189,32 @@ Authorization: Bearer <token>
       "content": 17,
       "coherence": 17
     },
-    "totalScore": 85,
-    "summary": "这是一篇结构清晰的作文...",
-    "suggestions": [
-      "建议加强时态的使用",
-      "可以增加更多连接词"
-    ],
-    "grammarErrors": [
+    "errors": [
       {
+        "type": "grammar",
+        "message": "动词时态错误",
         "original": "I go to park yesterday",
-        "correction": "I went to the park yesterday",
-        "explanation": "过去时间应该用过去时"
+        "suggestion": "I went to the park yesterday"
       }
-    ]
+    ],
+    "suggestions": {
+      "low": ["修正过去时使用"],
+      "mid": ["增加连接词提升连贯性"],
+      "high": ["扩展细节描写增强内容表达"],
+      "rewrite": "Yesterday I went to the park and enjoyed...",
+      "sampleEssay": "Last weekend, I went to..."
+    },
+    "summary": "这是一篇结构清晰的作文...",
+    "nextSteps": ["复习一般过去时", "继续练习段落衔接"]
   },
-  "createdAt": "2026-02-04T14:00:00Z"
+  "errorCode": null,
+  "errorMsg": null,
+  "teacherComment": "继续保持",
+  "manualScore": 88,
+  "reviewedBy": "teacher-id",
+  "reviewedAt": "2026-02-04T14:20:00Z",
+  "createdAt": "2026-02-04T14:00:00Z",
+  "updatedAt": "2026-02-04T14:20:00Z"
 }
 ```
 
@@ -198,7 +225,62 @@ POST /api/submissions/:id/regrade
 Authorization: Bearer <token>
 ```
 
-**角色**: TEACHER/STUDENT
+**角色**: STUDENT/TEACHER/ADMIN
+
+---
+
+## 教师评分设置 (Teacher Settings)
+
+### 获取评分设置
+
+```
+GET /api/teacher/settings/grading
+Authorization: Bearer <token>
+```
+
+### 获取评分策略摘要
+
+```
+GET /api/teacher/settings/grading/policies?classId=<classId>&homeworkId=<homeworkId>
+Authorization: Bearer <token>
+```
+
+### 获取评分策略预览
+
+```
+GET /api/teacher/settings/grading/policies/preview?classId=<classId>
+Authorization: Bearer <token>
+```
+
+### 设置班级评分策略
+
+```
+PUT /api/teacher/settings/grading/policies/class/:classId
+Authorization: Bearer <token>
+```
+
+**请求体**:
+```json
+{
+  "mode": "quality",
+  "needRewrite": true
+}
+```
+
+### 设置作业评分策略
+
+```
+PUT /api/teacher/settings/grading/policies/homework/:homeworkId
+Authorization: Bearer <token>
+```
+
+### 清除班级/作业评分策略
+
+```
+DELETE /api/teacher/settings/grading/policies/class/:classId
+DELETE /api/teacher/settings/grading/policies/homework/:homeworkId
+Authorization: Bearer <token>
+```
 
 ---
 
@@ -207,22 +289,78 @@ Authorization: Bearer <token>
 ### 批量上传提交
 
 ```
-POST /api/teacher/submissions/upload
+POST /api/teacher/submissions/batch
 Authorization: Bearer <token>
 Content-Type: multipart/form-data
 ```
 
-**角色**: TEACHER
-**Files**: `zip` (包含学生图片的压缩包)
+**角色**: TEACHER/ADMIN
+
+**文件字段**:
+- `images`：最多 100 张图片
+- `archive`：可选 ZIP 压缩包（最多 1 个）
+
+**表单字段**:
+- `homeworkId`
+- `mode?`: `cheap | quality`
+- `needRewrite?`: `true | false`
+- `mappingOverrides?`: JSON 字符串（`fileKey -> account`）
+- `nameOverrides?`: JSON 字符串（`fileKey -> studentName`）
+- `excludedFileKeys?`: 逗号分隔或 JSON 字符串
+
+**语义说明**:
+- 同一学生在同一批次命中的多张图片，会聚合到 **同一个 submission**。
+- `createdSubmissions` 表示实际创建的提交数，不等于图片数。
 
 ### 预览批量上传
 
 ```
-POST /api/teacher/submissions/preview
+POST /api/teacher/submissions/batch
 Authorization: Bearer <token>
 ```
 
-**角色**: TEACHER
+**角色**: TEACHER/ADMIN
+
+**表单字段补充**:
+- `dryRun=true`
+
+### 获取批次列表 / 批次详情
+
+```
+GET /api/teacher/submissions/batches?homeworkId=<homeworkId>
+GET /api/teacher/submissions/batches/:batchId
+Authorization: Bearer <token>
+```
+
+### 重试批次内失败提交
+
+```
+POST /api/teacher/submissions/batches/:batchId/retry
+Authorization: Bearer <token>
+```
+
+### 补录跳过图片
+
+```
+POST /api/teacher/submissions/retry-skipped
+Authorization: Bearer <token>
+```
+
+**请求体**:
+```json
+{
+  "homeworkId": "homework-id",
+  "fileKey": "image:0:page-2.jpg",
+  "filename": "page-2.jpg",
+  "studentName": "张三",
+  "batchId": "batch-id"
+}
+```
+
+**语义说明**:
+- 如果该学生在当前批次中已经存在 submission，系统会优先把补录图片并入该 submission。
+- 如果已有 submission 处于 `DONE` 或 `FAILED`，系统会在并图后重新入队。
+- 如果已有 submission 仍处于 `PROCESSING`，接口会拒绝补录，避免与正在运行的 Worker 冲突。
 
 ---
 
@@ -277,33 +415,42 @@ Authorization: Bearer <token>
 ### 导出 PDF 批改单
 
 ```
-GET /api/teacher/homeworks/:id/submissions/pdf
+GET /api/teacher/submissions/pdf?homeworkId=<homeworkId>&submissionIds=<id1,id2>&lang=zh-CN
 Authorization: Bearer <token>
 ```
 
-**角色**: TEACHER
-**Query**: `{ ids }` (逗号分隔的提交ID)
+**角色**: TEACHER/ADMIN
 **Response**: PDF 文件
 
 ### 导出 CSV
 
 ```
-GET /api/teacher/homeworks/:id/submissions/csv
+GET /api/teacher/submissions/export?homeworkId=<homeworkId>&lang=zh-CN
 Authorization: Bearer <token>
 ```
 
-**角色**: TEACHER
+**角色**: TEACHER/ADMIN
 **Response**: CSV 文件
 
 ### 导出图片包
 
 ```
-GET /api/teacher/homeworks/:id/submissions/images
+GET /api/teacher/submissions/images?homeworkId=<homeworkId>
 Authorization: Bearer <token>
 ```
 
-**角色**: TEACHER
+**角色**: TEACHER/ADMIN
 **Response**: ZIP 文件
+
+### 导出催交提醒 CSV
+
+```
+GET /api/teacher/submissions/reminders?homeworkId=<homeworkId>&lang=zh-CN
+Authorization: Bearer <token>
+```
+
+**角色**: TEACHER/ADMIN
+**Response**: CSV 文件
 
 ---
 
@@ -323,6 +470,13 @@ GET /api/teacher/reports/class/:classId/export?days=7
 Authorization: Bearer <token>
 ```
 
+### 导出班级报表 (PDF)
+
+```
+GET /api/teacher/reports/class/:classId/pdf?days=7
+Authorization: Bearer <token>
+```
+
 ### 学生概览报表
 
 ```
@@ -330,25 +484,33 @@ GET /api/teacher/reports/student/:studentId/overview?days=7
 Authorization: Bearer <token>
 ```
 
-### 班级报告概览
+### 导出学生报表 (PDF)
 
 ```
-GET /api/teacher/reports
+GET /api/teacher/reports/student/:studentId/pdf?days=7
 Authorization: Bearer <token>
 ```
 
-**角色**: TEACHER
-**Query**: `{ classId, rangeDays }`
-
-### 学生报告
+### 学生自助报表概览
 
 ```
-GET /api/teacher/reports/student/:studentId
+GET /api/student/reports/overview?days=7
 Authorization: Bearer <token>
 ```
 
-**角色**: TEACHER
-**Query**: `{ rangeDays }`
+### 学生班级对比
+
+```
+GET /api/student/reports/class-comparison?days=7
+Authorization: Bearer <token>
+```
+
+### 学生自助报表 PDF
+
+```
+GET /api/student/reports/pdf?days=7
+Authorization: Bearer <token>
+```
 
 ---
 
@@ -380,17 +542,30 @@ Authorization: Bearer <token>
 ### 更新系统配置
 
 ```
-PATCH /api/admin/config
+PUT /api/admin/config
 Authorization: Bearer <token>
 ```
 
-**请求体**:
-```json
-{
-  "key": "llm.dailyCallLimit",
-  "value": "500"
-}
+**请求体**: 结构化配置对象（`UpdateSystemConfigDto`），可同时更新 `llm`、`providers`、`ocr`、`budget` 等配置。
+
+### 测试 LLM / OCR 与查看调用日志
+
 ```
+POST /api/admin/llm/test
+POST /api/admin/ocr/test
+GET /api/admin/llm/logs
+DELETE /api/admin/llm/logs
+Authorization: Bearer <token>
+```
+
+### 获取提交诊断
+
+```
+GET /api/admin/submissions/:id/diagnosis
+Authorization: Bearer <token>
+```
+
+**说明**: 返回提交基本信息、OCR 输出、评分 JSON、LLM 调用日志与流水线状态。
 
 ---
 
@@ -414,22 +589,24 @@ GET /api/landing
 
 ## 队列管理
 
-### 获取队列状态
+### 获取队列指标
 
 ```
-GET /api/queue/status
+GET /api/admin/queue/metrics?status=<status>
 Authorization: Bearer <token>
 ```
 
-**响应**:
-```json
-{
-  "waiting": 0,
-  "active": 1,
-  "completed": 150,
-  "failed": 2
-}
+### 重试失败任务 / 清理队列 / 暂停与恢复
+
 ```
+POST /api/admin/queue/retry-failed
+POST /api/admin/queue/clean
+POST /api/admin/queue/pause
+POST /api/admin/queue/resume
+Authorization: Bearer <token>
+```
+
+**说明**: 队列管理能力位于管理员命名空间下，不存在公共的 `/api/queue/status` 接口。
 
 ---
 

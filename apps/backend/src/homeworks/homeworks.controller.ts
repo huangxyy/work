@@ -6,7 +6,9 @@ import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
 import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { CreateHomeworkDto } from './dto/create-homework.dto';
-import { ListHomeworksQueryDto } from './dto/list-homeworks-query.dto';
+import { DeleteHomeworkQueryDto } from './dto/delete-homework-query.dto';
+import { HomeworkClassQueryDto } from './dto/homework-class-query.dto';
+import { UpdateHomeworkDto } from './dto/update-homework.dto';
 import { UpdateHomeworkLateSubmissionDto } from './dto/update-homework-late-submission.dto';
 import { HomeworksService } from './homeworks.service';
 
@@ -24,7 +26,7 @@ export class HomeworksController {
   @Get()
   @Roles(Role.TEACHER, Role.ADMIN)
   async listByClass(
-    @Query() query: ListHomeworksQueryDto,
+    @Query() query: HomeworkClassQueryDto,
     @Req() req: { user: AuthUser },
   ) {
     return this.homeworksService.listByClass(query.classId, req.user);
@@ -33,7 +35,7 @@ export class HomeworksController {
   @Get('summary')
   @Roles(Role.TEACHER, Role.ADMIN)
   async listSummary(
-    @Query() query: ListHomeworksQueryDto,
+    @Query() query: HomeworkClassQueryDto,
     @Req() req: { user: AuthUser },
   ) {
     return this.homeworksService.listByClassSummary(query.classId, req.user);
@@ -65,7 +67,7 @@ export class HomeworksController {
   @Roles(Role.TEACHER, Role.ADMIN)
   async update(
     @Param('id', ParseCuidPipe) id: string,
-    @Body() body: { title?: string; desc?: string; dueAt?: string },
+    @Body() body: UpdateHomeworkDto,
     @Req() req: { user: AuthUser },
   ) {
     return this.homeworksService.updateHomework(id, body, req.user);
@@ -75,9 +77,9 @@ export class HomeworksController {
   @Roles(Role.TEACHER, Role.ADMIN)
   async remove(
     @Param('id', ParseCuidPipe) id: string,
-    @Query('force') force: string,
+    @Query() query: DeleteHomeworkQueryDto,
     @Req() req: { user: AuthUser },
   ) {
-    return this.homeworksService.deleteHomework(id, req.user, force === 'true');
+    return this.homeworksService.deleteHomework(id, req.user, query.force ?? false);
   }
 }

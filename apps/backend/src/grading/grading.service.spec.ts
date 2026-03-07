@@ -9,6 +9,7 @@ describe('GradingService', () => {
   let cheapProvider: jest.Mocked<CheapProvider>;
   let budgetTracker: jest.Mocked<BudgetTracker>;
   let configService: jest.Mocked<ConfigService>;
+  let setTimeoutSpy: jest.SpiedFunction<typeof setTimeout>;
 
   const validGradingResult = JSON.stringify({
     totalScore: 75,
@@ -48,7 +49,20 @@ describe('GradingService', () => {
       get: jest.fn().mockReturnValue(undefined),
     } as unknown as jest.Mocked<ConfigService>;
 
+    setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation(
+      ((handler: Parameters<typeof setTimeout>[0]) => {
+        if (typeof handler === 'function') {
+          handler();
+        }
+        return {} as ReturnType<typeof setTimeout>;
+      }) as typeof setTimeout,
+    );
+
     gradingService = new GradingService(cheapProvider, budgetTracker, configService);
+  });
+
+  afterEach(() => {
+    setTimeoutSpy.mockRestore();
   });
 
   describe('grade', () => {
@@ -234,6 +248,27 @@ describe('GradingService', () => {
 
       const result = await gradingService.grade('Test essay');
       expect(result.result.totalScore).toBe(75);
+    });
+
+    it('should reject grading results when totalScore does not match dimension scores', async () => {
+      cheapProvider.gradeEssay = jest.fn().mockResolvedValue(
+        JSON.stringify({
+          totalScore: 80,
+          dimensionScores: {
+            grammar: 15,
+            vocabulary: 15,
+            structure: 15,
+            content: 15,
+            coherence: 15,
+          },
+          errors: [],
+          suggestions: { low: [], mid: [], high: [], sampleEssay: 'Sample essay.' },
+          summary: 'Good work.',
+          nextSteps: ['Keep practicing.'],
+        }),
+      );
+
+      await expect(gradingService.grade('Test essay')).rejects.toThrow(GradingError);
     });
 
     it('should throw on empty response', async () => {

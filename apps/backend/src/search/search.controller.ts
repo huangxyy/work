@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { SearchQueryDto } from './dto/search-query.dto';
 import { SearchService } from './search.service';
 
 @ApiTags('Search')
@@ -12,7 +13,7 @@ export class SearchController {
   constructor(private readonly service: SearchService) {}
 
   @Get()
-  async search(@Query('q') q: string, @Req() req: { user: AuthUser }) {
-    return this.service.search(q, req.user);
+  async search(@Query() query: SearchQueryDto, @Req() req: { user: AuthUser }) {
+    return this.service.search(query.q ?? '', req.user);
   }
 }

@@ -17,22 +17,26 @@ export const AdminLoginHistoryPage = () => {
   const { t } = useI18n();
   const [actionFilter, setActionFilter] = useState<string | undefined>();
   const [page, setPage] = useState(1);
+  const loginActions = useMemo(() => Object.keys(ACTION_COLORS), []);
 
   const logsQuery = useQuery({
-    queryKey: ['admin-login-history', page],
+    queryKey: ['admin-login-history', page, actionFilter],
     queryFn: async () => {
-      const res = await api.get('/admin/audit-logs', { params: { limit: 50, offset: (page - 1) * 50 } });
+      const res = await api.get('/admin/audit-logs', {
+        params: {
+          limit: 50,
+          offset: (page - 1) * 50,
+          ...(actionFilter ? { action: actionFilter } : { actions: loginActions.join(',') }),
+        },
+      });
       return res.data;
     },
     staleTime: 15_000,
   });
 
   const loginLogs = useMemo(() => {
-    const loginActions = ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGIN_LOCKED', 'LOGOUT'];
-    const logs = (logsQuery.data || []).filter((l: { action: string }) => loginActions.includes(l.action));
-    if (!actionFilter) return logs;
-    return logs.filter((l: { action: string }) => l.action === actionFilter);
-  }, [logsQuery.data, actionFilter]);
+    return logsQuery.data || [];
+  }, [logsQuery.data]);
 
   const columns = useMemo(() => [
     { title: t('admin.auditLogs.time'), dataIndex: 'createdAt', render: (v: string) => formatDate(v), width: 180 },
@@ -52,7 +56,10 @@ export const AdminLoginHistoryPage = () => {
             allowClear
             placeholder={t('admin.loginHistory.filterAction')}
             value={actionFilter}
-            onChange={setActionFilter}
+            onChange={(value) => {
+              setActionFilter(value);
+              setPage(1);
+            }}
             style={{ width: 200 }}
             options={[
               { label: t('admin.loginHistory.success'), value: 'LOGIN_SUCCESS' },

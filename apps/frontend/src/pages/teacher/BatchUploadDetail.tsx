@@ -1,7 +1,7 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Descriptions, Input, List, Modal, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Descriptions, Input, List, Modal, Space, Steps, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchTeacherBatchUploadDetail, retrySkippedSubmission, downloadTeacherSubmissionsPdf } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -34,6 +34,10 @@ export const TeacherBatchUploadDetailPage = () => {
     fileKey?: string;
     reason: string;
   } | null>(null);
+  const [viewStep, setViewStep] = useState(0);
+  const summaryRef = useRef<HTMLDivElement | null>(null);
+  const skippedRef = useRef<HTMLDivElement | null>(null);
+  const submissionsRef = useRef<HTMLDivElement | null>(null);
 
   const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
@@ -165,6 +169,25 @@ export const TeacherBatchUploadDetailPage = () => {
   const data = detailQuery.data;
   const batchStatus = data?.status || 'EMPTY';
   const statusTag = statusMeta[batchStatus as keyof typeof statusMeta];
+  const canShowSummary = viewStep === 0;
+  const canShowSkipped = viewStep === 1;
+  const canShowSubmissions = viewStep === 2;
+
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+    const hasPendingSkipped = (data.skipped || []).some((item) => !processedFileKeys.has(item.fileKey || ''));
+    if (hasPendingSkipped) {
+      setViewStep(1);
+      return;
+    }
+    if (data.submissions?.length) {
+      setViewStep(2);
+      return;
+    }
+    setViewStep(0);
+  }, [data, processedFileKeys]);
 
   const submissionColumns = useMemo(
     () => [
@@ -198,7 +221,7 @@ export const TeacherBatchUploadDetailPage = () => {
       {
         title: t('common.lastUpdated'),
         dataIndex: 'updatedAt' as const,
-        render: (_: unknown, record: BatchSubmissionRow) => formatDateShort(record.updatedAt),
+        render: (_: unknown, record: BatchSubmissionRow) => record.updatedAt ? formatDateShort(record.updatedAt) : '--',
         width: 200,
       },
       {
@@ -244,7 +267,39 @@ export const TeacherBatchUploadDetailPage = () => {
         <SoftEmpty description={t('teacher.batchUpload.detailEmpty')} />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <ProCard bordered title={t('teacher.batchUpload.detailSummary')} className="apple-soft-card">
+          <ProCard bordered title={t('teacher.batchUpload.wizardTitle')} className="apple-soft-card">
+            <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              <Steps
+                size="small"
+                current={viewStep}
+                items={[
+                  { title: t('teacher.batchUpload.wizardSummary') },
+                  { title: t('teacher.batchUpload.wizardSkipped') },
+                  { title: t('teacher.batchUpload.wizardSubmissions') },
+                ]}
+              />
+              <Space wrap>
+                <Button onClick={() => setViewStep((prev) => Math.max(0, prev - 1))} disabled={viewStep === 0}>
+                  {t('teacher.batchUpload.wizardPrev')}
+                </Button>
+                <Button type="primary" onClick={() => setViewStep((prev) => Math.min(2, prev + 1))} disabled={viewStep === 2}>
+                  {t('teacher.batchUpload.wizardNext')}
+                </Button>
+                <Button
+                  onClick={() => {
+                    const target = viewStep === 0 ? summaryRef.current : viewStep === 1 ? skippedRef.current : submissionsRef.current;
+                    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  {t('teacher.batchUpload.wizardLocate')}
+                </Button>
+              </Space>
+            </Space>
+          </ProCard>
+
+          {canShowSummary ? (
+            <div ref={summaryRef}>
+              <ProCard bordered title={t('teacher.batchUpload.detailSummary')} className="apple-soft-card">
             <Descriptions bordered column={2}>
               <Descriptions.Item label={t('common.homework')}>
                 {data.homework?.title || '--'}
@@ -279,8 +334,8 @@ export const TeacherBatchUploadDetailPage = () => {
               <Descriptions.Item label={t('teacher.batchUpload.progress')}>
                 <Space direction="vertical" size={4}>
                   <Typography.Text strong style={{ fontSize: 16 }}>
-                    {Math.round(((data.statusCounts?.done || 0) / Math.max(data.totalImages, 1)) * 100)}%
-                    ({data.statusCounts?.done || 0}/{data.totalImages})
+                    {data.createdSubmissions > 0 ? Math.round(((data.statusCounts?.done || 0) / data.createdSubmissions) * 100) : 0}%
+                    ({data.statusCounts?.done || 0}/{data.createdSubmissions})
                   </Typography.Text>
                   <Space size={[4, 4]} wrap>
                     <Tag color="success" className="apple-tag-pill">{`${t('status.done')} ${data.statusCounts?.done || 0}`}</Tag>
@@ -303,9 +358,13 @@ export const TeacherBatchUploadDetailPage = () => {
                 </Space>
               </Descriptions.Item>
             </Descriptions>
-          </ProCard>
+              </ProCard>
+            </div>
+          ) : null}
 
-          <ProCard bordered title={t('teacher.batchUpload.detailSkipped')} className="apple-soft-card">
+          {canShowSkipped ? (
+            <div ref={skippedRef}>
+              <ProCard bordered title={t('teacher.batchUpload.detailSkipped')} className="apple-soft-card">
             {data.skipped && data.skipped.filter((item) => !processedFileKeys.has(item.fileKey || '')).length ? (
               <List
                 dataSource={data.skipped.filter((item) => !processedFileKeys.has(item.fileKey || ''))}
@@ -344,9 +403,13 @@ export const TeacherBatchUploadDetailPage = () => {
             ) : (
               <SoftEmpty description={t('teacher.batchUpload.detailNoSkipped')} />
             )}
-          </ProCard>
+              </ProCard>
+            </div>
+          ) : null}
 
-          <ProCard bordered title={t('teacher.batchUpload.detailSubmissions')} className="apple-soft-card">
+          {canShowSubmissions ? (
+            <div ref={submissionsRef}>
+              <ProCard bordered title={t('teacher.batchUpload.detailSubmissions')} className="apple-soft-card">
             <ProTable<BatchSubmissionRow>
               rowKey="id"
               dataSource={data.submissions}
@@ -355,7 +418,9 @@ export const TeacherBatchUploadDetailPage = () => {
               options={false}
               columns={submissionColumns}
             />
-          </ProCard>
+              </ProCard>
+            </div>
+          ) : null}
         </Space>
       )}
       <Modal
@@ -374,10 +439,11 @@ export const TeacherBatchUploadDetailPage = () => {
             placeholder={t('teacher.batchUpload.inputNamePlaceholder')}
             value={skippedFileNames[currentSkippedItem?.fileKey || ''] || ''}
             onChange={(e) => {
-              if (!currentSkippedItem?.fileKey) return;
+              const fileKey = currentSkippedItem?.fileKey;
+              if (!fileKey) return;
               setSkippedFileNames((prev) => ({
                 ...prev,
-                [currentSkippedItem.fileKey]: e.target.value,
+                [fileKey]: e.target.value,
               }));
             }}
             allowClear

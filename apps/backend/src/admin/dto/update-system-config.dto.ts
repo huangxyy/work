@@ -189,6 +189,73 @@ export class BudgetConfigDto {
   mode?: 'soft' | 'hard';
 }
 
+export class StorageConfigDto {
+  @IsOptional()
+  @IsString()
+  endpoint?: string;
+
+  @IsOptional()
+  @IsString()
+  bucket?: string;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+}
+
+export class EmailConfigDto {
+  @IsOptional()
+  @IsString()
+  host?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(65535)
+  port?: number;
+
+  @IsOptional()
+  @IsString()
+  user?: string;
+
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  secure?: boolean;
+}
+
+export class RedisConfigDto {
+  @IsOptional()
+  @IsString()
+  host?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(65535)
+  port?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(15)
+  db?: number;
+
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  tls?: boolean;
+}
+
 export class UpdateSystemConfigDto {
   @IsOptional()
   @ValidateNested()
@@ -209,4 +276,19 @@ export class UpdateSystemConfigDto {
   @ValidateNested()
   @Type(() => BudgetConfigDto)
   budget?: BudgetConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StorageConfigDto)
+  storage?: StorageConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EmailConfigDto)
+  email?: EmailConfigDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RedisConfigDto)
+  redis?: RedisConfigDto;
 }

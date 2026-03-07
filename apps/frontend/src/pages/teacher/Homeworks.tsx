@@ -111,7 +111,7 @@ export const TeacherHomeworksPage = () => {
   const deleteMutation = useMutation({
     mutationFn: async (homeworkId: string) => {
       setDeletingHomeworkId(homeworkId);
-      return deleteHomework(homeworkId);
+      return deleteHomework(homeworkId, true);
     },
     onSuccess: async () => {
       if (selectedClassId) {

@@ -133,6 +133,29 @@ CORS_ORIGIN=https://your-domain,http://your-domain
 - 缺少 `JWT_SECRET` 会导致认证模块无法正常启动。
 - 缺少 `LLM_BASE_URL` 会导致批改相关功能失败。
 
+### 5.1.1 Admin 可配置与 env-only 约定
+
+从当前版本开始，以下配置支持在 Admin 后台 `系统配置` 页面维护（保存到数据库）：
+
+- `LLM`（含 Provider 列表与提示词）
+- `OCR`（Key 可配置）
+- `预算`（daily limit / mode）
+- `Storage` 非敏感项：`endpoint` / `bucket` / `region`
+- `Email` 非敏感项：`host` / `port` / `user` / `from` / `secure`
+- `Redis` 非敏感项：`host` / `port` / `db` / `username` / `tls`
+
+出于安全原因，以下敏感项仍为 **env-only**（后台仅显示是否已配置，不回显明文）：
+
+- `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY`
+- `SMTP_PASS`
+- `REDIS_PASSWORD`（如未设置则回退使用 `REDIS_URL` 内密码）
+
+推荐做法：
+
+- 首次部署先把敏感项写入 `.env`
+- 非敏感项后续在 Admin 调整并测试连通性
+- 修改敏感项后重启 API/Worker 以确保新配置生效
+
 ### 5.2 前端：`apps/frontend/.env`
 
 ```env
@@ -395,18 +418,24 @@ sudo journalctl -u homework-ai-worker -f
 
 ```bash
 cd /www/wwwroot/source-code
-git pull --ff-only
-pnpm install
 
-pnpm --filter backend prisma:generate
-pnpm --filter backend exec prisma migrate deploy
-pnpm --filter backend build
-VITE_API_BASE_URL=/api pnpm --filter frontend build
+# 统一入口：仅执行 update-host.sh（内含 preflight、备份、构建、重启、健康检查）
+APP_DIR=/www/wwwroot/source-code \
+BRANCH=main \
+RUN_MIGRATIONS=1 \
+BACKUP_BEFORE_MIGRATION=1 \
+CHECK_HEALTH=1 \
+REQUIRE_HEALTHY=0 \
+bash deploy/update-host.sh
+```
 
-sudo systemctl restart homework-ai-api homework-ai-worker
-sudo nginx -t && sudo systemctl reload nginx
+说明：
 
-curl -i https://your-domain/api/health
+- `update-host.sh` 现在会在发布成功后生成并记录版本 tag（默认：`prod-YYYYMMDD-HHMMSS`）。
+- 回滚默认优先使用最近成功发布 tag，可执行：
+
+```bash
+APP_DIR=/www/wwwroot/source-code bash deploy/rollback-host.sh
 ```
 
 ---
@@ -441,6 +470,8 @@ curl -i https://your-domain/api/health
 - `DEPLOY_HEALTH_URL`：外部健康检查 URL（可选，例如 `https://your-domain/api/health`）
 - `DEPLOY_HEALTH_MAX_ATTEMPTS`：外部健康检查最大重试次数（可选，默认 20）
 - `DEPLOY_HEALTH_RETRY_INTERVAL`：外部健康检查重试间隔秒（可选，默认 3）
+- `DEPLOY_LOGIN_PROBE_URL`：部署后登录探针 URL（可选，例如 `https://your-domain/api/auth/login`）
+- `DEPLOY_LOGIN_PROBE_BODY`：登录探针请求体（可选，JSON 字符串）
 
 ### 14.2 手动触发参数说明
 
@@ -459,3 +490,80 @@ curl -i https://your-domain/api/health
 1. 若 `auto_rollback_on_failure=true`，将自动执行 `deploy/rollback-host.sh`
 2. 若回滚成功，工作流会标记成功（但摘要会明确显示“部署失败+回滚成功”）
 3. 若回滚失败，工作流标记失败，需要人工介入
+
+---
+
+## 15. 服务器置换（单机，停机 10-30 分钟）
+
+### 15.1 T-1（新机预热）
+
+```bash
+cd /www/wwwroot/source-code
+bash deploy/migrate/precheck.sh
+```
+
+完成后建议在新机先空跑一次构建与健康检查（不切流量）。
+
+### 15.2 T（旧机冻结与导出）
+
+```bash
+cd /www/wwwroot/source-code
+ACTION=freeze-old bash deploy/migrate/cutover.sh
+bash deploy/migrate/export-old.sh
+```
+
+导出目录默认为：`/www/wwwroot/source-code/backups/migrate/<timestamp>`。
+
+### 15.3 T+（新机导入与启动）
+
+先将旧机导出目录传到新机，然后执行：
+
+```bash
+cd /www/wwwroot/source-code
+IMPORT_DIR=/path/to/export-dir bash deploy/migrate/import-new.sh
+ACTION=verify-new bash deploy/migrate/cutover.sh
+```
+
+切换 DNS/入口后观察 15-30 分钟；若异常可在旧机执行：
+
+```bash
+ACTION=unfreeze-old bash deploy/migrate/cutover.sh
+```
+
+---
+
+## 16. 部署后探针与观测
+
+建议每次部署后追加执行：
+
+```bash
+cd /www/wwwroot/source-code
+bash deploy/monitoring/post-deploy-probe.sh
+```
+
+可选开启登录探针：
+
+```bash
+LOGIN_PROBE_URL="https://your-domain/api/auth/login" \
+LOGIN_PROBE_BODY='{"account":"student01","password":"Test1234"}' \
+bash deploy/monitoring/post-deploy-probe.sh
+```
+
+同时建议保留以下观察窗口：
+
+```bash
+sudo journalctl -u homework-ai-api -f
+sudo journalctl -u homework-ai-worker -f
+```
+
+---
+
+## 17. 月度恢复演练（建议）
+
+每月至少一次按以下最小流程演练：
+
+1. 在新机执行 `deploy/migrate/precheck.sh`
+2. 从最新备份恢复数据库与对象存储
+3. 执行 `deploy/migrate/import-new.sh` 拉起服务
+4. 执行 `deploy/monitoring/post-deploy-probe.sh` 验证
+5. 记录恢复耗时与问题清单（目标：1-2 小时内可恢复）

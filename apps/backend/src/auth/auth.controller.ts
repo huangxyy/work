@@ -3,8 +3,12 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import type { Request, Response } from 'express';
 
 type AuthRequest = Request & {
@@ -74,14 +78,14 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Patch('profile')
-  async updateProfile(@Body() body: { name?: string; email?: string; phone?: string }, @Req() req: AuthRequest) {
+  async updateProfile(@Body() body: UpdateProfileDto, @Req() req: AuthRequest) {
     return this.authService.updateProfile(req.user.id, body);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('change-password')
   async changePassword(
-    @Body() body: { oldPassword: string; newPassword: string },
+    @Body() body: ChangePasswordDto,
     @Req() req: AuthRequest,
   ) {
     return this.authService.changePassword(req.user.id, body.oldPassword, body.newPassword);
@@ -98,13 +102,13 @@ export class AuthController {
 
   @Post('forgot-password')
   @Throttle({ default: { ttl: 600000, limit: 3 } })
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.sendPasswordResetCode(body.email);
   }
 
   @Post('reset-password')
   @Throttle({ default: { ttl: 600000, limit: 5 } })
-  async resetPassword(@Body() body: { email: string; code: string; newPassword: string }) {
+  async resetPassword(@Body() body: ResetPasswordWithCodeDto) {
     return this.authService.resetPasswordWithCode(body.email, body.code, body.newPassword);
   }
 }

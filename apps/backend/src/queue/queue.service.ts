@@ -43,6 +43,7 @@ export class QueueService {
   async getQueueMetrics(options: { status?: string; limit?: number } = {}) {
     const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
     const statuses = this.normalizeStatuses(options.status);
+    const startedAt = Date.now();
 
     const [counts, jobs, isPaused] = await Promise.all([
       this.gradingQueue.getJobCounts(...this.statusList),
@@ -64,10 +65,16 @@ export class QueueService {
       })),
     );
 
+    const normalizedCounts = this.withDefaults(counts);
+
+    this.logger.debug(
+      `Queue metrics fetched statuses=${statuses.join(',')} jobs=${mapped.length} waiting=${normalizedCounts.waiting} active=${normalizedCounts.active} failed=${normalizedCounts.failed} durationMs=${Date.now() - startedAt}`,
+    );
+
     return {
       queue: 'grading',
       isPaused,
-      counts: this.withDefaults(counts),
+      counts: normalizedCounts,
       jobs: mapped,
       updatedAt: new Date().toISOString(),
     };
@@ -75,24 +82,43 @@ export class QueueService {
 
   async retryFailedJobs(limit = 50) {
     const bounded = Math.min(Math.max(limit, 1), 200);
+    const startedAt = Date.now();
     const failedJobs = await this.gradingQueue.getJobs(['failed'], 0, bounded - 1, false);
     let retried = 0;
     let skipped = 0;
-    for (const job of failedJobs) {
-      try {
-        const state = await job.getState();
-        if (state !== 'failed') {
+    const RETRY_CONCURRENCY = 10;
+    for (let index = 0; index < failedJobs.length; index += RETRY_CONCURRENCY) {
+      const chunk = failedJobs.slice(index, index + RETRY_CONCURRENCY);
+      const outcomes = await Promise.all(
+        chunk.map(async (job) => {
+          try {
+            const state = await job.getState();
+            if (state !== 'failed') {
+              return 'skipped' as const;
+            }
+            await job.retry(state);
+            return 'retried' as const;
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            this.logger.warn(`Retry skipped for job ${job.id}: ${msg}`);
+            return 'skipped' as const;
+          }
+        }),
+      );
+
+      outcomes.forEach((outcome) => {
+        if (outcome === 'retried') {
+          retried += 1;
+        } else {
           skipped += 1;
-          continue;
         }
-        await job.retry(state);
-        retried += 1;
-      } catch (error) {
-        skipped += 1;
-        const msg = error instanceof Error ? error.message : 'Unknown error';
-        this.logger.warn(`Retry skipped for job ${job.id}: ${msg}`);
-      }
+      });
     }
+
+    this.logger.log(
+      `Retried failed jobs retried=${retried} skipped=${skipped} total=${failedJobs.length} durationMs=${Date.now() - startedAt}`,
+    );
+
     return { retried, skipped, total: failedJobs.length };
   }
 
@@ -100,13 +126,24 @@ export class QueueService {
     const limit = Math.min(Math.max(options.limit ?? 200, 1), 2000);
     const graceMs = Math.max(options.graceMs ?? 0, 0);
     const statuses = this.resolveCleanStatuses(options.status);
+    const startedAt = Date.now();
+    const cleanedByStatus = await Promise.all(
+      statuses.map(async (status) => ({
+        status,
+        cleaned: await this.gradingQueue.clean(graceMs, limit, status),
+      })),
+    );
     let total = 0;
     const details: Record<string, number> = {};
-    for (const status of statuses) {
-      const cleaned = await this.gradingQueue.clean(graceMs, limit, status);
+    cleanedByStatus.forEach(({ status, cleaned }) => {
       details[status] = cleaned.length;
       total += cleaned.length;
-    }
+    });
+
+    this.logger.log(
+      `Queue cleaned statuses=${statuses.join(',')} total=${total} graceMs=${graceMs} limit=${limit} durationMs=${Date.now() - startedAt}`,
+    );
+
     return { total, details };
   }
 

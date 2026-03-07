@@ -63,6 +63,10 @@ export class SubmissionsController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req: { user: AuthUser },
   ) {
+    if (!files?.length) {
+      throw new BadRequestException('Please upload at least 1 image');
+    }
+
     for (const file of files) {
       if (!isValidImageBuffer(file.buffer)) {
         throw new BadRequestException(

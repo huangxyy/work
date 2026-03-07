@@ -313,7 +313,7 @@ export const TeacherHomeworkDetailPage = () => {
   });
 
   const deleteHomeworkMutation = useMutation({
-    mutationFn: () => deleteHomework(id || ''),
+    mutationFn: () => deleteHomework(id || '', true),
     onSuccess: async () => {
       message.success(t('teacher.homeworks.deleted'));
       if (classId) {
@@ -802,12 +802,12 @@ export const TeacherHomeworkDetailPage = () => {
       title: t('teacher.batchUpload.progress'),
       dataIndex: 'statusCounts',
       render: (counts: BatchStatusCounts | undefined, row: BatchHistoryRow) => {
-        const total = row.totalImages || 1;
+        const total = row.createdSubmissions || 0;
         const done = counts?.done || 0;
         const processing = counts?.processing || 0;
         const queued = counts?.queued || 0;
         const failed = counts?.failed || 0;
-        const percent = Math.round((done / total) * 100);
+        const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
         return (
           <Space direction="vertical" size={4}>
@@ -1206,22 +1206,22 @@ export const TeacherHomeworkDetailPage = () => {
                           {/* 未匹配 - 含姓名 */}
                           <Col span={8}>
                             <ProCard
-                              title={`${t('teacher.batchUpload.unmatchedWithName')} (${previewResult.matchResults.filter(r => !r.matchedAccount && r.extractedName).length})`}
+                              title={`${t('teacher.batchUpload.unmatchedWithName')} (${(previewResult.matchResults || []).filter((r) => !r.matchedAccount && r.extractedName).length})`}
                               size="small"
                               bordered
                               extra={
                                 <Button
                                   type="primary"
                                   size="small"
-                                  onClick={() => handleBatchImport(previewResult.matchResults.filter(r => !r.matchedAccount && r.extractedName))}
-                                  disabled={previewResult.matchResults.filter(r => !r.matchedAccount && r.extractedName).length === 0}
+                                  onClick={() => handleBatchImport((previewResult.matchResults || []).filter((r) => !r.matchedAccount && r.extractedName))}
+                                  disabled={(previewResult.matchResults || []).filter((r) => !r.matchedAccount && r.extractedName).length === 0}
                                 >
                                   {t('teacher.batchUpload.batchImport')}
                                 </Button>
                               }
                             >
                               <List
-                                dataSource={previewResult.matchResults.filter(r => !r.matchedAccount && r.extractedName)}
+                                dataSource={(previewResult.matchResults || []).filter((r) => !r.matchedAccount && r.extractedName)}
                                 size="small"
                                 pagination={{ pageSize: 5, size: 'small' }}
                                 renderItem={(item) => (
@@ -1258,7 +1258,7 @@ export const TeacherHomeworkDetailPage = () => {
                                           key="exclude"
                                           size="small"
                                           type={isExcluded ? 'primary' : 'default'}
-                                          danger={isExcluded}
+                                          danger={Boolean(isExcluded)}
                                           onClick={() => item.fileKey && toggleExclude(item.fileKey)}
                                         >
                                           {isExcluded ? t('teacher.batchUpload.excluded') : t('teacher.batchUpload.exclude')}
@@ -1349,10 +1349,14 @@ export const TeacherHomeworkDetailPage = () => {
                                         setNameOverrides((prev) => {
                                           const next = { ...prev };
                                           const value = e.target.value.trim();
+                                          const fileKey = item.fileKey;
+                                          if (!fileKey) {
+                                            return next;
+                                          }
                                           if (!value) {
-                                            delete next[item.fileKey];
+                                            delete next[fileKey];
                                           } else {
-                                            next[item.fileKey] = value;
+                                            next[fileKey] = value;
                                           }
                                           return next;
                                         });

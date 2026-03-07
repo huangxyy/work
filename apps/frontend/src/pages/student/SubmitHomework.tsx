@@ -3,9 +3,11 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
+  Descriptions,
   List,
   Progress,
   Space,
+  Steps,
   Typography,
   Upload,
 } from 'antd';
@@ -24,6 +26,7 @@ export const SubmitHomeworkPage = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadPercent, setUploadPercent] = useState(0);
+  const [submitStep, setSubmitStep] = useState(0);
   const navigate = useNavigate();
   const { homeworkId } = useParams();
 
@@ -46,6 +49,8 @@ export const SubmitHomeworkPage = () => {
     () => [t('submit.tip1'), t('submit.tip2'), t('submit.tip3')],
     [t],
   );
+  const canStartSubmit = fileList.length > 0 && canSubmit;
+  const canGoUpload = Boolean(homework) && canSubmit;
 
   const isImageFile = (file: RcFile): boolean => {
     if (file.type?.startsWith('image/')) return true;
@@ -163,8 +168,55 @@ export const SubmitHomeworkPage = () => {
           className="apple-inline-alert"
         />
       ) : null}
+      <ProCard bordered title={t('submit.wizardTitle')} className="apple-soft-card" style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={10} style={{ width: '100%' }}>
+          <Steps
+            size="small"
+            current={submitStep}
+            items={[
+              { title: t('submit.wizardStepReady') },
+              { title: t('submit.wizardStepUpload') },
+              { title: t('submit.wizardStepConfirm') },
+            ]}
+          />
+          <Space wrap>
+            <Button onClick={() => setSubmitStep((prev) => Math.max(0, prev - 1))} disabled={submitStep === 0}>
+              {t('submit.wizardPrev')}
+            </Button>
+            <Button
+              type="primary"
+              onClick={() => setSubmitStep((prev) => Math.min(2, prev + 1))}
+              disabled={(submitStep === 0 && !canGoUpload) || (submitStep === 1 && !canStartSubmit) || submitStep === 2}
+            >
+              {t('submit.wizardNext')}
+            </Button>
+          </Space>
+        </Space>
+      </ProCard>
       <ProCard gutter={16} wrap>
-        <ProCard bordered title={t('submit.uploadTitle')} colSpan={{ xs: 24, lg: 16 }} className="apple-soft-card">
+        {submitStep === 0 ? (
+          <ProCard bordered title={t('submit.wizardStepReady')} colSpan={{ xs: 24, lg: 16 }} className="apple-soft-card">
+            <Descriptions bordered column={1}>
+              <Descriptions.Item label={t('common.homework')}>
+                {homework?.title || '--'}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('common.class')}>
+                {homework?.class?.name || '--'}
+              </Descriptions.Item>
+              <Descriptions.Item label={t('common.dueAt')}>
+                {homework?.dueAt || t('status.noDue')}
+              </Descriptions.Item>
+            </Descriptions>
+            <Alert type="info" showIcon style={{ marginTop: 12 }} message={t('submit.wizardReadyHint')} />
+            <Space style={{ marginTop: 12 }}>
+              <Button type="primary" onClick={() => setSubmitStep(1)} disabled={!canGoUpload}>
+                {t('submit.wizardGoUpload')}
+              </Button>
+            </Space>
+          </ProCard>
+        ) : null}
+        {submitStep === 1 ? (
+          <ProCard bordered title={t('submit.uploadTitle')} colSpan={{ xs: 24, lg: 16 }} className="apple-soft-card">
           <Upload.Dragger
             multiple
             beforeUpload={() => false}
@@ -186,13 +238,8 @@ export const SubmitHomeworkPage = () => {
             <Typography.Text type="secondary">{t('submit.draggerHint')}</Typography.Text>
           </Upload.Dragger>
           <Space style={{ marginTop: 16 }}>
-            <Button
-              type="primary"
-              onClick={handleSubmit}
-              loading={submitting}
-              disabled={submitting || !canSubmit}
-            >
-              {t('common.submit')}
+            <Button type="primary" onClick={() => setSubmitStep(2)} disabled={!canStartSubmit || submitting}>
+              {t('submit.wizardNext')}
             </Button>
             <Button onClick={() => setFileList([])} disabled={submitting}>
               {t('common.reset')}
@@ -206,8 +253,10 @@ export const SubmitHomeworkPage = () => {
               showInfo={false}
             />
           ) : null}
-        </ProCard>
-        <ProCard bordered title={t('submit.tipsTitle')} colSpan={{ xs: 24, lg: 8 }} className="apple-soft-card">
+          </ProCard>
+        ) : null}
+        {submitStep === 1 ? (
+          <ProCard bordered title={t('submit.tipsTitle')} colSpan={{ xs: 24, lg: 8 }} className="apple-soft-card">
           <List
             dataSource={tips}
             renderItem={(item) => (
@@ -216,7 +265,25 @@ export const SubmitHomeworkPage = () => {
               </List.Item>
             )}
           />
-        </ProCard>
+          </ProCard>
+        ) : null}
+        {submitStep === 2 ? (
+          <ProCard bordered title={t('submit.wizardStepConfirm')} colSpan={24} className="apple-soft-card">
+            <List
+              bordered
+              size="small"
+              dataSource={fileList.map((file) => file.name)}
+              renderItem={(item) => <List.Item>{item}</List.Item>}
+              style={{ marginBottom: 12 }}
+            />
+            <Space>
+              <Button onClick={() => setSubmitStep(1)}>{t('submit.wizardPrev')}</Button>
+              <Button type="primary" onClick={handleSubmit} loading={submitting} disabled={submitting || !canSubmit}>
+                {t('common.submit')}
+              </Button>
+            </Space>
+          </ProCard>
+        ) : null}
       </ProCard>
     </PageContainer>
   );

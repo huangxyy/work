@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { RedisService } from '../../common/redis';
 import { SystemConfigService } from '../../system-config/system-config.service';
 
 export type BudgetDecision = {
@@ -10,34 +10,17 @@ export type BudgetDecision = {
   mode: 'soft' | 'hard';
 };
 
-const buildRedisConnection = (redisUrl: string) => {
-  try {
-    const url = new URL(redisUrl);
-    const port = url.port ? parseInt(url.port, 10) : 6379;
-    return {
-      host: url.hostname,
-      port,
-      username: url.username || undefined,
-      password: url.password || undefined,
-    };
-  } catch {
-    return { host: 'localhost', port: 6379 };
-  }
-};
-
 @Injectable()
 export class BudgetTracker implements OnModuleDestroy {
   private readonly logger = new Logger(BudgetTracker.name);
-  private readonly redis: Redis;
   private readonly defaultDailyCallLimit?: number;
   private readonly defaultBudgetMode: 'soft' | 'hard';
 
   constructor(
     configService: ConfigService,
     private readonly systemConfigService: SystemConfigService,
+    private readonly redisService: RedisService,
   ) {
-    const redisUrl = configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
-    this.redis = new Redis(buildRedisConnection(redisUrl));
     const limit = Number(configService.get<string>('LLM_DAILY_CALL_LIMIT') || '400');
     this.defaultDailyCallLimit = Number.isFinite(limit) ? limit : undefined;
     const mode = (configService.get<string>('BUDGET_MODE') || 'soft').toLowerCase();
@@ -45,21 +28,13 @@ export class BudgetTracker implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    try {
-      await this.redis.quit();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown redis error';
-      this.logger.warn(`Failed to close redis connection: ${message}`);
-    }
+    // Redis lifecycle is managed by RedisService.
   }
 
   async reserveCall(): Promise<BudgetDecision> {
     const budgetConfig = await this.resolveBudgetConfig();
     const key = `llm:calls:${this.currentDateKey()}`;
-    const count = await this.redis.incr(key);
-    if (count === 1) {
-      await this.redis.expire(key, 60 * 60 * 48);
-    }
+    const count = await this.redisService.incr(key, 60 * 60 * 48);
 
     if (!budgetConfig.enabled || !budgetConfig.dailyCallLimit || budgetConfig.dailyCallLimit <= 0) {
       return { exceeded: false, count, mode: budgetConfig.mode };

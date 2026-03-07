@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
+import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { NotificationService } from './notification.service';
 
 @ApiTags('Notifications')
@@ -14,12 +15,12 @@ export class NotificationController {
   @Get()
   async list(
     @Req() req: { user: AuthUser },
-    @Query('unreadOnly') unreadOnly?: string,
+    @Query() query: ListNotificationsQueryDto,
   ) {
     return this.notificationService.listForUser(
       req.user.id,
       30,
-      unreadOnly === 'true',
+      query.unreadOnly ?? false,
     );
   }
 

@@ -33,7 +33,9 @@ import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/auth.types';
 import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
 import { StorageService } from '../storage/storage.service';
+import { AddTeacherFeedbackDto } from './dto/add-teacher-feedback.dto';
 import { CreateBatchSubmissionsDto } from './dto/create-batch-submissions.dto';
+import { ExportHomeworkPdfQueryDto } from './dto/export-homework-pdf-query.dto';
 import { ListHomeworkSubmissionsQueryDto } from './dto/list-homework-submissions-query.dto';
 import { RegradeHomeworkSubmissionsDto } from './dto/regrade-homework-submissions.dto';
 import { SubmissionsService } from './submissions.service';
@@ -232,23 +234,17 @@ export class TeacherSubmissionsController {
   @Get('pdf')
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   async exportPdf(
-    @Query('homeworkId') homeworkId: string,
-    @Query('submissionIds') submissionIds: string,
-    @Query('lang') lang: string | undefined,
+    @Query() query: ExportHomeworkPdfQueryDto,
     @Req() req: { user: AuthUser },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const ids = (submissionIds || '').split(',').filter((id) => id).slice(0, 200);
-    if (ids.length === 0) {
-      throw new BadRequestException('At least one submissionId is required');
-    }
     const buffer = await this.submissionsService.exportHomeworkSubmissionsPdf(
-      homeworkId,
-      ids,
-      lang,
+      query.homeworkId,
+      query.submissionIds,
+      query.lang,
       req.user,
     );
-    const safePdfId = sanitizeFilenameParam(homeworkId);
+    const safePdfId = sanitizeFilenameParam(query.homeworkId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -269,7 +265,7 @@ export class TeacherSubmissionsController {
   @Patch(':id/feedback')
   async addFeedback(
     @Param('id', ParseCuidPipe) id: string,
-    @Body() body: { comment?: string; manualScore?: number },
+    @Body() body: AddTeacherFeedbackDto,
     @Req() req: { user: AuthUser },
   ) {
     return this.submissionsService.addTeacherFeedback(id, body, req.user);

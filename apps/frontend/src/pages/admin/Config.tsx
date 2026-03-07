@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Card,
+  Alert,
   Descriptions,
   Divider,
   Form,
@@ -12,6 +13,8 @@ import {
   Popconfirm,
   Space,
   Select,
+  Segmented,
+  Steps,
   Switch,
   Tag,
   Table,
@@ -19,13 +22,16 @@ import {
   Upload,
 } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   clearAdminLlmLogs,
   fetchAdminConfig,
   fetchAdminLlmLogs,
   testAdminLlmCall,
   testAdminLlmHealth,
+  testAdminStorageHealth,
+  testAdminEmailHealth,
+  testAdminRedisHealth,
   testAdminOcrHealth,
   updateAdminConfig,
 } from '../../api';
@@ -85,6 +91,9 @@ export const AdminConfigPage = () => {
   const queryClient = useQueryClient();
   const [llmHealth, setLlmHealth] = useState<HealthState | null>(null);
   const [ocrHealth, setOcrHealth] = useState<HealthState | null>(null);
+  const [storageHealth, setStorageHealth] = useState<HealthState | null>(null);
+  const [emailHealth, setEmailHealth] = useState<HealthState | null>(null);
+  const [redisHealth, setRedisHealth] = useState<HealthState | null>(null);
   const [llmTestResult, setLlmTestResult] = useState<LlmTestResult | null>(null);
   const [logDetailOpen, setLogDetailOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState<LlmLogItem | null>(null);
@@ -97,6 +106,14 @@ export const AdminConfigPage = () => {
   const [ocrTestFile, setOcrTestFile] = useState<File | null>(null);
   const [ocrTestLoading, setOcrTestLoading] = useState(false);
   const [ocrTestResult, setOcrTestResult] = useState<{ ok: boolean; text?: string; length?: number; error?: string } | null>(null);
+  const [configMode, setConfigMode] = useState<'wizard' | 'advanced'>('wizard');
+  const [wizardStep, setWizardStep] = useState(0);
+  const llmConfigSectionRef = useRef<HTMLDivElement | null>(null);
+  const llmLogsSectionRef = useRef<HTMLDivElement | null>(null);
+  const llmProvidersSectionRef = useRef<HTMLDivElement | null>(null);
+  const serviceSectionRef = useRef<HTMLDivElement | null>(null);
+  const validationSectionRef = useRef<HTMLDivElement | null>(null);
+  const publishSectionRef = useRef<HTMLDivElement | null>(null);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['admin-config'],
@@ -111,6 +128,15 @@ export const AdminConfigPage = () => {
       })),
     [config?.llmProviders],
   );
+  const wizardItems = useMemo(
+    () => [
+      { title: t('admin.config.wizard.stepCore') },
+      { title: t('admin.config.wizard.stepProviders') },
+      { title: t('admin.config.wizard.stepValidation') },
+      { title: t('admin.config.wizard.stepPublish') },
+    ],
+    [t],
+  );
 
   const logsQuery = useQuery({
     queryKey: ['admin-llm-logs', logFilters],
@@ -118,6 +144,22 @@ export const AdminConfigPage = () => {
   });
 
   const logs: LlmLogItem[] = logsQuery.data?.items || [];
+  const isWizard = configMode === 'wizard';
+  const canShowCoreConfig = !isWizard || wizardStep === 0;
+  const canShowProviders = !isWizard || wizardStep === 1;
+  const canShowValidation = !isWizard || wizardStep === 2;
+  const canShowPublish = !isWizard || wizardStep === 3;
+  const goToCurrentStep = useCallback(() => {
+    const target =
+      wizardStep === 0
+        ? llmConfigSectionRef.current
+        : wizardStep === 1
+          ? llmProvidersSectionRef.current
+          : wizardStep === 2
+            ? validationSectionRef.current
+            : publishSectionRef.current;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [wizardStep]);
 
   const logColumns = useMemo(
     () => [
@@ -235,6 +277,72 @@ export const AdminConfigPage = () => {
     },
   });
 
+  const storageHealthMutation = useMutation({
+    mutationFn: testAdminStorageHealth,
+    onSuccess: (data) => {
+      setStorageHealth({
+        ok: data.ok,
+        checkedAt: new Date().toISOString(),
+        reason: data.reason,
+        status: data.status,
+        latencyMs: data.latencyMs,
+      });
+      if (data.ok) {
+        message.success(t('admin.config.storageHealthOk'));
+      } else {
+        message.error(`${t('admin.config.storageHealthFail')}: ${data.reason || data.status || ''}`);
+      }
+    },
+    onError: () => {
+      setStorageHealth({ ok: false, checkedAt: new Date().toISOString(), reason: t('common.tryAgain') });
+      message.error(t('admin.config.storageHealthFail'));
+    },
+  });
+
+  const emailHealthMutation = useMutation({
+    mutationFn: testAdminEmailHealth,
+    onSuccess: (data) => {
+      setEmailHealth({
+        ok: data.ok,
+        checkedAt: new Date().toISOString(),
+        reason: data.reason,
+        status: data.status,
+        latencyMs: data.latencyMs,
+      });
+      if (data.ok) {
+        message.success(t('admin.config.emailHealthOk'));
+      } else {
+        message.error(`${t('admin.config.emailHealthFail')}: ${data.reason || data.status || ''}`);
+      }
+    },
+    onError: () => {
+      setEmailHealth({ ok: false, checkedAt: new Date().toISOString(), reason: t('common.tryAgain') });
+      message.error(t('admin.config.emailHealthFail'));
+    },
+  });
+
+  const redisHealthMutation = useMutation({
+    mutationFn: testAdminRedisHealth,
+    onSuccess: (data) => {
+      setRedisHealth({
+        ok: data.ok,
+        checkedAt: new Date().toISOString(),
+        reason: data.reason,
+        status: data.status,
+        latencyMs: data.latencyMs,
+      });
+      if (data.ok) {
+        message.success(t('admin.config.redisHealthOk'));
+      } else {
+        message.error(`${t('admin.config.redisHealthFail')}: ${data.reason || data.status || ''}`);
+      }
+    },
+    onError: () => {
+      setRedisHealth({ ok: false, checkedAt: new Date().toISOString(), reason: t('common.tryAgain') });
+      message.error(t('admin.config.redisHealthFail'));
+    },
+  });
+
   const llmTestMutation = useMutation({
     mutationFn: testAdminLlmCall,
     onSuccess: (data) => {
@@ -300,10 +408,39 @@ export const AdminConfigPage = () => {
         dailyCallLimit: config.budget.dailyCallLimit,
         mode: config.budget.mode,
       },
+      storage: {
+        endpoint: config.storage.endpoint,
+        bucket: config.storage.bucket,
+        region: config.storage.region,
+      },
+      email: {
+        host: config.email.host,
+        port: config.email.port,
+        user: config.email.user,
+        from: config.email.from,
+        secure: config.email.secure,
+      },
+      redis: {
+        host: config.redis.host,
+        port: config.redis.port,
+        db: config.redis.db,
+        username: config.redis.username,
+        tls: config.redis.tls,
+      },
     });
     setLlmHealth(config.health?.llm ?? null);
     setOcrHealth(config.health?.ocr ?? null);
+    setStorageHealth(null);
+    setEmailHealth(null);
+    setRedisHealth(null);
   }, [config, form]);
+
+  useEffect(() => {
+    if (!isWizard) {
+      return;
+    }
+    goToCurrentStep();
+  }, [wizardStep, isWizard, goToCurrentStep]);
 
   const handleFinish = (values: {
     llm?: {
@@ -343,6 +480,9 @@ export const AdminConfigPage = () => {
       clearSecretKey?: boolean;
     };
     budget?: { enabled?: boolean; dailyCallLimit?: number; mode?: 'soft' | 'hard' };
+    storage?: { endpoint?: string; bucket?: string; region?: string };
+    email?: { host?: string; port?: number; user?: string; from?: string; secure?: boolean };
+    redis?: { host?: string; port?: number; db?: number; username?: string; tls?: boolean };
   }) => {
     const payload = { ...values };
     if (payload.llm) {
@@ -393,6 +533,20 @@ export const AdminConfigPage = () => {
       delete payload.ocr.clearApiKey;
       delete payload.ocr.clearSecretKey;
     }
+    if (payload.storage) {
+      payload.storage.endpoint = payload.storage.endpoint?.trim() || undefined;
+      payload.storage.bucket = payload.storage.bucket?.trim() || undefined;
+      payload.storage.region = payload.storage.region?.trim() || undefined;
+    }
+    if (payload.email) {
+      payload.email.host = payload.email.host?.trim() || undefined;
+      payload.email.user = payload.email.user?.trim() || undefined;
+      payload.email.from = payload.email.from?.trim() || undefined;
+    }
+    if (payload.redis) {
+      payload.redis.host = payload.redis.host?.trim() || undefined;
+      payload.redis.username = payload.redis.username?.trim() || undefined;
+    }
     mutation.mutate(payload);
   };
 
@@ -408,8 +562,90 @@ export const AdminConfigPage = () => {
       }}
     >
       <Card loading={isLoading} className="apple-soft-card">
+        <ProCard bordered title={t('admin.config.wizard.title')} colSpan={24} className="apple-soft-card" style={{ marginBottom: 16 }}>
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Segmented
+              value={configMode}
+              onChange={(value) => setConfigMode(value as 'wizard' | 'advanced')}
+              options={[
+                { label: t('admin.config.wizard.modeWizard'), value: 'wizard' },
+                { label: t('admin.config.wizard.modeAdvanced'), value: 'advanced' },
+              ]}
+            />
+            {isWizard ? (
+              <>
+                <Alert type="info" showIcon message={t('admin.config.wizard.hint')} />
+                <Steps current={wizardStep} items={wizardItems} size="small" />
+                <Space wrap>
+                  <Button
+                    onClick={() => setWizardStep((prev) => Math.max(0, prev - 1))}
+                    disabled={wizardStep === 0}
+                  >
+                    {t('admin.config.wizard.prev')}
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={() => setWizardStep((prev) => Math.min(3, prev + 1))}
+                    disabled={wizardStep === 3}
+                  >
+                    {t('admin.config.wizard.next')}
+                  </Button>
+                  <Button onClick={goToCurrentStep}>{t('admin.config.wizard.goCurrent')}</Button>
+                </Space>
+              </>
+            ) : (
+              <Typography.Text type="secondary">{t('admin.config.wizard.advancedHint')}</Typography.Text>
+            )}
+          </Space>
+        </ProCard>
+        <ProCard
+          bordered
+          title={t('admin.config.promptQuickAccessTitle')}
+          colSpan={24}
+          className="apple-soft-card"
+          style={{ marginBottom: 16 }}
+        >
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Typography.Text type="secondary">
+              {t('admin.config.promptQuickAccessDesc')}
+            </Typography.Text>
+            <Typography.Paragraph
+              copyable={Boolean(config?.llm.systemPrompt)}
+              style={{
+                whiteSpace: 'pre-wrap',
+                marginBottom: 0,
+                maxHeight: 120,
+                overflow: 'auto',
+                background: 'rgba(0,0,0,0.02)',
+                borderRadius: 8,
+                padding: 12,
+              }}
+            >
+              {config?.llm.systemPrompt || t('common.notConfigured')}
+            </Typography.Paragraph>
+            <Space wrap>
+              <Button
+                type="primary"
+                onClick={() =>
+                  llmConfigSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+              >
+                {t('admin.config.goToPromptEdit')}
+              </Button>
+              <Button
+                onClick={() =>
+                  llmLogsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+              >
+                {t('admin.config.goToPromptLogs')}
+              </Button>
+            </Space>
+          </Space>
+        </ProCard>
         <Form layout="vertical" form={form} onFinish={handleFinish}>
-          <ProCard bordered title={t('admin.config.section.llm')} colSpan={24} className="apple-soft-card">
+          {canShowCoreConfig ? (
+            <div ref={llmConfigSectionRef}>
+            <ProCard bordered title={t('admin.config.section.llm')} colSpan={24} className="apple-soft-card">
             <Form.Item label={t('admin.config.providerName')} name={['llm', 'providerName']}>
               <Input placeholder={t('admin.config.providerNamePlaceholder')} />
             </Form.Item>
@@ -501,11 +737,15 @@ export const AdminConfigPage = () => {
                 ) : null}
               </Space>
             ) : null}
-          </ProCard>
+            </ProCard>
+            </div>
+          ) : null}
 
-          <Divider />
+          {canShowProviders ? <Divider /> : null}
 
-          <ProCard bordered title={t('admin.config.section.llmProviders')} colSpan={24} className="apple-soft-card">
+          {canShowProviders ? (
+            <div ref={llmProvidersSectionRef}>
+              <ProCard bordered title={t('admin.config.section.llmProviders')} colSpan={24} className="apple-soft-card">
             <Form.List name="llmProviders">
               {(fields, { add, remove }) => (
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -660,11 +900,15 @@ export const AdminConfigPage = () => {
                 </Space>
               )}
             </Form.List>
-          </ProCard>
+              </ProCard>
+            </div>
+          ) : null}
 
-          <Divider />
+          {canShowCoreConfig ? <Divider /> : null}
 
-          <ProCard bordered title={t('admin.config.section.ocr')} colSpan={24} className="apple-soft-card">
+          {canShowCoreConfig ? (
+            <div ref={serviceSectionRef}>
+              <ProCard bordered title={t('admin.config.section.ocr')} colSpan={24} className="apple-soft-card">
             <Form.Item
               label={t('admin.config.ocrApiKey')}
               name={['ocr', 'apiKey']}
@@ -771,7 +1015,7 @@ export const AdminConfigPage = () => {
                 </Typography.Paragraph>
               </Card>
             ) : null}
-          </ProCard>
+              </ProCard>
 
           <Divider />
 
@@ -795,16 +1039,171 @@ export const AdminConfigPage = () => {
 
           <Divider />
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={mutation.isPending}>
-              {t('admin.config.save')}
-            </Button>
-          </Form.Item>
+          <ProCard bordered title={t('admin.config.section.storage')} colSpan={24} className="apple-soft-card">
+            <Form.Item label={t('admin.config.storageEndpoint')} name={['storage', 'endpoint']}>
+              <Input placeholder="http://127.0.0.1:9000" />
+            </Form.Item>
+            <Form.Item label={t('admin.config.storageBucket')} name={['storage', 'bucket']}>
+              <Input placeholder="submissions" />
+            </Form.Item>
+            <Form.Item label={t('admin.config.storageRegion')} name={['storage', 'region']}>
+              <Input placeholder="us-east-1" />
+            </Form.Item>
+            <Typography.Text type="secondary">
+              {`${t('admin.config.accessKeyStatus')}: ${config?.storage.accessKeySet ? t('common.yes') : t('common.no')} | ${t('admin.config.secretKeyStatus')}: ${config?.storage.secretKeySet ? t('common.yes') : t('common.no')}`}
+            </Typography.Text>
+            <div style={{ marginTop: 8 }}>
+              <Button onClick={() => storageHealthMutation.mutate()} loading={storageHealthMutation.isPending}>
+                {t('admin.config.testStorage')}
+              </Button>
+            </div>
+            {storageHealth ? (
+              <Space size={8} style={{ marginTop: 8 }} wrap>
+                <Tag color={storageHealth.ok ? 'green' : 'red'}>
+                  {storageHealth.ok ? t('admin.config.storageHealthOk') : t('admin.config.storageHealthFail')}
+                </Tag>
+                <Typography.Text type="secondary">
+                  {t('admin.config.lastChecked')} {formatDate(storageHealth.checkedAt)}
+                </Typography.Text>
+                {typeof storageHealth.latencyMs === 'number' ? (
+                  <Typography.Text type="secondary">{storageHealth.latencyMs}ms</Typography.Text>
+                ) : null}
+                {!storageHealth.ok && storageHealth.reason ? (
+                  <Typography.Text type="secondary">{storageHealth.reason}</Typography.Text>
+                ) : null}
+              </Space>
+            ) : null}
+          </ProCard>
+
+          <Divider />
+
+          <ProCard bordered title={t('admin.config.section.email')} colSpan={24} className="apple-soft-card">
+            <Form.Item label={t('admin.config.emailHost')} name={['email', 'host']}>
+              <Input placeholder="smtp.example.com" />
+            </Form.Item>
+            <Form.Item label={t('admin.config.emailPort')} name={['email', 'port']}>
+              <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label={t('admin.config.emailUser')} name={['email', 'user']}>
+              <Input placeholder="noreply@example.com" />
+            </Form.Item>
+            <Form.Item label={t('admin.config.emailFrom')} name={['email', 'from']}>
+              <Input placeholder="noreply@example.com" />
+            </Form.Item>
+            <Form.Item label={t('admin.config.emailSecure')} name={['email', 'secure']} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Typography.Text type="secondary">
+              {`${t('admin.config.passwordStatus')}: ${config?.email.passwordSet ? t('common.yes') : t('common.no')} (${t('admin.config.envOnlySecretHint')})`}
+            </Typography.Text>
+            <div style={{ marginTop: 8 }}>
+              <Button onClick={() => emailHealthMutation.mutate()} loading={emailHealthMutation.isPending}>
+                {t('admin.config.testEmail')}
+              </Button>
+            </div>
+            {emailHealth ? (
+              <Space size={8} style={{ marginTop: 8 }} wrap>
+                <Tag color={emailHealth.ok ? 'green' : 'red'}>
+                  {emailHealth.ok ? t('admin.config.emailHealthOk') : t('admin.config.emailHealthFail')}
+                </Tag>
+                <Typography.Text type="secondary">
+                  {t('admin.config.lastChecked')} {formatDate(emailHealth.checkedAt)}
+                </Typography.Text>
+                {typeof emailHealth.latencyMs === 'number' ? (
+                  <Typography.Text type="secondary">{emailHealth.latencyMs}ms</Typography.Text>
+                ) : null}
+                {!emailHealth.ok && emailHealth.reason ? (
+                  <Typography.Text type="secondary">{emailHealth.reason}</Typography.Text>
+                ) : null}
+              </Space>
+            ) : null}
+          </ProCard>
+
+          <Divider />
+
+          <ProCard bordered title={t('admin.config.section.redis')} colSpan={24} className="apple-soft-card">
+            <Form.Item label={t('admin.config.redisHost')} name={['redis', 'host']}>
+              <Input placeholder="127.0.0.1" />
+            </Form.Item>
+            <Form.Item label={t('admin.config.redisPort')} name={['redis', 'port']}>
+              <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label={t('admin.config.redisDb')} name={['redis', 'db']}>
+              <InputNumber min={0} max={15} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label={t('admin.config.redisUsername')} name={['redis', 'username']}>
+              <Input placeholder={t('admin.config.redisUsernamePlaceholder')} />
+            </Form.Item>
+            <Form.Item label={t('admin.config.redisTls')} name={['redis', 'tls']} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Typography.Text type="secondary">
+              {`${t('admin.config.passwordStatus')}: ${config?.redis.passwordSet ? t('common.yes') : t('common.no')} (${t('admin.config.envOnlySecretHint')})`}
+            </Typography.Text>
+            <div style={{ marginTop: 8 }}>
+              <Button onClick={() => redisHealthMutation.mutate()} loading={redisHealthMutation.isPending}>
+                {t('admin.config.testRedis')}
+              </Button>
+            </div>
+            {redisHealth ? (
+              <Space size={8} style={{ marginTop: 8 }} wrap>
+                <Tag color={redisHealth.ok ? 'green' : 'red'}>
+                  {redisHealth.ok ? t('admin.config.redisHealthOk') : t('admin.config.redisHealthFail')}
+                </Tag>
+                <Typography.Text type="secondary">
+                  {t('admin.config.lastChecked')} {formatDate(redisHealth.checkedAt)}
+                </Typography.Text>
+                {typeof redisHealth.latencyMs === 'number' ? (
+                  <Typography.Text type="secondary">{redisHealth.latencyMs}ms</Typography.Text>
+                ) : null}
+                {!redisHealth.ok && redisHealth.reason ? (
+                  <Typography.Text type="secondary">{redisHealth.reason}</Typography.Text>
+                ) : null}
+              </Space>
+            ) : null}
+          </ProCard>
+            </div>
+          ) : null}
+
+          {canShowPublish ? <Divider /> : null}
+
+          {canShowPublish ? (
+            <div ref={publishSectionRef}>
+              <Alert
+                type="success"
+                showIcon
+                message={t('admin.config.wizard.publishHint')}
+                style={{ marginBottom: 12 }}
+              />
+              <Form.Item style={{ marginBottom: 0 }}>
+                <Button type="primary" htmlType="submit" loading={mutation.isPending}>
+                  {t('admin.config.save')}
+                </Button>
+              </Form.Item>
+            </div>
+          ) : null}
         </Form>
+        {isWizard ? (
+          <div className="apple-sticky-action-bar">
+            <Space wrap>
+              <Button onClick={() => setWizardStep((prev) => Math.max(0, prev - 1))} disabled={wizardStep === 0}>
+                {t('admin.config.wizard.prev')}
+              </Button>
+              <Button type="primary" onClick={() => setWizardStep((prev) => Math.min(3, prev + 1))} disabled={wizardStep === 3}>
+                {t('admin.config.wizard.next')}
+              </Button>
+              <Button type="primary" ghost onClick={() => form.submit()} loading={mutation.isPending}>
+                {t('admin.config.save')}
+              </Button>
+            </Space>
+          </div>
+        ) : null}
 
-        <Divider />
+        {canShowValidation ? <Divider /> : null}
 
-        <ProCard bordered title={t('admin.config.section.llmTest')} colSpan={24} className="apple-soft-card">
+        {canShowValidation ? (
+          <div ref={validationSectionRef}>
+            <ProCard bordered title={t('admin.config.section.llmTest')} colSpan={24} className="apple-soft-card">
           <Form
             form={llmTestForm}
             layout="vertical"
@@ -895,11 +1294,12 @@ export const AdminConfigPage = () => {
               </Space>
             </Card>
           ) : null}
-        </ProCard>
+            </ProCard>
 
-        <Divider />
+            <Divider />
 
-        <ProCard bordered title={t('admin.config.section.llmLogs')} colSpan={24} className="apple-soft-card">
+            <div ref={llmLogsSectionRef}>
+              <ProCard bordered title={t('admin.config.section.llmLogs')} colSpan={24} className="apple-soft-card">
           <Space wrap style={{ marginBottom: 12 }}>
             <Select
               allowClear
@@ -1059,7 +1459,10 @@ export const AdminConfigPage = () => {
               </Space>
             ) : null}
           </Modal>
-        </ProCard>
+              </ProCard>
+            </div>
+          </div>
+        ) : null}
       </Card>
     </PageContainer>
   );

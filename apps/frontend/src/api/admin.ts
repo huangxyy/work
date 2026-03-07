@@ -59,6 +59,29 @@ export type AdminSystemConfig = {
     dailyCallLimit?: number;
     mode: 'soft' | 'hard';
   };
+  storage: {
+    endpoint: string;
+    bucket: string;
+    region: string;
+    accessKeySet: boolean;
+    secretKeySet: boolean;
+  };
+  email: {
+    host: string;
+    port: number;
+    user: string;
+    from: string;
+    secure: boolean;
+    passwordSet: boolean;
+  };
+  redis: {
+    host: string;
+    port: number;
+    db: number;
+    username: string;
+    tls: boolean;
+    passwordSet: boolean;
+  };
   health?: {
     llm?: {
       ok: boolean;
@@ -144,6 +167,9 @@ export const updateAdminConfig = async (payload: {
   }>;
   ocr?: { apiKey?: string; secretKey?: string };
   budget?: { enabled?: boolean; dailyCallLimit?: number; mode?: 'soft' | 'hard' };
+  storage?: { endpoint?: string; bucket?: string; region?: string };
+  email?: { host?: string; port?: number; user?: string; from?: string; secure?: boolean };
+  redis?: { host?: string; port?: number; db?: number; username?: string; tls?: boolean };
 }) => {
   const response = await api.put('/admin/config', payload);
   return response.data as AdminSystemConfig;
@@ -303,6 +329,21 @@ export const clearAdminLlmLogs = async (payload: { before?: string; source?: str
 
 export const testAdminOcrHealth = async () => {
   const response = await api.get('/admin/health/ocr');
+  return response.data as { ok: boolean; status?: number; latencyMs?: number; reason?: string };
+};
+
+export const testAdminStorageHealth = async () => {
+  const response = await api.get('/admin/health/storage');
+  return response.data as { ok: boolean; status?: number; latencyMs?: number; reason?: string };
+};
+
+export const testAdminEmailHealth = async () => {
+  const response = await api.get('/admin/health/email');
+  return response.data as { ok: boolean; status?: number; latencyMs?: number; reason?: string };
+};
+
+export const testAdminRedisHealth = async () => {
+  const response = await api.get('/admin/health/redis');
   return response.data as { ok: boolean; status?: number; latencyMs?: number; reason?: string };
 };
 

@@ -57,9 +57,10 @@ Homework AI 采用前后端分离架构，后端使用 NestJS 框架，前端使
 | 模块 | 路径 | 功能 |
 |------|------|------|
 | Auth | `auth/` | JWT认证、角色守卫 |
-| Admin | `admin/` | 系统配置、队列管理 |
+| Admin | `admin/` | 系统配置、队列管理、提交诊断、LLM日志 |
 | Classes | `classes/` | 班级管理、学生导入 |
 | Homeworks | `homeworks/` | 作业创建、查询 |
+| TeacherSettings | `teacher-settings/` | 教师评分设置、班级/作业评分策略 |
 | Submissions | `submissions/` | 作业提交、图片上传 |
 | Grading | `grading/` | AI批改服务 |
 | OCR | `ocr/` | 百度OCR集成 |
@@ -113,6 +114,12 @@ sequenceDiagram
     L-->>W: 返回评分JSON
     W->>M: 保存结果(DONE)
 ```
+
+### 批量上传语义
+
+- 教师批量上传支持图片与 ZIP 两种输入形式。
+- 同一学生在同一批次命中的多张图片，会聚合到同一个 `Submission`。
+- `retrySkipped` 优先并入当前批次中的既有提交；若该提交处于 `PROCESSING`，则拒绝补录，避免与 Worker 冲突。
 
 ### 状态机
 
