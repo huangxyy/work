@@ -1,16 +1,19 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { CreateHomeworkDto } from './dto/create-homework.dto';
+import { UpdateHomeworkDto } from './dto/update-homework.dto';
 import { lateSubmissionConfigKey } from './homework.constants';
 
 type HomeworkWithId = { id: string };
 
 @Injectable()
 export class HomeworksService {
+  private readonly logger = new Logger(HomeworksService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -110,7 +113,7 @@ export class HomeworksService {
 
   async updateHomework(
     id: string,
-    data: { title?: string; desc?: string; dueAt?: string },
+    data: UpdateHomeworkDto,
     user: AuthUser,
   ) {
     await this.ensureHomeworkAccess(id, user);
@@ -143,16 +146,22 @@ export class HomeworksService {
   }
 
   async listByClass(classId: string, user: AuthUser) {
+    const startedAt = Date.now();
     await this.ensureClassAccess(classId, user);
     const homeworks = await this.prisma.homework.findMany({
       where: { classId },
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
-    return this.withLateSubmissionFlag(homeworks);
+    const items = await this.withLateSubmissionFlag(homeworks);
+    this.logger.debug(
+      `Homeworks listed by class classId=${classId} userId=${user.id} returned=${items.length} durationMs=${Date.now() - startedAt}`,
+    );
+    return items;
   }
 
   async listByClassSummary(classId: string, user: AuthUser) {
+    const startedAt = Date.now();
     await this.ensureClassAccess(classId, user);
 
     const homeworks = await this.prisma.homework.findMany({
@@ -169,12 +178,15 @@ export class HomeworksService {
     });
 
     if (!homeworks.length) {
+      this.logger.debug(
+        `Homework class summary listed classId=${classId} userId=${user.id} returned=0 durationMs=${Date.now() - startedAt}`,
+      );
       return [];
     }
 
     const homeworkIds = homeworks.map((homework) => homework.id);
 
-    const [totalStudents, statusGroups, studentGroups] = await Promise.all([
+    const [totalStudents, statusGroups, studentGroups, lateSubmissionMap] = await Promise.all([
       this.prisma.enrollment.count({ where: { classId } }),
       this.prisma.submission.groupBy({
         by: ['homeworkId', 'status'],
@@ -186,6 +198,7 @@ export class HomeworksService {
         where: { homeworkId: { in: homeworkIds } },
         _count: { _all: true },
       }),
+      this.getLateSubmissionMap(homeworkIds),
     ]);
 
     const statusMap = new Map<
@@ -247,14 +260,20 @@ export class HomeworksService {
       };
     });
 
-    const lateSubmissionMap = await this.getLateSubmissionMap(summary.map((item) => item.id));
-    return summary.map((item) => ({
+    const items = summary.map((item) => ({
       ...item,
       allowLateSubmission: lateSubmissionMap.get(item.id) === true,
     }));
+
+    this.logger.debug(
+      `Homework class summary listed classId=${classId} userId=${user.id} returned=${items.length} totalStudents=${totalStudents} statusGroups=${statusGroups.length} studentGroups=${studentGroups.length} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return items;
   }
 
   async listForStudent(user: AuthUser) {
+    const startedAt = Date.now();
     const homeworks = await this.prisma.homework.findMany({
       where: {
         class: {
@@ -268,15 +287,25 @@ export class HomeworksService {
       take: 500,
     });
 
-    return this.withLateSubmissionFlag(homeworks);
+    const items = await this.withLateSubmissionFlag(homeworks);
+    this.logger.debug(
+      `Homeworks listed for student userId=${user.id} returned=${items.length} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return items;
   }
 
   async getDeletePreview(homeworkId: string, user: AuthUser) {
+    const startedAt = Date.now();
     const homework = await this.ensureHomeworkAccess(homeworkId, user);
     const [submissionCount, imageCount] = await this.prisma.$transaction([
       this.prisma.submission.count({ where: { homeworkId: homework.id } }),
       this.prisma.submissionImage.count({ where: { submission: { homeworkId: homework.id } } }),
     ]);
+
+    this.logger.debug(
+      `Homework delete preview fetched homeworkId=${homework.id} userId=${user.id} submissionCount=${submissionCount} imageCount=${imageCount} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       homeworkId: homework.id,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
@@ -12,8 +13,17 @@ import { AuthUser } from '../auth/auth.types';
 import { CreateClassDto } from './dto/create-class.dto';
 import { ImportStudentsDto, StudentInputDto } from './dto/import-students.dto';
 
+type ExistingStudentAccount = {
+  id: string;
+  account: string;
+  name: string;
+  role: Role;
+};
+
 @Injectable()
 export class ClassesService {
+  private readonly logger = new Logger(ClassesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async createClass(dto: CreateClassDto, user: AuthUser) {
@@ -35,21 +45,30 @@ export class ClassesService {
   }
 
   async listClasses(user: AuthUser) {
+    const startedAt = Date.now();
     if (user.role === Role.ADMIN) {
-      return this.prisma.class.findMany({
+      const items = await this.prisma.class.findMany({
         include: { teachers: { select: { id: true, name: true, account: true } } },
         orderBy: { createdAt: 'desc' },
         take: 500,
       });
+      this.logger.debug(
+        `Classes listed role=${user.role} returned=${items.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return items;
     }
 
     if (user.role === Role.TEACHER) {
-      return this.prisma.class.findMany({
+      const items = await this.prisma.class.findMany({
         where: { teachers: { some: { id: user.id } } },
         include: { teachers: { select: { id: true, name: true, account: true } } },
         orderBy: { createdAt: 'desc' },
         take: 500,
       });
+      this.logger.debug(
+        `Classes listed role=${user.role} userId=${user.id} returned=${items.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return items;
     }
 
     throw new ForbiddenException('Only teacher or admin can list classes');
@@ -205,6 +224,7 @@ export class ClassesService {
   }
 
   async importStudents(classId: string, dto: ImportStudentsDto, user: AuthUser) {
+    const startedAt = Date.now();
     await this.ensureClassAccess(classId, user);
 
     const parsedText = dto.text ? this.parseStudentText(dto.text) : { students: [], invalid: [] };
@@ -234,6 +254,27 @@ export class ClassesService {
       result.failed.push(...parsedText.invalid);
     }
 
+    const normalizedAccounts = Array.from(
+      new Set(
+        students
+          .map((student) => this.normalizeAccount(student.account || ''))
+          .filter(Boolean),
+      ),
+    );
+    const existingUsers = normalizedAccounts.length
+      ? await this.prisma.user.findMany({
+          where: {
+            account: {
+              in: normalizedAccounts,
+            },
+          },
+          select: { id: true, account: true, name: true, role: true },
+        })
+      : [];
+    const existingUserMap = new Map<string, ExistingStudentAccount>(
+      existingUsers.map((student) => [student.account, student]),
+    );
+
     for (const student of students) {
       const account = this.normalizeAccount(student.account || '');
       const name = (student.name || '').trim();
@@ -248,9 +289,7 @@ export class ClassesService {
       }
 
       try {
-        const existing = await this.prisma.user.findUnique({
-          where: { account },
-        });
+        const existing = existingUserMap.get(account);
 
         if (existing) {
           if (existing.role !== Role.STUDENT) {
@@ -280,6 +319,12 @@ export class ClassesService {
             passwordHash,
           },
         });
+        existingUserMap.set(created.account, {
+          id: created.id,
+          account: created.account,
+          name: created.name,
+          role: created.role,
+        });
         studentIds.push(created.id);
         result.created.push({ account, name });
       } catch (error) {
@@ -300,10 +345,15 @@ export class ClassesService {
 
     result.enrolled = enrollments.count;
 
+    this.logger.debug(
+      `Class students imported classId=${classId} total=${result.total} created=${result.created.length} existing=${result.existing.length} failed=${result.failed.length} enrolled=${result.enrolled} prefetchedExisting=${existingUsers.length} durationMs=${Date.now() - startedAt}`,
+    );
+
     return result;
   }
 
   async listStudents(classId: string, user: AuthUser) {
+    const startedAt = Date.now();
     await this.ensureClassAccess(classId, user);
 
     const enrollments = await this.prisma.enrollment.findMany({
@@ -311,6 +361,10 @@ export class ClassesService {
       include: { student: true },
       take: 500,
     });
+
+    this.logger.debug(
+      `Class students listed classId=${classId} userId=${user.id} returned=${enrollments.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return enrollments.map((enrollment) => ({
       id: enrollment.student.id,
@@ -320,10 +374,14 @@ export class ClassesService {
   }
 
   async removeStudent(classId: string, studentId: string, user: AuthUser) {
+    const startedAt = Date.now();
     await this.ensureClassAccess(classId, user);
     const result = await this.prisma.enrollment.deleteMany({
       where: { classId, studentId },
     });
+    this.logger.debug(
+      `Class student removed classId=${classId} studentId=${studentId} removed=${result.count} durationMs=${Date.now() - startedAt}`,
+    );
     return { removed: result.count };
   }
 }

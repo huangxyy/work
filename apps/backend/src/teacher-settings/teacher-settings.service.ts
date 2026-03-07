@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '@prisma/client';
 import type { AuthUser } from '../auth/auth.types';
@@ -15,6 +15,8 @@ type BudgetConfig = {
 
 @Injectable()
 export class TeacherSettingsService {
+  private readonly logger = new Logger(TeacherSettingsService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly systemConfigService: SystemConfigService,
@@ -24,12 +26,17 @@ export class TeacherSettingsService {
   ) {}
 
   async getGradingSettings() {
+    const startedAt = Date.now();
     const [runtime, budgetConfig] = await Promise.all([
       this.llmConfigService.resolveRuntimeConfig(),
       this.systemConfigService.getValue<BudgetConfig>('budget'),
     ]);
 
     const budget = this.buildBudgetConfig(budgetConfig);
+
+    this.logger.debug(
+      `Teacher grading settings fetched provider=${runtime.providerName} model=${runtime.model || 'none'} budgetEnabled=${budget.enabled} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       grading: {
@@ -60,16 +67,19 @@ export class TeacherSettingsService {
     query: { classId?: string; homeworkId?: string },
     user: AuthUser,
   ) {
+    const startedAt = Date.now();
     if (!query.classId && !query.homeworkId) {
       throw new BadRequestException('classId or homeworkId is required');
     }
 
     let classId = query.classId;
+    let accessCheckedByHomework = false;
     if (query.homeworkId) {
       classId = await this.ensureHomeworkAccess(query.homeworkId, user);
+      accessCheckedByHomework = true;
     }
 
-    if (classId) {
+    if (classId && !accessCheckedByHomework) {
       await this.ensureClassAccess(classId, user);
     }
 
@@ -78,6 +88,10 @@ export class TeacherSettingsService {
       query.homeworkId ? this.gradingPolicyService.getHomeworkPolicy(query.homeworkId) : Promise.resolve(null),
       this.gradingPolicyService.resolvePolicy({ classId, homeworkId: query.homeworkId }),
     ]);
+
+    this.logger.debug(
+      `Teacher policy summary fetched classId=${classId || 'none'} homeworkId=${query.homeworkId || 'none'} classPolicy=${Boolean(classPolicy)} homeworkPolicy=${Boolean(homeworkPolicy)} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       classPolicy: classPolicy
@@ -101,6 +115,7 @@ export class TeacherSettingsService {
   }
 
   async getPolicyPreview(query: { classId?: string }, user: AuthUser) {
+    const startedAt = Date.now();
     if (!query.classId) {
       throw new BadRequestException('classId is required');
     }
@@ -174,6 +189,10 @@ export class TeacherSettingsService {
         source: resolved.source,
       };
     });
+
+    this.logger.debug(
+      `Teacher policy preview fetched classId=${query.classId} homeworks=${homeworks.length} homeworkPolicies=${homeworkPolicies.length} submissionCounts=${submissionCounts.length} recentSubmissions=${recentSubmissions.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       classId: query.classId,

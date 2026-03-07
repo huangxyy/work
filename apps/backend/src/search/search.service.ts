@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/auth.types';
 
@@ -12,14 +13,17 @@ type SearchResult = {
 
 @Injectable()
 export class SearchService {
+  private readonly logger = new Logger(SearchService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async search(query: string, user: AuthUser, limit = 10): Promise<SearchResult[]> {
+    const startedAt = Date.now();
     if (!query || query.trim().length < 2) return [];
     const q = query.trim();
     const results: SearchResult[] = [];
 
-    if (user.role === 'STUDENT') {
+    if (user.role === Role.STUDENT) {
       const homeworks = await this.prisma.homework.findMany({
         where: {
           title: { contains: q },
@@ -39,15 +43,26 @@ export class SearchService {
       );
     }
 
-    if (user.role === 'TEACHER') {
-      const homeworks = await this.prisma.homework.findMany({
-        where: {
-          title: { contains: q },
-          class: { teachers: { some: { id: user.id } } },
-        },
-        select: { id: true, title: true, class: { select: { name: true } } },
-        take: limit,
-      });
+    if (user.role === Role.TEACHER) {
+      const [homeworks, students] = await Promise.all([
+        this.prisma.homework.findMany({
+          where: {
+            title: { contains: q },
+            class: { teachers: { some: { id: user.id } } },
+          },
+          select: { id: true, title: true, class: { select: { name: true } } },
+          take: limit,
+        }),
+        this.prisma.user.findMany({
+          where: {
+            role: Role.STUDENT,
+            OR: [{ name: { contains: q } }, { account: { contains: q } }],
+            studentEnrolls: { some: { class: { teachers: { some: { id: user.id } } } } },
+          },
+          select: { id: true, name: true, account: true },
+          take: limit,
+        }),
+      ]);
       homeworks.forEach((h) =>
         results.push({
           type: 'homework',
@@ -57,16 +72,6 @@ export class SearchService {
           linkTo: `/teacher/homeworks/${h.id}`,
         }),
       );
-
-      const students = await this.prisma.user.findMany({
-        where: {
-          role: 'STUDENT',
-          OR: [{ name: { contains: q } }, { account: { contains: q } }],
-          studentEnrolls: { some: { class: { teachers: { some: { id: user.id } } } } },
-        },
-        select: { id: true, name: true, account: true },
-        take: limit,
-      });
       students.forEach((s) =>
         results.push({
           type: 'student',
@@ -78,18 +83,25 @@ export class SearchService {
       );
     }
 
-    if (user.role === 'ADMIN') {
-      const users = await this.prisma.user.findMany({
-        where: {
-          OR: [
-            { name: { contains: q } },
-            { account: { contains: q } },
-            { email: { contains: q } },
-          ],
-        },
-        select: { id: true, name: true, account: true, role: true },
-        take: limit,
-      });
+    if (user.role === Role.ADMIN) {
+      const [users, classes] = await Promise.all([
+        this.prisma.user.findMany({
+          where: {
+            OR: [
+              { name: { contains: q } },
+              { account: { contains: q } },
+              { email: { contains: q } },
+            ],
+          },
+          select: { id: true, name: true, account: true, role: true },
+          take: limit,
+        }),
+        this.prisma.class.findMany({
+          where: { name: { contains: q } },
+          select: { id: true, name: true },
+          take: limit,
+        }),
+      ]);
       users.forEach((u) =>
         results.push({
           type: 'student',
@@ -99,12 +111,6 @@ export class SearchService {
           linkTo: `/admin/users`,
         }),
       );
-
-      const classes = await this.prisma.class.findMany({
-        where: { name: { contains: q } },
-        select: { id: true, name: true },
-        take: limit,
-      });
       classes.forEach((c) =>
         results.push({
           type: 'class',
@@ -115,6 +121,12 @@ export class SearchService {
       );
     }
 
-    return results.slice(0, limit);
+    const finalResults = results.slice(0, limit);
+
+    this.logger.debug(
+      `Search completed role=${user.role} queryLength=${q.length} limit=${limit} results=${finalResults.length} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return finalResults;
   }
 }

@@ -16,7 +16,10 @@ export class BaiduOcrService {
   private readonly defaultTokenCacheTtl: number;
 
   private cachedToken: string | null = null;
+  private cachedTokenSignature = '';
   private tokenExpiresAt: number = 0;
+  private accessTokenPromise: Promise<string> | null = null;
+  private accessTokenPromiseSignature = '';
 
   private readonly OAUTH_URL = 'https://aip.baidubce.com/oauth/2.0/token';
   private readonly OCR_API_URL = 'https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic';
@@ -28,6 +31,7 @@ export class BaiduOcrService {
   }
 
   async recognize(imageBuffer: Buffer, config?: Partial<BaiduOcrConfig>): Promise<RecognizeResult> {
+    const startedAt = Date.now();
     const effectiveConfig = this.resolveConfig(config);
 
     if (!effectiveConfig.apiKey || !effectiveConfig.secretKey) {
@@ -69,6 +73,10 @@ export class BaiduOcrService {
       throw new Error('OCR returned empty text');
     }
 
+    this.logger.debug(
+      `OCR recognize completed imageBytes=${imageBuffer.length} textLength=${text.length} durationMs=${Date.now() - startedAt}`,
+    );
+
     return { text };
   }
 
@@ -86,12 +94,14 @@ export class BaiduOcrService {
 
     try {
       await this.getAccessToken(effectiveConfig);
+      this.logger.debug(`OCR connection test succeeded latencyMs=${Date.now() - startedAt}`);
       return {
         ok: true,
         latencyMs: Date.now() - startedAt,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`OCR connection test failed latencyMs=${Date.now() - startedAt} reason=${message}`);
       return {
         ok: false,
         latencyMs: Date.now() - startedAt,
@@ -101,63 +111,87 @@ export class BaiduOcrService {
   }
 
   private async getAccessToken(config: BaiduOcrConfig): Promise<string> {
+    const startedAt = Date.now();
     const ttl = config.tokenCacheTtl ?? this.defaultTokenCacheTtl;
     const now = Date.now();
     const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+    const tokenSignature = this.buildTokenSignature(config);
 
-    if (this.cachedToken && this.tokenExpiresAt - REFRESH_MARGIN_MS > now) {
+    if (
+      this.cachedToken &&
+      this.cachedTokenSignature === tokenSignature &&
+      this.tokenExpiresAt - REFRESH_MARGIN_MS > now
+    ) {
+      this.logger.debug(`OCR access token cache hit durationMs=${Date.now() - startedAt}`);
       return this.cachedToken;
     }
 
-    // Request new token
-    const params = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: config.apiKey,
-      client_secret: config.secretKey,
+    if (this.accessTokenPromise && this.accessTokenPromiseSignature === tokenSignature) {
+      const token = await this.accessTokenPromise;
+      this.logger.debug(`OCR access token inflight hit durationMs=${Date.now() - startedAt}`);
+      return token;
+    }
+
+    const requestPromise = (async () => {
+      const params = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: config.apiKey,
+        client_secret: config.secretKey,
+      });
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      let response: Response;
+      try {
+        response = await fetch(this.OAUTH_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Access token request timed out (10s)');
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to get access token: ${response.status} ${response.statusText}`);
+      }
+
+      const data = (await response.json()) as BaiduTokenResponse;
+
+      if (data.error) {
+        throw new Error(`Failed to get access token: ${data.error} - ${data.error_description}`);
+      }
+
+      if (!data.access_token) {
+        throw new Error('Failed to get access token: no access_token in response');
+      }
+
+      const expiresInSeconds = Math.min(data.expires_in, ttl);
+      const fetchedAt = Date.now();
+      this.cachedToken = data.access_token;
+      this.cachedTokenSignature = tokenSignature;
+      this.tokenExpiresAt = fetchedAt + expiresInSeconds * 1000;
+
+      this.logger.log(`Access token refreshed expiresInSeconds=${expiresInSeconds} durationMs=${fetchedAt - startedAt}`);
+      return this.cachedToken;
+    })().finally(() => {
+      if (this.accessTokenPromiseSignature === tokenSignature) {
+        this.accessTokenPromise = null;
+        this.accessTokenPromiseSignature = '';
+      }
     });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    let response: Response;
-    try {
-      response = await fetch(this.OAUTH_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params,
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Access token request timed out (10s)');
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      throw new Error(`Failed to get access token: ${response.status} ${response.statusText}`);
-    }
-
-    const data = (await response.json()) as BaiduTokenResponse;
-
-    if (data.error) {
-      throw new Error(`Failed to get access token: ${data.error} - ${data.error_description}`);
-    }
-
-    if (!data.access_token) {
-      throw new Error('Failed to get access token: no access_token in response');
-    }
-
-    // Cache token (use configured TTL or Baidu's expires_in, whichever is smaller)
-    const expiresInSeconds = Math.min(data.expires_in, ttl);
-    this.cachedToken = data.access_token;
-    this.tokenExpiresAt = now + expiresInSeconds * 1000;
-
-    this.logger.log(`Access token refreshed, expires in ${expiresInSeconds}s`);
-    return this.cachedToken;
+    this.accessTokenPromise = requestPromise;
+    this.accessTokenPromiseSignature = tokenSignature;
+    return requestPromise;
   }
 
   private async callWithRetry(
@@ -165,6 +199,7 @@ export class BaiduOcrService {
     options: RequestInit,
     retries = 2,
   ): Promise<Response> {
+    const startedAt = Date.now();
     for (let i = 0; i <= retries; i++) {
       try {
         // Resolve URL freshly on each attempt so token refresh takes effect
@@ -175,9 +210,9 @@ export class BaiduOcrService {
         const response = await fetch(url, {
           ...options,
           signal: controller.signal,
+        }).finally(() => {
+          clearTimeout(timeout);
         });
-
-        clearTimeout(timeout);
 
         // Handle QPS limit (error code 18)
         if (response.ok) {
@@ -196,8 +231,7 @@ export class BaiduOcrService {
           // Handle auth token errors — clear cached token so next retry gets a fresh one
           if (data.error_code === BaiduOcrErrorCode.AUTH_TOKEN_EXPIRED ||
               data.error_code === BaiduOcrErrorCode.AUTH_TOKEN_INVALID) {
-            this.cachedToken = null;
-            this.tokenExpiresAt = 0;
+            this.clearTokenCache();
             if (i < retries) {
               const delay = Math.pow(2, i) * 500;
               this.logger.warn(`Auth token invalid/expired, clearing cache and retrying in ${delay}ms...`);
@@ -207,6 +241,10 @@ export class BaiduOcrService {
             }
           }
         }
+
+        this.logger.debug(
+          `OCR request completed attempts=${i + 1} status=${response.status} durationMs=${Date.now() - startedAt}`,
+        );
 
         return response;
       } catch (error) {
@@ -237,13 +275,22 @@ export class BaiduOcrService {
       case BaiduOcrErrorCode.AUTH_TOKEN_EXPIRED:
       case BaiduOcrErrorCode.AUTH_TOKEN_INVALID:
         // Clear cached token and retry
-        this.cachedToken = null;
-        this.tokenExpiresAt = 0;
+        this.clearTokenCache();
         throw new Error(`Invalid token: ${message}`);
 
       default:
         throw new Error(`OCR error: ${message}`);
     }
+  }
+
+  private clearTokenCache() {
+    this.cachedToken = null;
+    this.cachedTokenSignature = '';
+    this.tokenExpiresAt = 0;
+  }
+
+  private buildTokenSignature(config: BaiduOcrConfig): string {
+    return JSON.stringify({ apiKey: config.apiKey, secretKey: config.secretKey });
   }
 
   private resolveConfig(config?: Partial<BaiduOcrConfig>): BaiduOcrConfig {
