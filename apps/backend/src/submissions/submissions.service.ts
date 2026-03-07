@@ -9,7 +9,7 @@ import { Prisma, Role, SubmissionStatus } from '@prisma/client';
 import AdmZip = require('adm-zip');
 import PDFDocument = require('pdfkit');
 import pinyin from 'pinyin';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import { createReadStream, promises as fs } from 'fs';
@@ -28,6 +28,7 @@ import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { AddTeacherFeedbackDto } from './dto/add-teacher-feedback.dto';
 import { CreateBatchSubmissionsDto } from './dto/create-batch-submissions.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { RegradeHomeworkSubmissionsDto } from './dto/regrade-homework-submissions.dto';
@@ -139,6 +140,14 @@ type PrintPacketEntry = {
   sampleEssay: string;
   errors: Array<{ type: string; message: string; original: string; suggestion: string }>;
 };
+
+const submissionDetailInclude = Prisma.validator<Prisma.SubmissionInclude>()({
+  images: true,
+  student: { select: { id: true, name: true, account: true } },
+  homework: { select: { id: true, title: true, classId: true } },
+});
+
+type SubmissionDetail = Prisma.SubmissionGetPayload<{ include: typeof submissionDetailInclude }>;
 
 const CSV_BOM = '\uFEFF';
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff']);
@@ -290,26 +299,18 @@ export class SubmissionsService {
     return { submissionId: submission.id, status: submission.status };
   }
 
-  async getSubmission(id: string, user: AuthUser) {
+  async getSubmission(id: string, user: AuthUser): Promise<SubmissionDetail | null> {
     if (user.role === Role.ADMIN) {
       return this.prisma.submission.findUnique({
         where: { id },
-        include: {
-          images: true,
-          student: { select: { id: true, name: true, account: true } },
-          homework: { select: { id: true, title: true } },
-        },
+        include: submissionDetailInclude,
       });
     }
 
     if (user.role === Role.STUDENT) {
       return this.prisma.submission.findFirst({
         where: { id, studentId: user.id },
-        include: {
-          images: true,
-          student: { select: { id: true, name: true, account: true } },
-          homework: { select: { id: true, title: true } },
-        },
+        include: submissionDetailInclude,
       });
     }
 
@@ -321,11 +322,7 @@ export class SubmissionsService {
             class: { teachers: { some: { id: user.id } } },
           },
         },
-        include: {
-          images: true,
-          student: { select: { id: true, name: true, account: true } },
-          homework: { select: { id: true, title: true } },
-        },
+        include: submissionDetailInclude,
       });
     }
 
@@ -334,7 +331,7 @@ export class SubmissionsService {
 
   async addTeacherFeedback(
     submissionId: string,
-    data: { comment?: string; manualScore?: number },
+    data: AddTeacherFeedbackDto,
     teacher: AuthUser,
   ) {
     const submission = await this.prisma.submission.findFirst({
@@ -343,7 +340,7 @@ export class SubmissionsService {
     });
     if (!submission) throw new NotFoundException('Submission not found');
     const isTeacher = submission.homework.class.teachers.some((t) => t.id === teacher.id);
-    if (!isTeacher && teacher.role !== 'ADMIN') throw new ForbiddenException('Not authorized');
+    if (!isTeacher && teacher.role !== Role.ADMIN) throw new ForbiddenException('Not authorized');
 
     return this.prisma.submission.update({
       where: { id: submissionId },
@@ -369,38 +366,8 @@ export class SubmissionsService {
       throw new ForbiddenException('Only students can list submissions');
     }
 
-    const where: Prisma.SubmissionWhereInput = {
-      studentId: user.id,
-    };
-
-    if (query.status) {
-      where.status = query.status;
-    }
-
-    if (query.homeworkId) {
-      where.homeworkId = query.homeworkId;
-    }
-
-    if (query.keyword) {
-      where.homework = { title: { contains: query.keyword.trim() } };
-    }
-
-    if (query.minScore !== undefined || query.maxScore !== undefined) {
-      where.totalScore = {
-        ...(query.minScore !== undefined ? { gte: query.minScore } : {}),
-        ...(query.maxScore !== undefined ? { lte: query.maxScore } : {}),
-      };
-    }
-
-    if (query.from || query.to) {
-      where.updatedAt = {
-        ...(query.from ? { gte: new Date(query.from) } : {}),
-        ...(query.to ? { lte: new Date(query.to) } : {}),
-      };
-    }
-
     const submissions = await this.prisma.submission.findMany({
-      where,
+      where: this.buildStudentSubmissionWhere(user.id, query),
       include: {
         homework: { select: { id: true, title: true } },
         _count: { select: { images: true } },
@@ -428,30 +395,7 @@ export class SubmissionsService {
     }
 
     const submissions = await this.prisma.submission.findMany({
-      where: {
-        studentId: user.id,
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.keyword
-          ? { homework: { title: { contains: query.keyword.trim() } } }
-          : {}),
-        ...(query.homeworkId ? { homeworkId: query.homeworkId } : {}),
-        ...(query.minScore !== undefined || query.maxScore !== undefined
-          ? {
-              totalScore: {
-                ...(query.minScore !== undefined ? { gte: query.minScore } : {}),
-                ...(query.maxScore !== undefined ? { lte: query.maxScore } : {}),
-              },
-            }
-          : {}),
-        ...(query.from || query.to
-          ? {
-              updatedAt: {
-                ...(query.from ? { gte: new Date(query.from) } : {}),
-                ...(query.to ? { lte: new Date(query.to) } : {}),
-              },
-            }
-          : {}),
-      },
+      where: this.buildStudentSubmissionWhere(user.id, query),
       include: { homework: { select: { id: true, title: true } } },
       orderBy: { updatedAt: 'desc' },
       take: 5000,
@@ -1205,6 +1149,7 @@ export class SubmissionsService {
     const nameOverrides = this.parseNameOverrides(dto.nameOverrides);
     const excludedKeys = this.parseExcludedFileKeys(dto.excludedFileKeys);
     const dryRun = Boolean(dto.dryRun);
+    const startedAt = Date.now();
 
     // 将姓名覆盖转换为账号覆盖（用于后续匹配）
     const resolvedMappingOverrides = new Map<string, string>();
@@ -1302,10 +1247,15 @@ export class SubmissionsService {
 
       // Store all images in staging for potential retry
       if (!dryRun) {
-        for (const image of images) {
-          await this.storeStagingImage(image, image.fileKey, homework.id);
+        const STAGING_UPLOAD_CONCURRENCY = 10;
+        for (const chunk of this.chunkArray(images, STAGING_UPLOAD_CONCURRENCY)) {
+          await Promise.all(
+            chunk.map((image) => this.storeStagingImage(image, image.fileKey, homework.id)),
+          );
         }
       }
+
+      const preparedAt = Date.now();
 
       const grouped = new Map<string, BatchImage[]>();
       const unmatched: BatchSkip[] = [];
@@ -1368,6 +1318,8 @@ export class SubmissionsService {
         }
       }
 
+      const matchedAt = Date.now();
+
       if (dryRun) {
         const groups = Array.from(grouped.entries()).map(([account, items]) => {
           const student = accountMap.get(account);
@@ -1377,6 +1329,9 @@ export class SubmissionsService {
             imageCount: items.length,
           };
         });
+        this.logger.log(
+          `Batch upload preview homework=${homework.id} totalImages=${images.length} matchedImages=${matchedImages} unmatched=${unmatched.length} skipped=${skipped.length} prepareMs=${preparedAt - startedAt} matchMs=${matchedAt - preparedAt} totalMs=${matchedAt - startedAt}`,
+        );
         return {
           preview: true,
           totalImages: images.length,
@@ -1390,10 +1345,6 @@ export class SubmissionsService {
       }
 
       const skippedForRecord = unmatched.length ? [...skipped, ...unmatched] : [...skipped];
-
-      if (grouped.size === 0) {
-        throw new BadRequestException('No images matched enrolled students');
-      }
 
       // Resolve grading policy with DTO parameters, falling back to class/homework policy
       const resolvedPolicy = await this.resolveGradingOptions({
@@ -1426,7 +1377,7 @@ export class SubmissionsService {
       let acceptedImages = 0;
 
       type PendingSubmission = {
-        image: BatchImage;
+        images: BatchImage[];
         student: StudentCandidate;
       };
       const pending: PendingSubmission[] = [];
@@ -1437,9 +1388,7 @@ export class SubmissionsService {
           skipped.push({ file: account, reason: 'STUDENT_NOT_FOUND' });
           continue;
         }
-        for (const image of batchImages) {
-          pending.push({ image, student });
-        }
+        pending.push({ images: batchImages, student });
       }
 
       const BATCH_CONCURRENCY = 5;
@@ -1463,12 +1412,17 @@ export class SubmissionsService {
         await Promise.all(
           chunk.map(async (item, idx) => {
             const submission = created[idx];
-            const buffer = await this.loadImageBuffer(item.image);
-            const extension = this.resolveImageExtension(item.image);
-            const objectKey = `submissions/${submission.id}/${randomUUID()}.${extension}`;
-            const contentType = item.image.mimeType || this.mapImageMimeType(`.${extension}`);
-            await this.storage.putObject(objectKey, buffer, contentType);
-            imageRecords.push({ submissionId: submission.id, objectKey });
+            const records = await Promise.all(
+              item.images.map(async (image) => {
+                const buffer = await this.loadImageBuffer(image);
+                const extension = this.resolveImageExtension(image);
+                const objectKey = `submissions/${submission.id}/${randomUUID()}.${extension}`;
+                const contentType = image.mimeType || this.mapImageMimeType(`.${extension}`);
+                await this.storage.putObject(objectKey, buffer, contentType);
+                return { submissionId: submission.id, objectKey };
+              }),
+            );
+            imageRecords.push(...records);
           }),
         );
 
@@ -1491,7 +1445,7 @@ export class SubmissionsService {
             submissionId: created[idx].id,
             studentAccount: chunk[idx].student.account,
             studentName: chunk[idx].student.name,
-            imageCount: 1,
+            imageCount: chunk[idx].images.length,
           });
         }
       }
@@ -1500,6 +1454,12 @@ export class SubmissionsService {
         where: { id: batch.id },
         data: { createdSubmissions: submissions.length },
       });
+
+      const persistedAt = Date.now();
+
+      this.logger.log(
+        `Batch upload completed batchId=${batch.id} homework=${homework.id} totalImages=${images.length} matchedImages=${matchedImages} unmatched=${unmatched.length} skipped=${skippedForRecord.length} acceptedImages=${acceptedImages} createdSubmissions=${submissions.length} prepareMs=${preparedAt - startedAt} matchMs=${matchedAt - preparedAt} persistMs=${persistedAt - matchedAt} totalMs=${persistedAt - startedAt}`,
+      );
 
       return {
         homeworkId: homework.id,
@@ -1540,7 +1500,7 @@ export class SubmissionsService {
 
     // Use the submission data we already have instead of querying again
     const resolvedPolicy = await this.resolveGradingOptions({
-      classId: (submission as { homework?: { classId?: string } }).homework?.classId,
+      classId: submission.homework.classId,
       homeworkId: submission.homeworkId,
       mode: options.mode,
       needRewrite: options.needRewrite,
@@ -1575,6 +1535,33 @@ export class SubmissionsService {
     return {
       mode: params.mode ?? resolved.mode,
       needRewrite: params.needRewrite ?? resolved.needRewrite,
+    };
+  }
+
+  private buildStudentSubmissionWhere(userId: string, query: StudentSubmissionsQueryDto): Prisma.SubmissionWhereInput {
+    const keyword = query.keyword?.trim();
+
+    return {
+      studentId: userId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.homeworkId ? { homeworkId: query.homeworkId } : {}),
+      ...(keyword ? { homework: { title: { contains: keyword } } } : {}),
+      ...(query.minScore !== undefined || query.maxScore !== undefined
+        ? {
+            totalScore: {
+              ...(query.minScore !== undefined ? { gte: query.minScore } : {}),
+              ...(query.maxScore !== undefined ? { lte: query.maxScore } : {}),
+            },
+          }
+        : {}),
+      ...(query.from || query.to
+        ? {
+            updatedAt: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
     };
   }
 
@@ -1936,39 +1923,46 @@ export class SubmissionsService {
     // Store the image permanently
     await this.storage.putObject(objectKey, imageBuffer, contentType);
 
-    // Create submission
-    const submission = await this.prisma.submission.create({
-      data: {
-        homeworkId: homework.id,
-        studentId: student.id,
-        status: SubmissionStatus.QUEUED,
-        batchId: dto.batchId, // Link to original BatchUpload if provided
-      },
+    const resolvedPolicy = await this.resolveGradingOptions({
+      classId: homework.classId,
+      homeworkId: homework.id,
     });
 
-    // Remove the file from BatchUpload's skipped list after successful submission creation
-    if (dto.batchId) {
-      try {
-        const currentBatch = await this.prisma.batchUpload.findUnique({
-          where: { id: dto.batchId },
-          select: { skipped: true },
-        });
+    let submission = dto.batchId
+      ? await this.prisma.submission.findFirst({
+          where: {
+            homeworkId: homework.id,
+            studentId: student.id,
+            batchId: dto.batchId,
+          },
+          select: { id: true, status: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
+    const existingStatus = submission?.status;
 
-        if (currentBatch?.skipped && Array.isArray(currentBatch.skipped)) {
-          const skippedItems = currentBatch.skipped as Array<{ fileKey?: string }>;
-          const updatedSkipped = skippedItems.filter((item) => item.fileKey !== dto.fileKey);
-          await this.prisma.batchUpload.update({
-            where: { id: dto.batchId },
-            data: { skipped: updatedSkipped },
-          });
-          this.logger.log(`Removed fileKey ${dto.fileKey} from BatchUpload ${dto.batchId} skipped list`);
-        }
-      } catch (error) {
-        this.logger.warn(`Failed to update skipped list for batch ${dto.batchId}: ${error}`);
-      }
+    if (existingStatus === SubmissionStatus.PROCESSING) {
+      throw new BadRequestException('Existing batch submission is currently being graded. Please retry after it finishes.');
     }
 
-    // Create submission image record
+    let createdNewSubmission = false;
+    if (!submission) {
+      submission = await this.prisma.submission.create({
+        data: {
+          homeworkId: homework.id,
+          studentId: student.id,
+          status: SubmissionStatus.QUEUED,
+          batchId: dto.batchId,
+        },
+      });
+      createdNewSubmission = true;
+    } else if (existingStatus && existingStatus !== SubmissionStatus.QUEUED) {
+      await this.prisma.submission.update({
+        where: { id: submission.id },
+        data: { status: SubmissionStatus.QUEUED, errorCode: null, errorMsg: null },
+      });
+    }
+
     await this.prisma.submissionImage.create({
       data: {
         submissionId: submission.id,
@@ -1976,19 +1970,64 @@ export class SubmissionsService {
       },
     });
 
-    // Resolve grading policy
-    const resolvedPolicy = await this.resolveGradingOptions({
-      classId: homework.classId,
-      homeworkId: homework.id,
-    });
+    if (dto.batchId) {
+      try {
+        const currentBatch = await this.prisma.batchUpload.findUnique({
+          where: { id: dto.batchId },
+          select: { skipped: true, unmatchedCount: true },
+        });
 
-    // Enqueue for grading
-    await this.queueService.enqueueGrading(submission.id, {
-      mode: resolvedPolicy.mode,
-      needRewrite: resolvedPolicy.needRewrite,
-    });
+        if (currentBatch) {
+          const batchUpdateData: Prisma.BatchUploadUpdateInput = createdNewSubmission
+            ? { createdSubmissions: { increment: 1 } }
+            : {};
 
-    this.logger.log(`Created submission ${submission.id} for skipped file ${dto.fileKey}`);
+          if (Array.isArray(currentBatch.skipped)) {
+            const skippedItems = currentBatch.skipped as Array<{ fileKey?: string }>;
+            const updatedSkipped = skippedItems.filter((item) => item.fileKey !== dto.fileKey);
+            const removedCount = skippedItems.length - updatedSkipped.length;
+
+            if (removedCount > 0) {
+              batchUpdateData.skipped = updatedSkipped as Prisma.InputJsonValue;
+              batchUpdateData.matchedImages = { increment: removedCount };
+
+              const unmatchedDecrement = Math.min(currentBatch.unmatchedCount, removedCount);
+              if (unmatchedDecrement > 0) {
+                batchUpdateData.unmatchedCount = { decrement: unmatchedDecrement };
+              }
+            }
+          }
+
+          if (Object.keys(batchUpdateData).length > 0) {
+            await this.prisma.batchUpload.update({
+              where: { id: dto.batchId },
+              data: batchUpdateData,
+            });
+            this.logger.log(`Removed fileKey ${dto.fileKey} from BatchUpload ${dto.batchId} skipped list`);
+          }
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to update skipped list for batch ${dto.batchId}: ${error}`);
+      }
+    }
+
+    if (createdNewSubmission) {
+      await this.queueService.enqueueGrading(submission.id, {
+        mode: resolvedPolicy.mode,
+        needRewrite: resolvedPolicy.needRewrite,
+      });
+      this.logger.log(`Created submission ${submission.id} for skipped file ${dto.fileKey}`);
+      return { submissionId: submission.id };
+    }
+
+    if (existingStatus && existingStatus !== SubmissionStatus.QUEUED) {
+      await this.queueService.enqueueRegrade(submission.id, {
+        mode: resolvedPolicy.mode,
+        needRewrite: resolvedPolicy.needRewrite,
+      });
+    }
+
+    this.logger.log(`Appended skipped file ${dto.fileKey} to submission ${submission.id}`);
 
     return { submissionId: submission.id };
   }
@@ -2518,9 +2557,9 @@ export class SubmissionsService {
     try {
       const pinyinArray = pinyin(source, { style: pinyin.STYLE_NORMAL });
       const merged = pinyinArray.map((item: string[]) => item[0] || '').join('');
-      return this.normalizeAccountValue(merged);
+      return merged.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
     } catch {
-      return this.normalizeAccountValue(source);
+      return source.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
     }
   }
 
@@ -2626,7 +2665,7 @@ export class SubmissionsService {
    * 检查字符串是否符合账号格式（仅包含字母、数字、下划线）
    */
   private looksLikeAccount(value: string): boolean {
-    return /^[a-z0-9_]+$/.test(value);
+    return /^[a-zA-Z0-9_]+$/.test(value);
   }
 
   private async loadImageBuffer(image: BatchImage): Promise<Buffer> {
