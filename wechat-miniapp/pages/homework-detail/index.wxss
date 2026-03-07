@@ -1,0 +1,19 @@
+.detail-title {
+  flex: 1;
+  padding-right: 20rpx;
+}
+
+.detail-latest-card {
+  margin-top: 24rpx;
+  background: #f8fafc;
+}
+
+.detail-draft-text {
+  margin-top: 12rpx;
+  color: #2563eb;
+}
+
+.history-item {
+  background: #f8fafc;
+  box-shadow: none;
+}

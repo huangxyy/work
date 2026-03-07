@@ -1,0 +1,76 @@
+<view class="container safe-bottom">
+  <view class="hero-card">
+    <view class="title">{{user && user.name ? user.name : '未登录用户'}}</view>
+    <view class="subtitle">{{user && user.account ? user.account : '--'}} · {{user && user.role ? user.role : '--'}}</view>
+    <view class="kpi-grid">
+      <view class="kpi-item">
+        <view class="small">当前角色</view>
+        <view class="kpi-value profile-role">{{user && user.role ? user.role : '--'}}</view>
+      </view>
+      <view class="kpi-item">
+        <view class="small">接口连接</view>
+        <view class="kpi-value profile-conn">已配置</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="section-title">快捷入口</view>
+    <view class="quick-grid section-gap">
+      <view class="quick-card" bindtap="goHomeworks">
+        <view class="quick-card-title">我的作业</view>
+        <view class="quick-card-desc">返回作业列表，继续查看详情或发起图片提交。</view>
+      </view>
+      <view class="quick-card" bindtap="goSubmissions">
+        <view class="quick-card-title">提交记录</view>
+        <view class="quick-card-desc">集中查看所有提交的状态、分数和失败原因。</view>
+      </view>
+      <view class="quick-card" bindtap="goReport">
+        <view class="quick-card-title">学习报告</view>
+        <view class="quick-card-desc">查看成绩趋势、高频问题和下一步学习建议。</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="section-title">接口配置</view>
+    <view class="helper-text">如果你要切换到测试环境、局域网环境或正式环境，可以直接在这里修改 API Base URL。</view>
+    <view class="section-gap">
+      <view class="field-label">API Base URL</view>
+      <input class="field-input" value="{{apiBaseUrl}}" placeholder="http://127.0.0.1:3000/api" bindinput="handleApiBaseUrlInput" />
+    </view>
+    <view class="action-row section-gap">
+      <button class="secondary-button" bindtap="saveApiBaseUrl">保存地址</button>
+      <button class="ghost-button" loading="{{syncing}}" bindtap="refreshProfile">同步用户</button>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="row-between">
+      <view class="section-title">本地草稿</view>
+      <view class="draft-count">{{draftCount}}</view>
+    </view>
+    <view class="helper-text">这里统计的是当前设备上保存的未提交作业草稿。</view>
+    <view class="action-row section-gap">
+      <button class="secondary-button" disabled="{{!draftCount}}" loading="{{clearingDrafts}}" bindtap="clearAllDrafts">清理全部草稿</button>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="section-title">当前版本能力</view>
+    <view class="chip-row section-gap">
+      <view class="chip">学生登录</view>
+      <view class="chip">作业列表</view>
+      <view class="chip">提交记录</view>
+      <view class="chip">学习报告</view>
+      <view class="chip">详情查看</view>
+      <view class="chip">图片提交</view>
+      <view class="chip">结果轮询</view>
+    </view>
+    <view class="helper-text">下一轮可以继续扩展教师端、消息通知、报表查看、微信授权登录和更精细的上传体验。</view>
+  </view>
+
+  <view class="action-row section-gap">
+    <button class="primary-button" bindtap="handleLogout">退出登录</button>
+  </view>
+</view>

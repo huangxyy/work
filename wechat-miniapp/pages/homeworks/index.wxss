@@ -1,0 +1,20 @@
+.hero-top {
+  margin-bottom: 10rpx;
+}
+
+.summary-card {
+  background: #ffffff;
+}
+
+.summary-value {
+  margin-top: 14rpx;
+  font-size: 42rpx;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.draft-badge {
+  margin-top: 12rpx;
+  color: #2563eb;
+  font-weight: 600;
+}

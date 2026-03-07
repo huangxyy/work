@@ -1,0 +1,41 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/homeworks/index",
+    "pages/submissions/index",
+    "pages/report/index",
+    "pages/homework-detail/index",
+    "pages/submit/index",
+    "pages/submission-result/index",
+    "pages/profile/index"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#f7f9fc",
+    "navigationBarTitleText": "Homework AI",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f2f5fb"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "tabBar": {
+    "color": "#7b88a1",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/homeworks/index",
+        "text": "作业"
+      },
+      {
+        "pagePath": "pages/submissions/index",
+        "text": "提交"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
+    ]
+  }
+}

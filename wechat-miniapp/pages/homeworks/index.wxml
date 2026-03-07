@@ -1,0 +1,111 @@
+<view class="container safe-bottom">
+  <view class="hero-card">
+    <view class="row-between hero-top">
+      <view>
+        <view class="title">{{userName}}，今天也要高效完成作业</view>
+        <view class="subtitle">直接连接现有系统学生接口，查看待交作业并进入图片提交。</view>
+      </view>
+    </view>
+    <view class="kpi-grid">
+      <view class="kpi-item">
+        <view class="small">全部作业</view>
+        <view class="kpi-value">{{totalCount}}</view>
+      </view>
+      <view class="kpi-item">
+        <view class="small">进行中</view>
+        <view class="kpi-value">{{openCount}}</view>
+      </view>
+      <view class="kpi-item">
+        <view class="small">可补交</view>
+        <view class="kpi-value">{{lateCount}}</view>
+      </view>
+      <view class="kpi-item">
+        <view class="small">已截止</view>
+        <view class="kpi-value">{{overdueCount}}</view>
+      </view>
+    </view>
+    <view class="hero-action-row">
+      <button class="ghost-button" bindtap="goSubmissions">查看提交记录</button>
+      <button class="secondary-button" bindtap="goReport">学习报告</button>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="row-between">
+      <view class="section-title">最近 7 天学习摘要</view>
+      <view class="muted small">来自学习报告</view>
+    </view>
+    <view class="quick-grid section-gap">
+      <view class="quick-card summary-card">
+        <view class="quick-card-title">平均分</view>
+        <view class="summary-value">{{reportAvgScore}}</view>
+      </view>
+      <view class="quick-card summary-card">
+        <view class="quick-card-title">提交次数</view>
+        <view class="summary-value">{{reportSubmissionCount}}</view>
+      </view>
+    </view>
+    <view class="helper-text">下一步建议：{{reportNextStep}}</view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="row-between">
+      <view class="section-title">筛选作业</view>
+      <button class="ghost-button filter-reset-button" bindtap="resetFilters">重置</button>
+    </view>
+    <view class="section-gap">
+      <view class="field-label">关键词</view>
+      <input class="field-input" placeholder="搜索作业标题、说明、班级" value="{{keyword}}" bindinput="handleKeywordInput" />
+    </view>
+    <view class="section-gap">
+      <view class="field-label">状态</view>
+      <picker mode="selector" range="{{statusOptions}}" range-key="label" value="{{statusIndex}}" bindchange="handleStatusChange">
+        <view class="field-picker">{{statusOptions[statusIndex].label}}</view>
+      </picker>
+    </view>
+  </view>
+
+  <view wx:if="{{errorText}}" class="card section-gap">
+    <view class="error-state">
+      <view class="error-title">加载失败</view>
+      <view class="helper-text">{{errorText}}</view>
+      <view class="action-row section-gap">
+        <button class="secondary-button" bindtap="retryLoad">重新加载</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{loading}}" class="card section-gap">
+    <view class="empty-state">
+      <view class="empty-title">正在同步作业</view>
+      <view class="helper-text">请稍候，正在读取后端接口数据。</view>
+    </view>
+  </view>
+
+  <view wx:elif="{{filteredList.length}}" class="list-stack section-gap">
+    <view wx:for="{{filteredList}}" wx:key="id" class="list-item">
+      <view class="row-between">
+        <view class="list-item-title">{{item.title}}</view>
+        <view class="status-pill {{item.status.className}}">{{item.status.label}}</view>
+      </view>
+      <view wx:if="{{item.hasDraft}}" class="helper-text draft-badge">草稿待提交</view>
+      <view class="list-item-desc">班级：{{item.className}}</view>
+      <view class="list-item-desc">截止：{{item.dueLabel}}</view>
+      <view class="list-item-desc">{{item.descText}}</view>
+      <view class="action-row">
+        <button class="ghost-button" data-id="{{item.id}}" bindtap="goDetail">查看详情</button>
+        <button class="primary-button" data-id="{{item.id}}" data-closed="{{item.status.key === 'overdue'}}" bindtap="goSubmit">{{item.hasDraft ? '继续提交' : '去提交'}}</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="card section-gap">
+    <view class="empty-state">
+      <view class="empty-title">暂时没有匹配的作业</view>
+      <view class="helper-text">你可以下拉刷新，或者调整关键词和状态筛选。</view>
+      <view wx:if="{{hasActiveFilters}}" class="action-row section-gap">
+        <button class="secondary-button" bindtap="resetFilters">重置筛选</button>
+      </view>
+    </view>
+  </view>
+</view>

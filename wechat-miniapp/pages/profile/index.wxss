@@ -1,0 +1,16 @@
+.profile-role,
+.profile-conn {
+  font-size: 32rpx;
+}
+
+.draft-count {
+  min-width: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 999rpx;
+  text-align: center;
+  background: #dbeafe;
+  color: #2563eb;
+  font-size: 30rpx;
+  font-weight: 700;
+}

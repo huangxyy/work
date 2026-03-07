@@ -1,0 +1,49 @@
+.submit-title {
+  flex: 1;
+  padding-right: 20rpx;
+}
+
+.draft-card {
+  border: 1rpx solid rgba(37, 99, 235, 0.12);
+}
+
+.draft-note {
+  margin-top: 12rpx;
+}
+
+.draft-clear-button {
+  min-width: 144rpx;
+  height: 60rpx;
+  line-height: 60rpx;
+  padding: 0 20rpx;
+  font-size: 24rpx;
+}
+
+.switch-row {
+  gap: 20rpx;
+}
+
+.image-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.image-meta {
+  gap: 12rpx;
+}
+
+.image-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-remove {
+  min-width: 120rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 18rpx;
+  font-size: 22rpx;
+}

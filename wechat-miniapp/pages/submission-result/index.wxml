@@ -1,0 +1,152 @@
+<view class="container safe-bottom">
+  <view wx:if="{{loading}}" class="card">
+    <view class="empty-state">
+      <view class="empty-title">正在同步批改结果</view>
+      <view class="helper-text">如果还在排队或处理中，页面会自动轮询刷新。</view>
+    </view>
+  </view>
+
+  <view wx:elif="{{errorText}}" class="card">
+    <view class="error-state">
+      <view class="error-title">结果加载失败</view>
+      <view class="helper-text">{{errorText}}</view>
+      <view class="action-row section-gap">
+        <button class="secondary-button" bindtap="retryLoad">重新加载</button>
+      </view>
+    </view>
+  </view>
+
+  <block wx:elif="{{submission}}">
+    <view class="hero-card">
+      <view class="row-between">
+        <view>
+          <view class="title">{{submission.homework ? submission.homework.title : '作业结果'}}</view>
+          <view class="subtitle">最近更新时间：{{updatedLabel}}</view>
+        </view>
+        <view class="status-pill {{statusMeta.className}} result-status">{{statusMeta.label}}</view>
+      </view>
+      <view class="kpi-grid">
+        <view class="kpi-item">
+          <view class="small">总分</view>
+          <view class="kpi-value">{{score}}</view>
+        </view>
+        <view class="kpi-item">
+          <view class="small">错误数</view>
+          <view class="kpi-value">{{errorCount}}</view>
+        </view>
+        <view class="kpi-item">
+          <view class="small">建议条数</view>
+          <view class="kpi-value">{{nextStepCount}}</view>
+        </view>
+        <view class="kpi-item">
+          <view class="small">图片数</view>
+          <view class="kpi-value">{{imageCount}}</view>
+        </view>
+      </view>
+      <view class="hero-action-row">
+        <button class="ghost-button" bindtap="goHomeworkDetail">作业详情</button>
+        <button class="ghost-button" bindtap="goSubmissions">提交记录</button>
+        <button class="secondary-button" bindtap="goReport">学习报告</button>
+      </view>
+    </view>
+
+    <view wx:if="{{isPolling}}" class="card section-gap result-polling-card">
+      <view class="section-title">自动刷新中</view>
+      <view class="helper-text result-polling-text">{{pollingHint}}</view>
+      <view class="action-row section-gap">
+        <button class="secondary-button" bindtap="retryLoad">立即刷新</button>
+      </view>
+    </view>
+
+    <view class="card section-gap">
+      <view class="section-title">处理进度</view>
+      <view class="timeline section-gap">
+        <view wx:for="{{timeline}}" wx:key="key" class="timeline-item">
+          <view class="timeline-dot {{item.active ? 'timeline-dot-active' : ''}}"></view>
+          <view class="timeline-text {{item.active ? 'timeline-text-active' : ''}}">{{item.label}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{isFailed}}">
+      <view class="section-title">处理失败</view>
+      <view class="helper-text">{{submission.errorMsg || submission.errorCode || '这次批改未成功完成，你可以重新提交。'}}</view>
+      <view class="action-row section-gap">
+        <button class="primary-button" bindtap="goResubmit">重新提交</button>
+      </view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{grading && dimensionScores}}">
+      <view class="section-title">批改总结</view>
+      <view class="helper-text">{{grading.summary || '结果生成中，请稍后刷新。'}}</view>
+      <view class="divider"></view>
+      <view class="section-title">维度得分</view>
+      <view class="metric-list section-gap">
+        <view class="metric-item">
+          <view class="row-between"><text>语法</text><text>{{dimensionScores.grammar || 0}}</text></view>
+          <progress class="score-bar" percent="{{dimensionScores.grammar || 0}}" stroke-width="8" color="#2563eb" />
+        </view>
+        <view class="metric-item">
+          <view class="row-between"><text>词汇</text><text>{{dimensionScores.vocabulary || 0}}</text></view>
+          <progress class="score-bar" percent="{{dimensionScores.vocabulary || 0}}" stroke-width="8" color="#4f46e5" />
+        </view>
+        <view class="metric-item">
+          <view class="row-between"><text>结构</text><text>{{dimensionScores.structure || 0}}</text></view>
+          <progress class="score-bar" percent="{{dimensionScores.structure || 0}}" stroke-width="8" color="#0f766e" />
+        </view>
+        <view class="metric-item">
+          <view class="row-between"><text>内容</text><text>{{dimensionScores.content || 0}}</text></view>
+          <progress class="score-bar" percent="{{dimensionScores.content || 0}}" stroke-width="8" color="#d97706" />
+        </view>
+        <view class="metric-item">
+          <view class="row-between"><text>连贯</text><text>{{dimensionScores.coherence || 0}}</text></view>
+          <progress class="score-bar" percent="{{dimensionScores.coherence || 0}}" stroke-width="8" color="#059669" />
+        </view>
+      </view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{hasNextSteps}}">
+      <view class="section-title">下一步建议</view>
+      <view class="list-stack section-gap">
+        <view wx:for="{{grading.nextSteps}}" wx:key="index" class="tip-item">
+          <view class="row">
+            <view class="tip-index">{{index + 1}}</view>
+            <view class="helper-text tip-text">{{item}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{hasErrors}}">
+      <view class="section-title">错误与修改建议</view>
+      <view class="list-stack section-gap">
+        <view wx:for="{{grading.errors}}" wx:key="index" class="tip-item">
+          <view class="chip-row">
+            <view class="chip">{{item.type}}</view>
+          </view>
+          <view class="helper-text">{{item.message}}</view>
+          <view class="helper-text" wx:if="{{item.original}}">原句：{{item.original}}</view>
+          <view class="helper-text" wx:if="{{item.suggestion}}">建议：{{item.suggestion}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{submission.images && submission.images.length}}">
+      <view class="section-title">原始图片</view>
+      <view class="image-grid section-gap">
+        <image wx:for="{{submission.images}}" wx:key="id" class="preview-image" src="{{item.url}}" mode="aspectFill" data-current="{{item.url}}" bindtap="previewImage" />
+      </view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{hasTeacherFeedback}}">
+      <view class="section-title">教师反馈</view>
+      <view class="helper-text" wx:if="{{submission.manualScore !== null && submission.manualScore !== undefined}}">人工评分：{{submission.manualScore}}</view>
+      <view class="helper-text" wx:if="{{submission.teacherComment}}">{{submission.teacherComment}}</view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{submission.ocrText}}">
+      <view class="section-title">OCR 文本</view>
+      <view class="helper-text ocr-text">{{submission.ocrText}}</view>
+    </view>
+  </block>
+</view>

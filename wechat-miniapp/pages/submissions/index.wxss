@@ -1,0 +1,30 @@
+.score-range-row {
+  display: flex;
+  gap: 16rpx;
+}
+
+.score-range-item {
+  flex: 1;
+}
+
+.section-gap-small {
+  margin-top: 14rpx;
+}
+
+.submission-item {
+  background: #ffffff;
+}
+
+.submission-top {
+  align-items: flex-start;
+  gap: 18rpx;
+}
+
+.submission-title {
+  flex: 1;
+  padding-right: 12rpx;
+}
+
+.submission-error {
+  color: #b91c1c;
+}

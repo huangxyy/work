@@ -1,0 +1,34 @@
+<view class="container login-page safe-bottom">
+  <view class="hero-card login-hero">
+    <view class="title">Homework AI</view>
+    <view class="subtitle">基于现有系统的微信小程序学生端首版，直接复用后端 JWT 登录、作业列表、图片提交和结果查询能力。</view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="section-title">连接后端</view>
+    <view class="helper-text">开发工具可用本机地址，真机请填写可访问且已配置合法域名的 API 地址。</view>
+    <view class="section-gap">
+      <view class="field-label">API Base URL</view>
+      <input class="field-input" placeholder="http://127.0.0.1:3000/api" value="{{apiBaseUrl}}" bindinput="handleApiBaseUrlInput" />
+    </view>
+    <view class="action-row section-gap">
+      <button class="secondary-button" bindtap="handleSaveBaseUrl">保存地址</button>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="section-title">学生登录</view>
+    <view class="section-gap">
+      <view class="field-label">账号</view>
+      <input class="field-input" placeholder="请输入账号" value="{{account}}" bindinput="handleAccountInput" />
+    </view>
+    <view class="section-gap">
+      <view class="field-label">密码</view>
+      <input class="field-input" password placeholder="请输入密码" value="{{password}}" bindinput="handlePasswordInput" />
+    </view>
+    <view class="helper-text">当前首版先聚焦学生主流程：登录、看作业、交图片、看批改结果。</view>
+    <view class="action-row section-gap">
+      <button class="primary-button" loading="{{loading}}" bindtap="handleLogin">进入小程序</button>
+    </view>
+  </view>
+</view>

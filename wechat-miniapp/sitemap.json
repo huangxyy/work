@@ -1,0 +1,9 @@
+{
+  "desc": "Homework AI 微信小程序",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "*"
+    }
+  ]
+}

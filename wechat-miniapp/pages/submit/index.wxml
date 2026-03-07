@@ -1,0 +1,90 @@
+<view class="container safe-bottom">
+  <view wx:if="{{loading}}" class="card">
+    <view class="empty-state">
+      <view class="empty-title">正在加载作业信息</view>
+      <view class="helper-text">请稍候，正在准备提交页面。</view>
+    </view>
+  </view>
+
+  <view wx:elif="{{errorText}}" class="card">
+    <view class="error-state">
+      <view class="error-title">无法提交</view>
+      <view class="helper-text">{{errorText}}</view>
+      <view class="action-row section-gap">
+        <button class="secondary-button" bindtap="retryLoad">重新加载</button>
+      </view>
+    </view>
+  </view>
+
+  <block wx:elif="{{homework}}">
+    <view class="card">
+      <view class="row-between">
+        <view class="section-title submit-title">{{homework.title}}</view>
+        <view class="status-pill {{status.className}}">{{status.label}}</view>
+      </view>
+      <view class="list-item-desc">班级：{{homework.class.name}}</view>
+      <view class="list-item-desc">截止：{{dueLabel}}</view>
+      <view class="helper-text">提交后将进入后端队列，依次完成 OCR 识别与 AI 批改。</view>
+      <view class="hero-action-row">
+        <button class="ghost-button" bindtap="goSubmissions">提交记录</button>
+        <button class="secondary-button" bindtap="goReport">学习报告</button>
+      </view>
+    </view>
+
+    <view wx:if="{{hasDraft}}" class="card section-gap draft-card">
+      <view class="row-between">
+        <view class="section-title">本地草稿</view>
+        <button class="ghost-button draft-clear-button" bindtap="clearDraftManually">清空草稿</button>
+      </view>
+      <view class="helper-text draft-note">{{draftNotice || '当前图片和批改设置已自动保存在本机。'}}</view>
+      <view class="helper-text">离开页面后再次进入，会优先恢复这份未提交草稿。</view>
+    </view>
+
+    <view class="card section-gap">
+      <view class="section-title">批改设置</view>
+      <view class="section-gap">
+        <view class="field-label">批改模式</view>
+        <picker mode="selector" range="{{modeOptions}}" range-key="label" value="{{modeIndex}}" bindchange="handleModeChange">
+          <view class="field-picker">{{modeOptions[modeIndex].label}}</view>
+        </picker>
+      </view>
+      <view class="section-gap row-between switch-row">
+        <view>
+          <view class="field-label">需要改写建议</view>
+          <view class="helper-text">启用后会请求更完整的优化建议和示例改写。</view>
+        </view>
+        <switch checked="{{needRewrite}}" color="#2563eb" bindchange="handleRewriteChange" />
+      </view>
+    </view>
+
+    <view class="card section-gap">
+      <view class="row-between">
+        <view class="section-title">作业图片</view>
+        <view class="muted small">最多 3 张</view>
+      </view>
+      <view wx:if="{{files.length}}" class="image-grid section-gap">
+        <view wx:for="{{files}}" wx:key="path" class="image-item">
+          <image class="preview-image" src="{{item.path}}" mode="aspectFill" data-path="{{item.path}}" bindtap="previewImage" />
+          <view class="row-between image-meta">
+            <view class="tiny muted image-name">{{item.name}}</view>
+            <button class="ghost-button mini-remove" data-index="{{index}}" bindtap="removeImage">删除</button>
+          </view>
+        </view>
+      </view>
+      <view class="action-row section-gap">
+        <button class="secondary-button" bindtap="chooseImages">选择图片</button>
+      </view>
+      <view class="helper-text">建议上传清晰、平整、光线充足的作文照片。</view>
+    </view>
+
+    <view class="card section-gap" wx:if="{{submitting || progress}}">
+      <view class="section-title">提交进度</view>
+      <progress class="score-bar" percent="{{progress}}" stroke-width="10" active color="#2563eb" />
+      <view class="helper-text">当前进度 {{progress}}%</view>
+    </view>
+
+    <view class="action-row section-gap">
+      <button class="primary-button" disabled="{{!canSubmit || !files.length}}" loading="{{submitting}}" bindtap="handleSubmit">提交并查看结果</button>
+    </view>
+  </block>
+</view>

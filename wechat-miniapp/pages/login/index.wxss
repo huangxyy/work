@@ -1,0 +1,9 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-hero {
+  margin-top: 8rpx;
+}

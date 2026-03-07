@@ -1,0 +1,85 @@
+.result-status {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.result-polling-card {
+  border: 1rpx solid rgba(37, 99, 235, 0.12);
+}
+
+.result-polling-text {
+  margin-top: 12rpx;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.timeline-dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.timeline-dot-active {
+  background: #2563eb;
+}
+
+.timeline-text {
+  color: #64748b;
+}
+
+.timeline-text-active {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.metric-item {
+  padding: 20rpx;
+  border-radius: 20rpx;
+  background: #f8fafc;
+}
+
+.tip-item {
+  padding: 24rpx;
+  border-radius: 22rpx;
+  background: #f8fafc;
+}
+
+.tip-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  margin-right: 16rpx;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #2563eb;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.tip-text {
+  flex: 1;
+  margin-top: 0;
+}
+
+.ocr-text {
+  white-space: pre-wrap;
+}

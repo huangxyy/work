@@ -1,0 +1,112 @@
+<view class="container safe-bottom">
+  <view class="hero-card">
+    <view class="title">我的提交记录</view>
+    <view class="subtitle">这里会汇总学生端所有提交，方便快速查看批改状态、分数和失败原因。</view>
+    <view class="kpi-grid">
+      <view class="kpi-item">
+        <view class="small">全部提交</view>
+        <view class="kpi-value">{{totalCount}}</view>
+      </view>
+      <view class="kpi-item">
+        <view class="small">已完成</view>
+        <view class="kpi-value">{{doneCount}}</view>
+      </view>
+      <view class="kpi-item">
+        <view class="small">处理中</view>
+        <view class="kpi-value">{{processingCount}}</view>
+      </view>
+      <view class="kpi-item">
+        <view class="small">失败</view>
+        <view class="kpi-value">{{failedCount}}</view>
+      </view>
+    </view>
+    <view class="quick-grid section-gap">
+      <view class="quick-card summary-card">
+        <view class="quick-card-title">平均分</view>
+        <view class="summary-value">{{averageScore}}</view>
+      </view>
+      <view class="quick-card summary-card">
+        <view class="quick-card-title">完成率</view>
+        <view class="summary-value">{{completionRate}}</view>
+      </view>
+    </view>
+    <view class="hero-action-row">
+      <button class="ghost-button" bindtap="goHomeworks">查看作业</button>
+      <button class="secondary-button" bindtap="goReport">学习报告</button>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="row-between">
+      <view class="section-title">筛选记录</view>
+      <button class="ghost-button filter-reset-button" bindtap="resetFilters">重置</button>
+    </view>
+    <view class="section-gap">
+      <view class="field-label">关键词</view>
+      <input class="field-input" placeholder="搜索作业标题" value="{{keyword}}" bindinput="handleKeywordInput" />
+    </view>
+    <view class="section-gap">
+      <view class="field-label">状态</view>
+      <picker mode="selector" range="{{statusOptions}}" range-key="label" value="{{statusIndex}}" bindchange="handleStatusChange">
+        <view class="field-picker">{{statusOptions[statusIndex].label}}</view>
+      </picker>
+    </view>
+    <view class="score-range-row section-gap">
+      <view class="score-range-item">
+        <view class="field-label">最低分</view>
+        <input class="field-input" type="number" placeholder="0" value="{{scoreMin}}" bindinput="handleScoreMinInput" />
+      </view>
+      <view class="score-range-item">
+        <view class="field-label">最高分</view>
+        <input class="field-input" type="number" placeholder="100" value="{{scoreMax}}" bindinput="handleScoreMaxInput" />
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{errorText}}" class="card section-gap">
+    <view class="error-state">
+      <view class="error-title">加载失败</view>
+      <view class="helper-text">{{errorText}}</view>
+      <view class="action-row section-gap">
+        <button class="secondary-button" bindtap="retryLoad">重新加载</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{loading}}" class="card section-gap">
+    <view class="empty-state">
+      <view class="empty-title">正在同步提交记录</view>
+      <view class="helper-text">请稍候，正在从后端获取最新状态。</view>
+    </view>
+  </view>
+
+  <view wx:elif="{{filteredList.length}}" class="list-stack section-gap">
+    <view wx:for="{{filteredList}}" wx:key="id" class="list-item submission-item">
+      <view class="row-between submission-top">
+        <view class="list-item-title submission-title">{{item.homeworkTitle}}</view>
+        <view class="status-pill {{item.statusMeta.className}}">{{item.statusMeta.label}}</view>
+      </view>
+      <view class="chip-row section-gap-small">
+        <view class="chip">图片 {{item.imageCountLabel}}</view>
+        <view class="chip">分数 {{item.scoreLabel}}</view>
+      </view>
+      <view class="list-item-desc">更新时间：{{item.updatedLabel}}</view>
+      <view wx:if="{{item.errorText}}" class="helper-text submission-error">失败原因：{{item.errorText}}</view>
+      <view class="action-row">
+        <button class="ghost-button" data-id="{{item.id}}" bindtap="goResult">查看结果</button>
+        <button wx:if="{{item.homeworkId}}" class="ghost-button" data-homeworkid="{{item.homeworkId}}" bindtap="goHomeworkDetail">作业详情</button>
+        <button wx:if="{{item.homeworkId}}" class="secondary-button" data-homeworkid="{{item.homeworkId}}" bindtap="goResubmit">再次提交</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="card section-gap">
+    <view class="empty-state">
+      <view class="empty-title">暂无匹配记录</view>
+      <view class="helper-text">你可以下拉刷新，或者调整筛选条件。</view>
+      <view wx:if="{{hasActiveFilters}}" class="action-row section-gap">
+        <button class="secondary-button" bindtap="resetFilters">重置筛选</button>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,45 @@
+.summary-card {
+  background: #ffffff;
+}
+
+.report-export-button {
+  min-width: 180rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  padding: 0 22rpx;
+  font-size: 24rpx;
+}
+
+.report-hero-text {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.report-refresh-text {
+  margin-top: 10rpx;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.report-empty-card {
+  border: 1rpx solid rgba(37, 99, 235, 0.12);
+}
+
+.report-empty-tip {
+  margin-top: 12rpx;
+}
+
+.summary-value {
+  margin-top: 14rpx;
+  font-size: 42rpx;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.trend-label,
+.comparison-label {
+  margin-top: 12rpx;
+}
+
+.comparison-block {
+  display: flex;
+  flex-direction: column;
+}
