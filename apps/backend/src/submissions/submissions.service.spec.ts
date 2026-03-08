@@ -97,6 +97,8 @@ describe('SubmissionsService', () => {
       submissionImage: {
         createMany: jest.fn(),
         create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       batchUpload: {
         create: jest.fn(),
@@ -127,6 +129,7 @@ describe('SubmissionsService', () => {
       getObject: jest.fn().mockResolvedValue(Buffer.from('test')),
       listObjectKeys: jest.fn().mockResolvedValue([]),
       deleteObjects: jest.fn().mockResolvedValue({ ok: 0, failed: [] }),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<StorageService>;
 
     queueService = {
@@ -2509,6 +2512,644 @@ describe('SubmissionsService', () => {
         mode: 'quality',
         needRewrite: true,
       });
+    });
+  });
+
+  describe('pure-logic helpers', () => {
+    it('should clean OCR text by removing student info headers', () => {
+      const raw = 'Name: John\nClass: 3A\nStudent ID: 12345\nDate: 2024-01-01\nHello world this is my essay.';
+      const cleaned = (service as any).cleanOcrText(raw);
+      expect(cleaned).not.toContain('Name: John');
+      expect(cleaned).not.toContain('Class: 3A');
+      expect(cleaned).not.toContain('Student ID: 12345');
+      expect(cleaned).toContain('Hello world this is my essay.');
+    });
+
+    it('should handle empty and null OCR text gracefully', () => {
+      expect((service as any).cleanOcrText('')).toBe('');
+      expect((service as any).cleanOcrText('plain text without headers')).toBe('plain text without headers');
+    });
+
+    it('should clean Chinese header patterns from OCR text', () => {
+      const raw = '姓名：张三\n班级：三年级一班\n学号：001\nMy essay content here.';
+      const cleaned = (service as any).cleanOcrText(raw);
+      expect(cleaned).not.toContain('姓名：张三');
+      expect(cleaned).toContain('My essay content here.');
+    });
+
+    it('should extract grading data from JSON values', () => {
+      const full = {
+        summary: 'Good work',
+        nextSteps: ['Practice more', 'Read books'],
+        errors: [{ type: 'grammar', message: 'wrong tense' }],
+        suggestions: { rewrite: 'Better version', sampleEssay: 'Sample text' },
+      };
+      const result = (service as any).extractGrading(full);
+      expect(result.summary).toBe('Good work');
+      expect(result.nextSteps).toEqual(['Practice more', 'Read books']);
+      expect(result.rewrite).toBe('Better version');
+      expect(result.sampleEssay).toBe('Sample text');
+      expect(result.errorCount).toBe(1);
+    });
+
+    it('should return defaults when grading JSON is null or malformed', () => {
+      const empty = (service as any).extractGrading(null);
+      expect(empty.summary).toBe('');
+      expect(empty.nextSteps).toEqual([]);
+      expect(empty.rewrite).toBe('');
+      expect(empty.sampleEssay).toBe('');
+      expect(empty.errorCount).toBe(0);
+
+      const arr = (service as any).extractGrading([1, 2, 3]);
+      expect(arr.summary).toBe('');
+    });
+
+    it('should sanitize CSV values to prevent formula injection', () => {
+      expect((service as any).sanitizeCsvValue('=SUM(A1)')).toBe("'=SUM(A1)");
+      expect((service as any).sanitizeCsvValue('+cmd')).toBe("'+cmd");
+      expect((service as any).sanitizeCsvValue('-data')).toBe("'-data");
+      expect((service as any).sanitizeCsvValue('@import')).toBe("'@import");
+      expect((service as any).sanitizeCsvValue('normal text')).toBe('normal text');
+    });
+
+    it('should format CSV rows with proper quoting and escaping', () => {
+      expect((service as any).toCsvRow(['hello', 'world'])).toBe('hello,world');
+      expect((service as any).toCsvRow([null, undefined])).toBe(',');
+      expect((service as any).toCsvRow(['has,comma'])).toBe('"has,comma"');
+      expect((service as any).toCsvRow(['has"quote'])).toBe('"has""quote"');
+      expect((service as any).toCsvRow(['line\nbreak'])).toBe('"line\nbreak"');
+      expect((service as any).toCsvRow([42, null])).toBe('42,');
+    });
+
+    it('should format print dates as Y.M.D', () => {
+      const date = new Date(2025, 2, 7);
+      expect((service as any).formatPrintDate(date)).toBe('2025.3.7');
+    });
+
+    it('should detect Chinese language correctly', () => {
+      expect((service as any).isZhLang('zh')).toBe(true);
+      expect((service as any).isZhLang('zh-CN')).toBe(true);
+      expect((service as any).isZhLang('en')).toBe(false);
+      expect((service as any).isZhLang(undefined)).toBe(false);
+      expect((service as any).isZhLang('')).toBe(false);
+    });
+
+    it('should safely coerce JSON values to objects', () => {
+      expect((service as any).asObject(null)).toBeNull();
+      expect((service as any).asObject('string')).toBeNull();
+      expect((service as any).asObject(42)).toBeNull();
+      expect((service as any).asObject([1, 2])).toBeNull();
+      expect((service as any).asObject({ key: 'value' })).toEqual({ key: 'value' });
+    });
+
+    it('should truncate text for print packets via extractGrading truncation', () => {
+      const grading = {
+        summary: 'a'.repeat(800),
+        nextSteps: ['step1'],
+        errors: [],
+        suggestions: { rewrite: 'b'.repeat(1200), sampleEssay: 'sample' },
+      };
+      const result = (service as any).extractGrading(grading);
+      expect(result.summary).toBe('a'.repeat(800));
+      expect(result.rewrite).toBe('b'.repeat(1200));
+    });
+
+    it('should format short dates for submission grading sheets', () => {
+      const date = new Date(2025, 11, 25);
+      const result = (service as any).formatDateShort(date);
+      expect(result).toContain('2025');
+    });
+  });
+
+  describe('cleanupOldSubmissionImages', () => {
+    it('should skip cleanup when there are no old submissions', async () => {
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([]);
+
+      await (service as any).cleanupOldSubmissionImages('homework-1', 'student-1');
+
+      expect(prismaService.submissionImage.findMany).not.toHaveBeenCalled();
+      expect((storageService as any).deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('should skip cleanup when only one submission exists', async () => {
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([{ id: 'sub-1' }]);
+
+      await (service as any).cleanupOldSubmissionImages('homework-1', 'student-1');
+
+      expect(prismaService.submissionImage.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should delete images from older submissions while keeping the latest', async () => {
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([
+        { id: 'sub-latest' },
+        { id: 'sub-old-1' },
+        { id: 'sub-old-2' },
+      ]);
+      prismaService.submissionImage.findMany = jest.fn().mockResolvedValue([
+        { id: 'img-1', objectKey: 'key-1' },
+        { id: 'img-2', objectKey: 'key-2' },
+      ]);
+
+      await (service as any).cleanupOldSubmissionImages('homework-1', 'student-1');
+
+      expect(prismaService.submissionImage.findMany).toHaveBeenCalledWith({
+        where: { submissionId: { in: ['sub-old-1', 'sub-old-2'] } },
+        select: { id: true, objectKey: true },
+      });
+      expect((storageService as any).deleteObject).toHaveBeenCalledTimes(2);
+      expect(prismaService.submissionImage.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['img-1', 'img-2'] } },
+      });
+    });
+
+    it('should log warnings when some image deletions fail but still remove DB records', async () => {
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([
+        { id: 'sub-latest' },
+        { id: 'sub-old' },
+      ]);
+      prismaService.submissionImage.findMany = jest.fn().mockResolvedValue([
+        { id: 'img-1', objectKey: 'key-1' },
+      ]);
+      (storageService as any).deleteObject = jest.fn().mockRejectedValue(new Error('storage error'));
+
+      await (service as any).cleanupOldSubmissionImages('homework-1', 'student-1');
+
+      expect(prismaService.submissionImage.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['img-1'] } },
+      });
+    });
+
+    it('should skip DB deletion when old submissions have no images', async () => {
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([
+        { id: 'sub-latest' },
+        { id: 'sub-old' },
+      ]);
+      prismaService.submissionImage.findMany = jest.fn().mockResolvedValue([]);
+
+      await (service as any).cleanupOldSubmissionImages('homework-1', 'student-1');
+
+      expect((storageService as any).deleteObject).not.toHaveBeenCalled();
+      expect(prismaService.submissionImage.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('addTeacherFeedback', () => {
+    it('should throw NotFoundException when the submission does not exist', async () => {
+      prismaService.submission.findFirst = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        service.addTeacherFeedback('nonexistent', { comment: 'good' }, mockTeacher),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException when the teacher does not own the class', async () => {
+      prismaService.submission.findFirst = jest.fn().mockResolvedValue({
+        id: 'submission-1',
+        homework: { class: { teachers: [{ id: 'other-teacher' }] } },
+      });
+
+      await expect(
+        service.addTeacherFeedback('submission-1', { comment: 'good' }, mockTeacher),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should update feedback when the teacher is authorized', async () => {
+      prismaService.submission.findFirst = jest.fn().mockResolvedValue({
+        id: 'submission-1',
+        homework: { class: { teachers: [{ id: 'teacher-1' }] } },
+      });
+      prismaService.submission.update = jest.fn().mockResolvedValue({
+        id: 'submission-1',
+        teacherComment: 'well done',
+        manualScore: 95,
+        reviewedBy: 'teacher-1',
+        reviewedAt: new Date(),
+      });
+
+      const result = await service.addTeacherFeedback(
+        'submission-1',
+        { comment: 'well done', manualScore: 95 },
+        mockTeacher,
+      );
+
+      expect(result.teacherComment).toBe('well done');
+      expect(result.manualScore).toBe(95);
+      expect(prismaService.submission.update).toHaveBeenCalledWith({
+        where: { id: 'submission-1' },
+        data: {
+          teacherComment: 'well done',
+          manualScore: 95,
+          reviewedBy: 'teacher-1',
+          reviewedAt: expect.any(Date),
+        },
+        select: { id: true, teacherComment: true, manualScore: true, reviewedBy: true, reviewedAt: true },
+      });
+    });
+
+    it('should allow admin to add feedback for any submission', async () => {
+      prismaService.submission.findFirst = jest.fn().mockResolvedValue({
+        id: 'submission-1',
+        homework: { class: { teachers: [{ id: 'other-teacher' }] } },
+      });
+      prismaService.submission.update = jest.fn().mockResolvedValue({
+        id: 'submission-1',
+        teacherComment: 'admin note',
+        manualScore: null,
+        reviewedBy: 'admin-1',
+        reviewedAt: new Date(),
+      });
+
+      const result = await service.addTeacherFeedback(
+        'submission-1',
+        { comment: 'admin note' },
+        mockAdmin,
+      );
+
+      expect(result.teacherComment).toBe('admin note');
+    });
+  });
+
+  describe('batch status edge cases', () => {
+    it('should skip groups with null batchId when computing batch statuses', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findMany = jest.fn().mockResolvedValue([
+        { id: 'batch-1', homeworkId: 'homework-1', createdSubmissions: 2, totalImages: 2, matchedImages: 2, unmatchedCount: 0, skipped: [], uploader: {}, createdAt: new Date() },
+      ]);
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([
+        { batchId: null, status: 'DONE', _count: { _all: 1 } },
+        { batchId: 'batch-1', status: 'DONE', _count: { _all: 1 } },
+        { batchId: 'batch-1', status: 'FAILED', _count: { _all: 1 } },
+      ]);
+
+      const result = await service.listBatchUploads('homework-1', mockTeacher);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].status).toBe('PARTIAL');
+    });
+
+    it('should compute PARTIAL status when some submissions are done and some failed', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findFirst = jest.fn().mockResolvedValue({
+        id: 'batch-1',
+        homeworkId: 'homework-1',
+        createdSubmissions: 3,
+        homework: { id: 'homework-1', title: 'Test' },
+        totalImages: 3,
+        matchedImages: 3,
+        unmatchedCount: 0,
+        skipped: [],
+        uploader: { id: 'teacher-1', name: 'Teacher', account: 'teacher1' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        needRewrite: false,
+      });
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([
+        { status: 'DONE', _count: { _all: 1 } },
+        { status: 'FAILED', _count: { _all: 2 } },
+      ]);
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([]);
+
+      const result = await service.getBatchUploadDetail('batch-1', mockTeacher);
+
+      expect(result.status).toBe('PARTIAL');
+    });
+
+    it('should return FAILED status when all submissions failed in a batch', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findMany = jest.fn().mockResolvedValue([
+        { id: 'batch-1', homeworkId: 'homework-1', createdSubmissions: 2, totalImages: 2, matchedImages: 2, unmatchedCount: 0, skipped: [], uploader: {}, createdAt: new Date() },
+      ]);
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([
+        { batchId: 'batch-1', status: 'FAILED', _count: { _all: 2 } },
+      ]);
+
+      const result = await service.listBatchUploads('homework-1', mockTeacher);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].status).toBe('FAILED');
+    });
+  });
+
+  describe('config helpers', () => {
+    it('should read OCR config from system config service', async () => {
+      (systemConfigService as any).getValue = jest.fn().mockResolvedValue({
+        apiKey: ' key123 ',
+        secretKey: ' secret456 ',
+      });
+
+      const config = await (service as any).getOcrConfig();
+
+      expect(config.apiKey).toBe('key123');
+      expect(config.secretKey).toBe('secret456');
+    });
+
+    it('should check late submission config for a specific homework', async () => {
+      (systemConfigService as any).getValue = jest.fn().mockResolvedValue(true);
+
+      const result = await (service as any).isLateSubmissionAllowed('homework-1');
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when late submission config is not set', async () => {
+      (systemConfigService as any).getValue = jest.fn().mockResolvedValue(null);
+
+      const result = await (service as any).isLateSubmissionAllowed('homework-1');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('array and file utilities', () => {
+    it('should split arrays into chunks of the requested size', () => {
+      const result = (service as any).chunkArray([1, 2, 3, 4, 5], 2);
+      expect(result).toEqual([[1, 2], [3, 4], [5]]);
+    });
+
+    it('should return empty array when chunking an empty array', () => {
+      expect((service as any).chunkArray([], 3)).toEqual([]);
+    });
+
+    it('should handle chunk size larger than array length', () => {
+      expect((service as any).chunkArray([1, 2], 10)).toEqual([[1, 2]]);
+    });
+
+    it('should cleanup temp files and swallow errors', async () => {
+      const paths = new Set(['/tmp/a.jpg', '/tmp/b.jpg']);
+      const unlinkSpy = jest.spyOn(require('fs/promises'), 'unlink').mockResolvedValue(undefined);
+
+      await (service as any).cleanupTempFiles(paths);
+
+      expect(unlinkSpy).toHaveBeenCalledTimes(2);
+      unlinkSpy.mockRestore();
+    });
+  });
+
+  describe('print packet grading helpers', () => {
+    it('should read strings and trim text with limits', () => {
+      expect((service as any).readString('  hello  ')).toBe('hello');
+      expect((service as any).readString(42)).toBe('');
+      expect((service as any).readString(null)).toBe('');
+
+      expect((service as any).trimText('', 100)).toBe('');
+      expect((service as any).trimText('short', 100)).toBe('short');
+      const long = 'x'.repeat(50);
+      const trimmed = (service as any).trimText(long, 10);
+      expect(trimmed.endsWith('...')).toBe(true);
+      expect(trimmed.length).toBeLessThanOrEqual(12);
+    });
+
+    it('should extract print packet grading with truncation and error filtering', () => {
+      const grading = {
+        summary: 'a'.repeat(800),
+        nextSteps: ['step1', '', 'step2', 42],
+        errors: [
+          { type: 'grammar', message: 'wrong tense', original: 'he go', suggestion: 'he goes' },
+          { type: '', message: '', original: '', suggestion: '' },
+          null,
+        ],
+        suggestions: { rewrite: 'better text', sampleEssay: 'sample' },
+      };
+      const result = (service as any).extractPrintPacketGrading(grading);
+      expect(result.summary.length).toBeLessThan(800);
+      expect(result.summary.endsWith('...')).toBe(true);
+      expect(result.nextSteps).toContain('step1');
+      expect(result.nextSteps).toContain('step2');
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].type).toBe('grammar');
+      expect(result.rewrite).toBe('better text');
+      expect(result.sampleEssay).toBe('sample');
+    });
+
+    it('should return defaults when print packet grading is null', () => {
+      const result = (service as any).extractPrintPacketGrading(null);
+      expect(result.summary).toBe('');
+      expect(result.nextSteps).toEqual([]);
+      expect(result.errors).toEqual([]);
+      expect(result.rewrite).toBe('');
+      expect(result.sampleEssay).toBe('');
+    });
+  });
+
+  describe('export header and status helpers', () => {
+    it('should return English student export headers when lang is en', () => {
+      const headers = (service as any).getStudentExportHeaders('en');
+      expect(headers).toContain('submissionId');
+      expect(headers).toContain('totalScore');
+    });
+
+    it('should return Chinese student export headers when lang is zh', () => {
+      const headers = (service as any).getStudentExportHeaders('zh');
+      expect(headers).toContain('提交ID');
+    });
+
+    it('should return English homework export headers when lang is en', () => {
+      const headers = (service as any).getHomeworkExportHeaders('en');
+      expect(headers).toContain('studentName');
+      expect(headers).toContain('errorCount');
+    });
+
+    it('should return English reminder export headers when lang is en', () => {
+      const headers = (service as any).getReminderExportHeaders('en');
+      expect(headers).toContain('studentName');
+      expect(headers).toContain('classId');
+    });
+
+    it('should return localized status labels', () => {
+      expect((service as any).getStatusLabel('DONE', 'zh')).toBe('完成');
+      expect((service as any).getStatusLabel('DONE', 'en')).toBe('Done');
+      expect((service as any).getStatusLabel('FAILED', 'zh')).toBe('失败');
+      expect((service as any).getStatusLabel('QUEUED', 'en')).toBe('Queued');
+    });
+  });
+
+  describe('resolvePdfFont', () => {
+    it('should return Helvetica for non-Chinese language', () => {
+      expect((service as any).resolvePdfFont('en')).toBe('Helvetica');
+      expect((service as any).resolvePdfFont(undefined)).toBe('Helvetica');
+    });
+
+    it('should fall back to Helvetica when no CJK font files exist for zh', () => {
+      const result = (service as any).resolvePdfFont('zh');
+      expect(typeof result).toBe('string');
+    });
+  });
+
+  describe('getBatchUploadDetail status branches', () => {
+    const makeBatch = (createdSubmissions: number) => ({
+      id: 'batch-1',
+      homeworkId: 'homework-1',
+      createdSubmissions,
+      homework: { id: 'homework-1', title: 'Test' },
+      totalImages: createdSubmissions,
+      matchedImages: createdSubmissions,
+      unmatchedCount: 0,
+      skipped: [],
+      uploader: { id: 'teacher-1', name: 'Teacher', account: 'teacher1' },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      needRewrite: false,
+    });
+
+    it('should return DONE status when all submissions are done', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findFirst = jest.fn().mockResolvedValue(makeBatch(3));
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([
+        { status: 'DONE', _count: { _all: 3 } },
+      ]);
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([]);
+
+      const result = await service.getBatchUploadDetail('batch-1', mockTeacher);
+      expect(result.status).toBe('DONE');
+    });
+
+    it('should return FAILED status when all submissions failed', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findFirst = jest.fn().mockResolvedValue(makeBatch(2));
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([
+        { status: 'FAILED', _count: { _all: 2 } },
+      ]);
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([]);
+
+      const result = await service.getBatchUploadDetail('batch-1', mockTeacher);
+      expect(result.status).toBe('FAILED');
+    });
+
+    it('should return PROCESSING status when some submissions are queued', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findFirst = jest.fn().mockResolvedValue(makeBatch(3));
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([
+        { status: 'QUEUED', _count: { _all: 1 } },
+        { status: 'DONE', _count: { _all: 2 } },
+      ]);
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([]);
+
+      const result = await service.getBatchUploadDetail('batch-1', mockTeacher);
+      expect(result.status).toBe('PROCESSING');
+    });
+
+    it('should return EMPTY status when batch has zero created submissions', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findFirst = jest.fn().mockResolvedValue(makeBatch(0));
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([]);
+      prismaService.submission.findMany = jest.fn().mockResolvedValue([]);
+
+      const result = await service.getBatchUploadDetail('batch-1', mockTeacher);
+      expect(result.status).toBe('EMPTY');
+    });
+  });
+
+  describe('createSubmission edge branches', () => {
+    const validFiles = [
+      { originalname: 'test.jpg', mimetype: 'image/jpeg', buffer: Buffer.from('img'), size: 100 } as Express.Multer.File,
+    ];
+
+    it('should reject overdue homework when late submission is not allowed', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue({
+        ...mockHomework,
+        dueAt: new Date(Date.now() - 86400000),
+      });
+      jest.spyOn(service as any, 'isLateSubmissionAllowed').mockResolvedValue(false);
+
+      await expect(
+        service.createSubmission({ homeworkId: 'homework-1' }, validFiles, mockStudent),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow overdue homework when late submission is enabled', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue({
+        ...mockHomework,
+        dueAt: new Date(Date.now() - 86400000),
+      });
+      jest.spyOn(service as any, 'isLateSubmissionAllowed').mockResolvedValue(true);
+      prismaService.submission.findFirst = jest.fn().mockResolvedValue(null);
+      prismaService.submission.create = jest.fn().mockResolvedValue(mockSubmission);
+      prismaService.submissionImage.createMany = jest.fn().mockResolvedValue({ count: 1 });
+
+      const result = await service.createSubmission({ homeworkId: 'homework-1' }, validFiles, mockStudent);
+
+      expect(result.submissionId).toBe('submission-1');
+    });
+
+    it('should reject when an active submission already exists for the same homework', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.submission.findFirst = jest.fn().mockResolvedValue({
+        id: 'active-sub',
+        status: SubmissionStatus.QUEUED,
+      });
+
+      await expect(
+        service.createSubmission({ homeworkId: 'homework-1' }, validFiles, mockStudent),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should swallow cleanupOldSubmissionImages errors without failing submission', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.submission.findFirst = jest.fn().mockResolvedValue(null);
+      prismaService.submission.create = jest.fn().mockResolvedValue(mockSubmission);
+      prismaService.submissionImage.createMany = jest.fn().mockResolvedValue({ count: 1 });
+      jest.spyOn(service as any, 'cleanupOldSubmissionImages').mockRejectedValue(new Error('cleanup fail'));
+
+      const result = await service.createSubmission({ homeworkId: 'homework-1' }, validFiles, mockStudent);
+
+      expect(result.submissionId).toBe('submission-1');
+    });
+  });
+
+  describe('getSubmission role fallthrough', () => {
+    it('should throw ForbiddenException for unrecognized role', async () => {
+      const weirdUser = { id: 'user-x', role: 'UNKNOWN' as any, account: 'x', name: 'X' };
+      prismaService.submission.findUnique = jest.fn().mockResolvedValue(null);
+
+      await expect(service.getSubmission('sub-1', weirdUser)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('listBatchUploads PROCESSING status via groupBy', () => {
+    it('should compute PROCESSING status when groupBy includes PROCESSING submissions', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.batchUpload.findMany = jest.fn().mockResolvedValue([
+        { id: 'batch-1', homeworkId: 'homework-1', createdSubmissions: 3, totalImages: 3, matchedImages: 3, unmatchedCount: 0, skipped: [], uploader: {}, createdAt: new Date() },
+      ]);
+      prismaService.submission.groupBy = jest.fn().mockResolvedValue([
+        { batchId: 'batch-1', status: 'PROCESSING', _count: { _all: 1 } },
+        { batchId: 'batch-1', status: 'DONE', _count: { _all: 2 } },
+      ]);
+
+      const result = await service.listBatchUploads('homework-1', mockTeacher);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].status).toBe('PROCESSING');
+    });
+  });
+
+  describe('name override resolution in createBatchSubmissions', () => {
+    it('should warn when name override resolution fails but continue processing', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.enrollment.findMany = jest.fn().mockResolvedValue([
+        { student: { id: 'student-1', account: 'student1', name: 'Test Student' } },
+      ]);
+
+      jest.spyOn(service as any, 'getOcrConfig').mockResolvedValue({});
+      jest.spyOn(service as any, 'resolveStudentByName').mockResolvedValue(null);
+      jest.spyOn(service as any, 'generateThumbnail').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'storeStagingImage').mockResolvedValue(undefined);
+
+      const result = await service.createBatchSubmissions(
+        {
+          homeworkId: 'homework-1',
+          dryRun: true,
+          nameOverrides: JSON.stringify({ 'image:0:test.jpg': '不存在的名字' }),
+        },
+        {
+          images: [
+            { originalname: 'student1.jpg', mimetype: 'image/jpeg', buffer: Buffer.from('img'), size: 100 } as Express.Multer.File,
+          ],
+        },
+        mockTeacher,
+      );
+
+      expect(result.preview).toBeDefined();
     });
   });
 });
