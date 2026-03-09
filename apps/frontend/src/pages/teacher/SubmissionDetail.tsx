@@ -64,7 +64,7 @@ export const TeacherSubmissionDetailPage = () => {
   const [feedbackScore, setFeedbackScore] = useState<number | null>(data?.manualScore ?? null);
 
   useEffect(() => {
-    if (data) {
+    if (data) { // eslint-disable-line react-hooks/exhaustive-deps
       setFeedbackComment(data.teacherComment || '');
       setFeedbackScore(data.manualScore ?? null);
     }
