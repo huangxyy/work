@@ -7,4 +7,12 @@ module.exports = {
   coverageDirectory: '../coverage',
   testEnvironment: 'node',
   moduleNameMapper: { '^src/(.*)$': '<rootDir>/$1' },
+  coverageThreshold: {
+    global: {
+      statements: 50,
+      branches: 40,
+      functions: 40,
+      lines: 50,
+    },
+  },
 };

@@ -30,6 +30,34 @@ jobs:
       - name: Run ESLint
         run: pnpm lint
 
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit backend dependencies
+        run: pnpm --filter backend audit --audit-level=high
+        continue-on-error: true
+
+      - name: Audit frontend dependencies
+        run: pnpm --filter frontend audit --audit-level=high
+        continue-on-error: true
+
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
@@ -79,16 +107,19 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter backend prisma:generate
 
-      - name: Run tests
-        run: pnpm test
+      - name: Run backend tests
+        run: pnpm --filter backend test
 
-      - name: Run tests with coverage
-        run: pnpm test:cov
+      - name: Run backend tests with coverage
+        run: pnpm --filter backend test:cov
 
-      - name: Upload coverage report
+      - name: Run frontend tests
+        run: pnpm --filter frontend test
+
+      - name: Upload backend coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: backend-coverage-report
           path: apps/backend/coverage
           retention-days: 7
 

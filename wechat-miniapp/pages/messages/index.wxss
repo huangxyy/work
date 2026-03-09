@@ -1,0 +1,87 @@
+.msg-tab-row {
+  display: flex;
+  gap: 12rpx;
+}
+
+.msg-tab {
+  flex: 1;
+  text-align: center;
+  padding: 18rpx 0;
+  border-radius: 18rpx;
+  font-size: 28rpx;
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.msg-tab-active {
+  color: #ffffff;
+  background: #2563eb;
+  font-weight: 600;
+}
+
+.msg-item {
+  position: relative;
+  padding: 28rpx;
+}
+
+.msg-item-read {
+  opacity: 0.65;
+}
+
+.msg-type-badge {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.msg-type-announcement {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.msg-title {
+  margin-top: 14rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.msg-body {
+  margin-top: 10rpx;
+  line-height: 1.5;
+}
+
+.msg-author {
+  margin-top: 10rpx;
+}
+
+.msg-unread-dot {
+  position: absolute;
+  top: 18rpx;
+  right: 18rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.msg-pinned-badge {
+  display: inline-block;
+  margin-top: 10rpx;
+  padding: 2rpx 14rpx;
+  border-radius: 10rpx;
+  font-size: 20rpx;
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.msg-mark-all-btn {
+  min-width: 140rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 18rpx;
+  font-size: 24rpx;
+}

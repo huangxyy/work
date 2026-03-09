@@ -27,6 +27,26 @@ async function fetchMe() {
   });
 }
 
+async function changePassword(oldPassword, newPassword) {
+  return request({
+    url: '/auth/change-password',
+    method: 'POST',
+    data: { oldPassword, newPassword },
+  });
+}
+
+async function updateProfile(data) {
+  const result = await request({
+    url: '/auth/profile',
+    method: 'PATCH',
+    data,
+  });
+  if (result && result.id) {
+    setUser(result);
+  }
+  return result;
+}
+
 async function logout() {
   try {
     await request({
@@ -46,4 +66,6 @@ module.exports = {
   login,
   fetchMe,
   logout,
+  changePassword,
+  updateProfile,
 };

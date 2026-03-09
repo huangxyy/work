@@ -13,6 +13,39 @@
   color: #2563eb;
 }
 
+.todo-subtitle {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 12rpx;
+}
+
+.todo-item {
+  padding: 20rpx;
+  border-radius: 16rpx;
+  background: #f8fafc;
+  margin-bottom: 12rpx;
+}
+
+.todo-urgent {
+  background: #fef3c7;
+}
+
+.todo-item-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #0f172a;
+  flex: 1;
+  margin-right: 16rpx;
+}
+
+.todo-countdown {
+  font-size: 24rpx;
+  color: #d97706;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .draft-badge {
   margin-top: 12rpx;
   color: #2563eb;

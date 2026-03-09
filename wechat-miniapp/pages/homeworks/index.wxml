@@ -27,6 +27,38 @@
     <view class="hero-action-row">
       <button class="ghost-button" bindtap="goSubmissions">查看提交记录</button>
       <button class="secondary-button" bindtap="goReport">学习报告</button>
+      <button class="ghost-button" bindtap="goMessages">消息{{unreadCount > 0 ? ' (' + unreadCount + ')' : ''}}</button>
+    </view>
+  </view>
+
+  <view wx:if="{{urgentList.length || pendingResultList.length}}" class="card section-gap">
+    <view class="row-between" bindtap="toggleTodoSection">
+      <view class="section-title">待办事项</view>
+      <view class="muted small">{{showTodoSection ? '收起' : '展开'}}</view>
+    </view>
+
+    <view wx:if="{{showTodoSection}}">
+      <view wx:if="{{urgentList.length}}" class="section-gap">
+        <view class="todo-subtitle">即将截止 ({{urgentList.length}})</view>
+        <view wx:for="{{urgentList}}" wx:key="id" class="todo-item todo-urgent" data-id="{{item.id}}" bindtap="goDetail">
+          <view class="row-between">
+            <view class="todo-item-title">{{item.title}}</view>
+            <view class="todo-countdown">⚠ {{item.urgentLabel}}</view>
+          </view>
+          <view class="muted small">截止：{{item.dueLabel}} · {{item.className}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{pendingResultList.length}}" class="section-gap">
+        <view class="todo-subtitle">待查看结果 ({{pendingResultList.length}})</view>
+        <view wx:for="{{pendingResultList}}" wx:key="id" class="todo-item" data-id="{{item.id}}" bindtap="goSubmissionResult">
+          <view class="row-between">
+            <view class="todo-item-title">{{item.homeworkTitle}}</view>
+            <view class="status-pill status-processing">{{item.statusLabel}}</view>
+          </view>
+          <view class="muted small">提交于 {{item.timeLabel}}</view>
+        </view>
+      </view>
     </view>
   </view>
 

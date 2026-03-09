@@ -1,6 +1,6 @@
 # 项目概览（Homework AI）
 
-最后更新：2026-02-04
+最后更新：2026-03-09
 
 ## 简介
 
@@ -23,7 +23,7 @@ Homework AI 是一个"作业图片 -> OCR -> LLM 批改"的全链路系统，支
 |------|------|
 | **STUDENT** | 提交作业、查看自己的提交、查看学生报告 |
 | **TEACHER** | 管理班级、创建作业、查看班级提交、查看教师报告 |
-| **ADMIN** | 拥有教师权限 + 系统配置、手动数据清理 |
+| **ADMIN** | 拥有教师权限 + 系统配置、用户管理、队列管理、提交诊断、LLM 日志审计、数据清理 |
 
 ## 技术架构
 
@@ -52,25 +52,29 @@ Homework AI 是一个"作业图片 -> OCR -> LLM 批改"的全链路系统，支
 ## 目录结构
 
 ```
-apps/
-├── backend/               # 后端
-│   ├── prisma/           # 数据库模型
-│   ├── src/
-│   │   ├── admin/        # 管理员功能
-│   │   ├── auth/         # JWT认证
-│   │   ├── classes/      # 班级管理
-│   │   ├── grading/      # AI批改服务
-│   │   ├── homeworks/    # 作业管理
-│   │   ├── ocr/          # 百度OCR
-│   │   ├── queue/        # BullMQ队列
-│   │   ├── reports/      # 报表
-│   │   ├── retention/    # 数据清理
-│   │   ├── storage/      # MinIO存储
-│   │   ├── submissions/  # 提交管理
-│   │   └── worker/       # 后台Worker
-│   └── .env              # 环境配置
-├── frontend/             # 前端
-└── deploy/               # Docker配置
+work/
+├── apps/
+│   ├── backend/           # NestJS 后端
+│   │   ├── prisma/       # 数据库模型
+│   │   └── src/
+│   │       ├── admin/        # 管理员功能
+│   │       ├── auth/         # JWT认证、账号锁定、Token黑名单
+│   │       ├── classes/      # 班级管理
+│   │       ├── common/       # 安全、审计、日志、拦截器
+│   │       ├── grading/      # AI批改服务
+│   │       ├── homeworks/    # 作业管理
+│   │       ├── notifications/ # 通知系统
+│   │       ├── ocr/          # 百度OCR
+│   │       ├── queue/        # BullMQ队列
+│   │       ├── reports/      # 报表
+│   │       ├── retention/    # 数据清理
+│   │       ├── storage/      # MinIO存储
+│   │       ├── submissions/  # 提交管理
+│   │       └── worker/       # 后台Worker
+│   └── frontend/          # React 前端
+├── wechat-miniapp/        # 微信小程序（学生端）
+├── deploy/                # 部署配置与运维脚本
+└── docs/                  # 项目文档
 ```
 
 ## 批改流程
@@ -175,20 +179,17 @@ pnpm --filter backend prisma:db:seed
 
 终端1 - API服务器：
 ```bash
-cd apps/backend
-npm run start:dev
+pnpm dev:backend
 ```
 
 终端2 - Worker进程：
 ```bash
-cd apps/backend
-npm run start:worker:dev
+pnpm dev:worker
 ```
 
 终端3 - 前端：
 ```bash
-cd apps/frontend
-npm run dev
+pnpm dev:frontend
 ```
 
 ### 5. 访问应用
@@ -220,8 +221,11 @@ A: 检查后端API(3000)和前端(3001)是否运行。
 ## 相关文档
 
 - [README.md](../README.md) - 项目说明
-- [QUICK_START.md](QUICK_START.md) - 快速启动指南
 - [ARCH.md](ARCH.md) - 架构说明
-- [RUNBOOK.md](RUNBOOK.md) - 运维手册
 - [API.md](API.md) - API文档
+- [DEVELOPMENT.md](DEVELOPMENT.md) - 开发指南
+- [DEPLOY.md](DEPLOY.md) - 部署指南
+- [RUNBOOK.md](RUNBOOK.md) - 运维手册
+- [HANDOVER.md](HANDOVER.md) - 交接文档
 - [future-roadmap.md](future-roadmap.md) - 开发路线图
+- [AI_GRADING_CAPABILITY_MATRIX.md](AI_GRADING_CAPABILITY_MATRIX.md) - 能力矩阵

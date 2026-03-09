@@ -1,5 +1,7 @@
 const { fetchStudentHomeworks } = require('../../services/homeworks');
 const { fetchStudentReportOverview } = require('../../services/reports');
+const { fetchStudentSubmissions } = require('../../services/submissions');
+const { fetchUnreadCount } = require('../../services/notifications');
 const { hasSubmitDraft } = require('../../lib/draft');
 const { ensureLogin, syncUser, getUser } = require('../../lib/page');
 const { showToast } = require('../../lib/ui');
@@ -60,6 +62,10 @@ Page({
     reportAvgScore: '--',
     reportSubmissionCount: 0,
     reportNextStep: '继续保持提交频率，系统会逐步沉淀更稳定的学习建议。',
+    urgentList: [],
+    pendingResultList: [],
+    unreadCount: 0,
+    showTodoSection: true,
   },
   onLoad() {
     this.setData(getStoredFilters());
@@ -115,9 +121,11 @@ Page({
     }
     this.setData({ loading: true, errorText: '' });
     try {
-      const [homeworksResult, reportResult] = await Promise.allSettled([
+      const [homeworksResult, reportResult, submissionsResult, unreadResult] = await Promise.allSettled([
         fetchStudentHomeworks(),
         fetchStudentReportOverview(7),
+        fetchStudentSubmissions({ status: 'QUEUED,PROCESSING' }),
+        fetchUnreadCount(),
       ]);
       if (homeworksResult.status !== 'fulfilled') {
         throw homeworksResult.reason;
@@ -130,8 +138,31 @@ Page({
       const report = reportResult.status === 'fulfilled' ? reportResult.value : null;
       const summary = report && report.summary ? report.summary : null;
       const nextSteps = report && Array.isArray(report.nextSteps) ? report.nextSteps : [];
+      const now = Date.now();
+      const urgentThreshold = 48 * 60 * 60 * 1000;
+      const urgentList = list.filter((item) => {
+        if (item.status.key !== 'open' || !item.dueAt) return false;
+        const diff = new Date(item.dueAt).getTime() - now;
+        return diff > 0 && diff <= urgentThreshold;
+      }).map((item) => {
+        const hoursLeft = Math.max(0, Math.round((new Date(item.dueAt).getTime() - now) / 3600000));
+        return { ...item, urgentLabel: hoursLeft <= 1 ? '不足 1 小时' : `剩余 ${hoursLeft} 小时` };
+      });
+      const pendingSubmissions = submissionsResult.status === 'fulfilled'
+        ? (Array.isArray(submissionsResult.value) ? submissionsResult.value : (submissionsResult.value && submissionsResult.value.data ? submissionsResult.value.data : []))
+        : [];
+      const pendingResultList = pendingSubmissions.slice(0, 5).map((sub) => ({
+        ...sub,
+        statusLabel: sub.status === 'QUEUED' ? '排队中' : '批改中',
+        homeworkTitle: sub.homework && sub.homework.title ? sub.homework.title : '作业',
+        timeLabel: sub.createdAt ? formatDateTime(sub.createdAt) : '',
+      }));
+      const unreadCount = unreadResult.status === 'fulfilled' && unreadResult.value && typeof unreadResult.value.count === 'number' ? unreadResult.value.count : 0;
       this.setData({
         list,
+        urgentList,
+        pendingResultList,
+        unreadCount,
         reportAvgScore: summary && typeof summary.avg === 'number' ? summary.avg.toFixed(1) : '--',
         reportSubmissionCount: summary && typeof summary.count === 'number' ? summary.count : 0,
         reportNextStep: nextSteps.length && nextSteps[0] && nextSteps[0].text
@@ -214,5 +245,16 @@ Page({
   },
   retryLoad() {
     this.loadData();
+  },
+  toggleTodoSection() {
+    this.setData({ showTodoSection: !this.data.showTodoSection });
+  },
+  goMessages() {
+    wx.navigateTo({ url: '/pages/messages/index' });
+  },
+  goSubmissionResult(event) {
+    const { id } = event.currentTarget.dataset;
+    if (!id) return;
+    wx.navigateTo({ url: `/pages/submission-result/index?id=${id}` });
   },
 });

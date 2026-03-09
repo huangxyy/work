@@ -17,6 +17,13 @@
   <view class="card section-gap">
     <view class="section-title">快捷入口</view>
     <view class="quick-grid section-gap">
+      <view class="quick-card" bindtap="goMessages">
+        <view class="row-between">
+          <view class="quick-card-title">消息中心</view>
+          <view wx:if="{{unreadCount > 0}}" class="unread-badge">{{unreadCount > 99 ? '99+' : unreadCount}}</view>
+        </view>
+        <view class="quick-card-desc">查看通知和班级公告。</view>
+      </view>
       <view class="quick-card" bindtap="goHomeworks">
         <view class="quick-card-title">我的作业</view>
         <view class="quick-card-desc">返回作业列表，继续查看详情或发起图片提交。</view>
@@ -28,6 +35,52 @@
       <view class="quick-card" bindtap="goReport">
         <view class="quick-card-title">学习报告</view>
         <view class="quick-card-desc">查看成绩趋势、高频问题和下一步学习建议。</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card section-gap">
+    <view class="row-between">
+      <view class="section-title">账号管理</view>
+    </view>
+    <view class="action-row section-gap">
+      <button class="secondary-button" bindtap="toggleProfileCard">{{showProfileCard ? '收起' : '修改资料'}}</button>
+      <button class="ghost-button" bindtap="togglePasswordCard">{{showPasswordCard ? '收起' : '修改密码'}}</button>
+    </view>
+
+    <view wx:if="{{showProfileCard}}" class="profile-form-card section-gap">
+      <view class="section-gap-small">
+        <view class="field-label">姓名</view>
+        <input class="field-input" value="{{profileName}}" placeholder="请输入姓名" bindinput="onProfileNameInput" />
+      </view>
+      <view class="section-gap-small">
+        <view class="field-label">邮箱</view>
+        <input class="field-input" value="{{profileEmail}}" placeholder="选填" bindinput="onProfileEmailInput" />
+      </view>
+      <view class="section-gap-small">
+        <view class="field-label">手机号</view>
+        <input class="field-input" value="{{profilePhone}}" placeholder="选填" bindinput="onProfilePhoneInput" />
+      </view>
+      <view class="action-row section-gap">
+        <button class="primary-button" loading="{{updatingProfile}}" bindtap="submitUpdateProfile">保存资料</button>
+      </view>
+    </view>
+
+    <view wx:if="{{showPasswordCard}}" class="profile-form-card section-gap">
+      <view class="section-gap-small">
+        <view class="field-label">当前密码</view>
+        <input class="field-input" type="password" value="{{oldPassword}}" placeholder="请输入当前密码" bindinput="onOldPasswordInput" />
+      </view>
+      <view class="section-gap-small">
+        <view class="field-label">新密码</view>
+        <input class="field-input" type="password" value="{{newPassword}}" placeholder="至少 8 位，包含字母和数字" bindinput="onNewPasswordInput" />
+      </view>
+      <view class="section-gap-small">
+        <view class="field-label">确认新密码</view>
+        <input class="field-input" type="password" value="{{confirmPassword}}" placeholder="再次输入新密码" bindinput="onConfirmPasswordInput" />
+      </view>
+      <view class="action-row section-gap">
+        <button class="primary-button" loading="{{changingPassword}}" bindtap="submitChangePassword">确认修改</button>
       </view>
     </view>
   </view>
@@ -66,8 +119,12 @@
       <view class="chip">详情查看</view>
       <view class="chip">图片提交</view>
       <view class="chip">结果轮询</view>
+      <view class="chip">消息通知</view>
+      <view class="chip">班级公告</view>
+      <view class="chip">修改密码</view>
+      <view class="chip">修改资料</view>
     </view>
-    <view class="helper-text">下一轮可以继续扩展教师端、消息通知、报表查看、微信授权登录和更精细的上传体验。</view>
+    <view class="helper-text">后续可继续扩展微信授权登录、待办中心和教师端能力。</view>
   </view>
 
   <view class="action-row section-gap">

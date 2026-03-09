@@ -43,7 +43,8 @@ work/
 ├── apps/
 │   ├── frontend/          # React 前端应用
 │   └── backend/           # NestJS 后端 API
-├── deploy/                # Docker 部署配置
+├── wechat-miniapp/        # 微信小程序（学生端）
+├── deploy/                # 部署配置与运维脚本
 ├── docs/                  # 项目文档
 └── scripts/               # 工具脚本
 ```
@@ -52,7 +53,7 @@ work/
 
 ### 环境要求
 
-- Node.js 18+
+- Node.js 20+
 - pnpm 8+
 - Docker & Docker Compose
 - MySQL 8
@@ -213,10 +214,14 @@ Stop-Process -Id <进程ID> -Force
 
 ## 文档
 
-- [开发指南](./CLAUDE.md) - 详细的开发文档和架构说明
-- [API 文档](./docs/API.md) - API 接口文档
-- [部署文档](./docs/DEPLOY.md) - 部署指南
+- [架构设计](./docs/ARCH.md) - 系统架构与技术选型
+- [API 文档](./docs/API.md) - 完整的 API 接口文档
+- [开发指南](./docs/DEVELOPMENT.md) - 开发环境搭建与规范
+- [部署文档](./docs/DEPLOY.md) - 生产环境部署指南
+- [运维手册](./docs/RUNBOOK.md) - 日常运维与故障排查
 - [交接文档](./docs/HANDOVER.md) - 打包移交与二次部署指南
+- [微信小程序](./wechat-miniapp/README.md) - 学生端小程序文档
+- [AI 批改能力矩阵](./docs/AI_GRADING_CAPABILITY_MATRIX.md) - 文档与实现对照
 
 ## 许可证
 

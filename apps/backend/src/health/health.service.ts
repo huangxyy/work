@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { getQueueToken } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { RuntimeConfigService } from '../system-config/runtime-config.service';
 
@@ -11,6 +13,14 @@ type ServiceHealth = {
   responseTime?: number;
 };
 
+type QueueDepth = {
+  waiting: number;
+  active: number;
+  delayed: number;
+  failed: number;
+  paused: boolean;
+};
+
 type OverallHealth = {
   status: HealthStatus;
   timestamp: string;
@@ -19,6 +29,7 @@ type OverallHealth = {
     redis: ServiceHealth;
     storage: ServiceHealth;
   };
+  queue?: QueueDepth;
   uptime: number;
 };
 
@@ -35,16 +46,18 @@ export class HealthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly runtimeConfigService: RuntimeConfigService,
+    @Optional() @Inject(getQueueToken('grading')) private readonly gradingQueue?: Queue,
   ) {
     this.startTime = Date.now();
   }
 
   async getHealth(): Promise<OverallHealth> {
     const startedAt = Date.now();
-    const [database, redis, storage] = await Promise.all([
+    const [database, redis, storage, queue] = await Promise.all([
       this.checkDatabase(),
       this.checkRedis(),
       this.checkStorage(),
+      this.checkQueue(),
     ]);
 
     const allHealthy = [database, redis, storage].every((s) => s.status === 'healthy');
@@ -52,7 +65,8 @@ export class HealthService {
 
     const status: HealthStatus = allHealthy ? 'healthy' : anyUnhealthy ? 'unhealthy' : 'degraded';
 
-    const summary = `Health snapshot status=${status} db=${database.status}/${database.responseTime ?? -1} redis=${redis.status}/${redis.responseTime ?? -1} storage=${storage.status}/${storage.responseTime ?? -1} durationMs=${Date.now() - startedAt}`;
+    const queueSummary = queue ? ` waiting=${queue.waiting} active=${queue.active} failed=${queue.failed}` : '';
+    const summary = `Health snapshot status=${status} db=${database.status}/${database.responseTime ?? -1} redis=${redis.status}/${redis.responseTime ?? -1} storage=${storage.status}/${storage.responseTime ?? -1}${queueSummary} durationMs=${Date.now() - startedAt}`;
     if (status === 'healthy') {
       this.logger.debug(summary);
     } else {
@@ -67,6 +81,7 @@ export class HealthService {
         redis,
         storage,
       },
+      ...(queue && { queue }),
       uptime: Date.now() - this.startTime,
     };
   }
@@ -214,6 +229,27 @@ export class HealthService {
         message: 'Storage service unavailable',
         responseTime,
       };
+    }
+  }
+
+  private async checkQueue(): Promise<QueueDepth | null> {
+    if (!this.gradingQueue) return null;
+    try {
+      const [counts, paused] = await Promise.all([
+        this.gradingQueue.getJobCounts('waiting', 'active', 'delayed', 'failed'),
+        this.gradingQueue.isPaused(),
+      ]);
+      return {
+        waiting: counts.waiting ?? 0,
+        active: counts.active ?? 0,
+        delayed: counts.delayed ?? 0,
+        failed: counts.failed ?? 0,
+        paused,
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Queue depth check failed: ${msg}`);
+      return null;
     }
   }
 }

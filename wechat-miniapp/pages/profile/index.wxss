@@ -3,6 +3,25 @@
   font-size: 32rpx;
 }
 
+.unread-badge {
+  min-width: 40rpx;
+  height: 40rpx;
+  line-height: 40rpx;
+  border-radius: 999rpx;
+  text-align: center;
+  padding: 0 10rpx;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.profile-form-card {
+  padding: 24rpx;
+  border-radius: 20rpx;
+  background: #f8fafc;
+}
+
 .draft-count {
   min-width: 72rpx;
   height: 72rpx;

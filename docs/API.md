@@ -52,10 +52,11 @@ POST /api/auth/register
 {
   "account": "newuser",
   "password": "Password123",
-  "name": "New User",
-  "role": "STUDENT"
+  "name": "New User"
 }
 ```
+
+**说明**: 注册接口不接受 `role` 字段，新注册用户默认为 STUDENT 角色。密码要求至少 8 位，且包含字母和数字。
 
 ### 获取当前用户
 
@@ -63,6 +64,71 @@ POST /api/auth/register
 GET /api/auth/me
 Authorization: Bearer <token>
 ```
+
+### 登出
+
+```
+POST /api/auth/logout
+Authorization: Bearer <token>
+```
+
+**说明**: 登出后 Token 会被加入黑名单，无法再次使用。
+
+### 修改密码
+
+```
+POST /api/auth/change-password
+Authorization: Bearer <token>
+```
+
+**请求体**:
+```json
+{
+  "oldPassword": "OldPass123",
+  "newPassword": "NewPass456"
+}
+```
+
+### 忘记密码（发送重置验证码）
+
+```
+POST /api/auth/forgot-password
+```
+
+**请求体**:
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**限流**: 10 分钟内最多 3 次
+
+### 重置密码（使用验证码）
+
+```
+POST /api/auth/reset-password
+```
+
+**请求体**:
+```json
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "newPassword": "NewPass789"
+}
+```
+
+**限流**: 10 分钟内最多 5 次
+
+### 导出个人数据
+
+```
+GET /api/auth/export-my-data
+Authorization: Bearer <token>
+```
+
+**Response**: JSON 文件（包含用户个人信息与相关数据）
 
 ---
 
@@ -516,6 +582,79 @@ Authorization: Bearer <token>
 
 ## 管理员功能
 
+所有管理员接口均需要 `ADMIN` 角色。
+
+### 系统指标概览
+
+```
+GET /api/admin/metrics
+Authorization: Bearer <token>
+```
+
+### 用量统计
+
+```
+GET /api/admin/usage?days=7
+Authorization: Bearer <token>
+```
+
+### 健康检查（各外部服务）
+
+```
+GET /api/admin/health/llm
+GET /api/admin/health/ocr
+GET /api/admin/health/storage
+GET /api/admin/health/email
+GET /api/admin/health/redis
+Authorization: Bearer <token>
+```
+
+### 系统信息
+
+```
+GET /api/admin/system-info
+Authorization: Bearer <token>
+```
+
+### 错误趋势
+
+```
+GET /api/admin/error-trends?days=7
+Authorization: Bearer <token>
+```
+
+---
+
+### 用户管理
+
+```
+GET  /api/admin/users?page=1&limit=20&role=STUDENT&search=keyword
+POST /api/admin/users
+PATCH /api/admin/users/:id
+DELETE /api/admin/users/:id
+POST /api/admin/users/:id/reset-password
+GET  /api/admin/users/export
+Authorization: Bearer <token>
+```
+
+### 批量用户操作
+
+```
+POST /api/admin/users/bulk-import
+POST /api/admin/users/bulk-disable
+POST /api/admin/users/bulk-reset-password
+Authorization: Bearer <token>
+```
+
+### 班级概况
+
+```
+GET /api/admin/classes/summary
+Authorization: Bearer <token>
+```
+
+---
+
 ### 手动触发数据清理
 
 ```
@@ -548,13 +687,50 @@ Authorization: Bearer <token>
 
 **请求体**: 结构化配置对象（`UpdateSystemConfigDto`），可同时更新 `llm`、`providers`、`ocr`、`budget` 等配置。
 
-### 测试 LLM / OCR 与查看调用日志
+### 功能开关管理
+
+```
+GET /api/admin/feature-flags
+PATCH /api/admin/feature-flags
+Authorization: Bearer <token>
+```
+
+### 测试 LLM
 
 ```
 POST /api/admin/llm/test
+Authorization: Bearer <token>
+```
+
+### 测试 OCR
+
+```
 POST /api/admin/ocr/test
-GET /api/admin/llm/logs
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+**文件字段**: `image`（最大 10MB）
+
+### LLM 调用日志
+
+```
+GET /api/admin/llm/logs?page=1&limit=20
 DELETE /api/admin/llm/logs
+Authorization: Bearer <token>
+```
+
+### LLM 成本摘要
+
+```
+GET /api/admin/llm/cost-summary?days=7
+Authorization: Bearer <token>
+```
+
+### 审计日志
+
+```
+GET /api/admin/audit-logs?page=1&limit=20
 Authorization: Bearer <token>
 ```
 
@@ -574,16 +750,29 @@ Authorization: Bearer <token>
 ### 系统概览
 
 ```
-GET /api/overview
+GET /api/public/overview?days=7
 权限: 公开
 ```
+
+**限流**: 60 秒内最多 20 次
 
 ### 着陆页数据
 
 ```
-GET /api/landing
+GET /api/public/landing?days=7
 权限: 公开
 ```
+
+**限流**: 60 秒内最多 10 次
+
+### 功能开关（公共）
+
+```
+GET /api/public/feature-flags
+权限: 公开
+```
+
+**限流**: 60 秒内最多 30 次
 
 ---
 

@@ -17,6 +17,7 @@ Page({
     hasDraft: false,
     latestSubmission: null,
     history: [],
+    rules: [],
   },
   onLoad(options) {
     this.setData({ id: options && options.id ? options.id : '' });
@@ -58,6 +59,7 @@ Page({
         const rightValue = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
         return rightValue - leftValue;
       });
+      const rules = this.deriveRules(homework, status, history);
       this.setData({
         homework,
         status,
@@ -66,6 +68,7 @@ Page({
         hasDraft: hasSubmitDraft(homework.id),
         latestSubmission: history[0] || null,
         history,
+        rules,
       });
     } catch (error) {
       const errorText = pickErrorMessage(error, '作业详情加载失败');
@@ -117,6 +120,27 @@ Page({
     wx.navigateTo({
       url: '/pages/report/index',
     });
+  },
+  deriveRules(homework, status, history) {
+    const rules = [];
+    if (homework.allowLateSubmission) {
+      rules.push({ icon: '✅', text: '截止后仍可补交（将标记为迟交）' });
+    } else if (homework.dueAt) {
+      rules.push({ icon: '⛔', text: '截止后不可再提交' });
+    } else {
+      rules.push({ icon: '⭕', text: '未设截止时间，可随时提交' });
+    }
+    rules.push({ icon: '�\udccb', text: '允许多次提交，以最新一次为准' });
+    if (homework.gradingMode) {
+      const modeLabel = homework.gradingMode === 'ai_only' ? 'AI 自动批改'
+        : homework.gradingMode === 'teacher_only' ? '教师手动批改'
+        : 'AI 批改 + 教师复核';
+      rules.push({ icon: '�\udcdd', text: `批改方式：${modeLabel}` });
+    }
+    if (history.length > 0) {
+      rules.push({ icon: '�\udcca', text: `已提交 ${history.length} 次` });
+    }
+    return rules;
   },
   retryLoad() {
     this.loadData();
