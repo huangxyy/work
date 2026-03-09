@@ -9,7 +9,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Alert, Button, Input, Popconfirm, Result, Select, Space, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Input, Popconfirm, Select, Space, Switch, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
