@@ -300,22 +300,21 @@ export class SubmissionsService {
   }
 
   async getSubmission(id: string, user: AuthUser): Promise<SubmissionDetail | null> {
+    const startedAt = Date.now();
+    let result: SubmissionDetail | null;
+
     if (user.role === Role.ADMIN) {
-      return this.prisma.submission.findUnique({
+      result = await this.prisma.submission.findUnique({
         where: { id },
         include: submissionDetailInclude,
       });
-    }
-
-    if (user.role === Role.STUDENT) {
-      return this.prisma.submission.findFirst({
+    } else if (user.role === Role.STUDENT) {
+      result = await this.prisma.submission.findFirst({
         where: { id, studentId: user.id },
         include: submissionDetailInclude,
       });
-    }
-
-    if (user.role === Role.TEACHER) {
-      return this.prisma.submission.findFirst({
+    } else if (user.role === Role.TEACHER) {
+      result = await this.prisma.submission.findFirst({
         where: {
           id,
           homework: {
@@ -324,9 +323,15 @@ export class SubmissionsService {
         },
         include: submissionDetailInclude,
       });
+    } else {
+      throw new ForbiddenException('No access');
     }
 
-    throw new ForbiddenException('No access');
+    this.logger.debug(
+      `Submission fetched id=${id} role=${user.role} found=${Boolean(result)} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return result;
   }
 
   async addTeacherFeedback(
@@ -366,6 +371,7 @@ export class SubmissionsService {
       throw new ForbiddenException('Only students can list submissions');
     }
 
+    const startedAt = Date.now();
     const submissions = await this.prisma.submission.findMany({
       where: this.buildStudentSubmissionWhere(user.id, query),
       include: {
@@ -375,6 +381,10 @@ export class SubmissionsService {
       orderBy: { updatedAt: 'desc' },
       take: 500,
     });
+
+    this.logger.debug(
+      `Student submissions listed studentId=${user.id} returned=${submissions.length} status=${query.status || 'all'} durationMs=${Date.now() - startedAt}`,
+    );
 
     return submissions.map((submission) => ({
       id: submission.id,
@@ -422,6 +432,7 @@ export class SubmissionsService {
   }
 
   async getUnsubmittedStudents(homeworkId: string, teacher: AuthUser) {
+    const startedAt = Date.now();
     const homework = await this.prisma.homework.findUnique({
       where: { id: homeworkId },
       select: { classId: true, class: { select: { teachers: { select: { id: true } } } } },
@@ -431,24 +442,28 @@ export class SubmissionsService {
       throw new ForbiddenException();
     }
 
-    const enrolledStudents = await this.prisma.enrollment.findMany({
-      where: { classId: homework.classId },
-      select: { student: { select: { id: true, name: true, account: true } } },
-    });
+    const [enrolledStudents, submittedList] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { classId: homework.classId },
+        select: { student: { select: { id: true, name: true, account: true } } },
+      }),
+      this.prisma.submission.findMany({
+        where: { homeworkId },
+        select: { studentId: true },
+        distinct: ['studentId'],
+      }),
+    ]);
 
-    const submittedIds = new Set(
-      (
-        await this.prisma.submission.findMany({
-          where: { homeworkId },
-          select: { studentId: true },
-          distinct: ['studentId'],
-        })
-      ).map((s) => s.studentId),
-    );
-
-    return enrolledStudents
+    const submittedIds = new Set(submittedList.map((s) => s.studentId));
+    const unsubmitted = enrolledStudents
       .filter((e) => !submittedIds.has(e.student.id))
       .map((e) => e.student);
+
+    this.logger.debug(
+      `Unsubmitted students fetched homeworkId=${homeworkId} enrolled=${enrolledStudents.length} submitted=${submittedIds.size} unsubmitted=${unsubmitted.length} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return unsubmitted;
   }
 
   async listHomeworkSubmissions(
@@ -472,6 +487,7 @@ export class SubmissionsService {
       throw new NotFoundException('Homework not found or no access');
     }
 
+    const startedAt = Date.now();
     const take = Math.min(Math.max(options?.limit || 1000, 1), 1000);
     const submissions = await this.prisma.submission.findMany({
       where: { homeworkId },
@@ -488,6 +504,10 @@ export class SubmissionsService {
       take,
       ...(options?.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
     });
+
+    this.logger.debug(
+      `Homework submissions listed homeworkId=${homeworkId} returned=${submissions.length} limit=${take} cursor=${options?.cursor || 'none'} durationMs=${Date.now() - startedAt}`,
+    );
 
     return submissions.map((submission) => ({
       id: submission.id,

@@ -235,6 +235,7 @@ export class AdminService {
   }
 
   async listUsers(query: ListUsersQueryDto) {
+    const startedAt = Date.now();
     const keyword = query.keyword?.trim();
     const take = Math.min(Math.max(query.limit || 500, 1), 500);
     const where: {
@@ -258,7 +259,7 @@ export class AdminService {
       ];
     }
 
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where,
       select: {
         id: true,
@@ -272,6 +273,12 @@ export class AdminService {
       take,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     });
+
+    this.logger.debug(
+      `Admin users listed returned=${users.length} role=${query.role || 'all'} keyword=${keyword || 'none'} limit=${take} cursor=${query.cursor || 'none'} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return users;
   }
 
   async createUser(dto: CreateAdminUserDto) {
@@ -486,6 +493,7 @@ export class AdminService {
   }
 
   async listClassSummaries() {
+    const startedAt = Date.now();
     const classes = await this.prisma.class.findMany({
       select: {
         id: true,
@@ -498,6 +506,10 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
+
+    this.logger.debug(
+      `Admin class summaries listed returned=${classes.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return classes.map((klass) => ({
       id: klass.id,
@@ -512,6 +524,7 @@ export class AdminService {
   }
 
   async getSystemConfig() {
+    const startedAt = Date.now();
     const [llmConfig, ocrConfig, budgetConfig, llmHealth, ocrHealth, llmProviders, storage, email, redis] = await Promise.all([
       this.systemConfigService.getValue<LlmConfig>('llm'),
       this.systemConfigService.getValue<OcrConfig>('ocr'),
@@ -527,6 +540,10 @@ export class AdminService {
     const resolvedLlm = this.buildLlmConfig(llmConfig);
     const resolvedOcr = this.buildOcrConfig(ocrConfig);
     const resolvedBudget = this.buildBudgetConfig(budgetConfig);
+
+    this.logger.debug(
+      `Admin system config fetched providers=${llmProviders.length} llmHealthSet=${Boolean(llmHealth)} ocrHealthSet=${Boolean(ocrHealth)} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       llm: resolvedLlm,

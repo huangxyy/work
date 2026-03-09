@@ -358,6 +358,7 @@ export class ReportsService {
     query: ReportRangeQueryDto,
     user: AuthUser,
   ) {
+    const startedAt = Date.now();
     const { student, classIds } = await this.ensureStudentAccess(studentId, user);
     const days = query.days ?? 7;
     const cutoff = new Date(Date.now() - days * DAY_MS);
@@ -379,6 +380,10 @@ export class ReportsService {
     });
 
     const scores = this.collectScores(submissions);
+
+    this.logger.debug(
+      `Student overview computed studentId=${studentId} days=${days} submissions=${submissions.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return {
       studentId,
@@ -454,6 +459,7 @@ export class ReportsService {
   }
 
   async getStudentClassComparison(studentId: string, rangeDays: number) {
+    const startedAt = Date.now();
     const since = new Date();
     since.setDate(since.getDate() - rangeDays);
 
@@ -462,47 +468,46 @@ export class ReportsService {
       select: { classId: true, class: { select: { id: true, name: true } } },
     });
 
-    const results: Array<{
-      classId: string;
-      className: string;
-      classAvg: number | null;
-      classCount: number;
-      studentAvg: number | null;
-      studentCount: number;
-    }> = [];
-    for (const enrollment of enrollments) {
-      const classStats = await this.prisma.submission.aggregate({
-        where: {
-          status: 'DONE',
-          totalScore: { not: null },
-          updatedAt: { gte: since },
-          homework: { classId: enrollment.classId },
-        },
-        _avg: { totalScore: true },
-        _count: true,
-      });
+    const results = await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const [classStats, studentStats] = await Promise.all([
+          this.prisma.submission.aggregate({
+            where: {
+              status: 'DONE',
+              totalScore: { not: null },
+              updatedAt: { gte: since },
+              homework: { classId: enrollment.classId },
+            },
+            _avg: { totalScore: true },
+            _count: true,
+          }),
+          this.prisma.submission.aggregate({
+            where: {
+              studentId,
+              status: 'DONE',
+              totalScore: { not: null },
+              updatedAt: { gte: since },
+              homework: { classId: enrollment.classId },
+            },
+            _avg: { totalScore: true },
+            _count: true,
+          }),
+        ]);
 
-      const studentStats = await this.prisma.submission.aggregate({
-        where: {
-          studentId,
-          status: 'DONE',
-          totalScore: { not: null },
-          updatedAt: { gte: since },
-          homework: { classId: enrollment.classId },
-        },
-        _avg: { totalScore: true },
-        _count: true,
-      });
+        return {
+          classId: enrollment.classId,
+          className: enrollment.class.name,
+          classAvg: classStats._avg.totalScore ? Number(classStats._avg.totalScore.toFixed(1)) : null,
+          classCount: classStats._count,
+          studentAvg: studentStats._avg.totalScore ? Number(studentStats._avg.totalScore.toFixed(1)) : null,
+          studentCount: studentStats._count,
+        };
+      }),
+    );
 
-      results.push({
-        classId: enrollment.classId,
-        className: enrollment.class.name,
-        classAvg: classStats._avg.totalScore ? Number(classStats._avg.totalScore.toFixed(1)) : null,
-        classCount: classStats._count,
-        studentAvg: studentStats._avg.totalScore ? Number(studentStats._avg.totalScore.toFixed(1)) : null,
-        studentCount: studentStats._count,
-      });
-    }
+    this.logger.debug(
+      `Student class comparison computed studentId=${studentId} rangeDays=${rangeDays} classes=${enrollments.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return results;
   }

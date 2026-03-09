@@ -53,6 +53,7 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto, ip?: string) {
+    const startedAt = Date.now();
     const account = dto.account.trim();
     const name = dto.name.trim();
 
@@ -81,6 +82,10 @@ export class AuthService {
       detail: `New student registration: ${user.account}`,
     });
 
+    this.logger.debug(
+      `User registered account=${account} userId=${user.id} durationMs=${Date.now() - startedAt}`,
+    );
+
     const token = this.signToken(user);
     return { token, user: this.sanitizeUser(user) };
   }
@@ -88,6 +93,7 @@ export class AuthService {
   private readonly dummyHash = bcrypt.hashSync('dummy-password-for-timing', 10);
 
   async login(dto: LoginDto, ip?: string) {
+    const startedAt = Date.now();
     const account = dto.account.trim();
     if (!account) {
       throw new BadRequestException('Account is required');
@@ -147,17 +153,28 @@ export class AuthService {
       ip,
     });
 
+    this.logger.debug(
+      `User logged in account=${account} userId=${user.id} durationMs=${Date.now() - startedAt}`,
+    );
+
     const token = this.signToken(user);
     return { token, user: this.sanitizeUser(user) };
   }
 
   async logout(jti: string, expiresInSeconds: number, userId?: string, ip?: string) {
-    await this.tokenBlacklist.revoke(jti, expiresInSeconds);
-    await this.audit.log({
-      action: 'LOGOUT',
-      userId,
-      ip,
-    });
+    const startedAt = Date.now();
+    await Promise.all([
+      this.tokenBlacklist.revoke(jti, expiresInSeconds),
+      this.audit.log({
+        action: 'LOGOUT',
+        userId,
+        ip,
+      }),
+    ]);
+
+    this.logger.debug(
+      `User logged out userId=${userId || 'unknown'} jti=${jti} durationMs=${Date.now() - startedAt}`,
+    );
   }
 
   async isTokenRevoked(jti: string): Promise<boolean> {
@@ -181,6 +198,7 @@ export class AuthService {
   }
 
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const startedAt = Date.now();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('User not found');
 
@@ -203,6 +221,10 @@ export class AuthService {
     });
 
     await this.clearUserAuthCache(userId);
+
+    this.logger.debug(
+      `Password changed userId=${userId} durationMs=${Date.now() - startedAt}`,
+    );
 
     return { ok: true };
   }
@@ -228,36 +250,42 @@ export class AuthService {
   }
 
   async exportUserData(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true, account: true, name: true, role: true, email: true, phone: true,
-        createdAt: true, updatedAt: true,
-      },
-    });
+    const startedAt = Date.now();
+    const [user, submissions, notifications] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true, account: true, name: true, role: true, email: true, phone: true,
+          createdAt: true, updatedAt: true,
+        },
+      }),
+      this.prisma.submission.findMany({
+        where: { studentId: userId },
+        select: {
+          id: true, status: true, totalScore: true, createdAt: true, updatedAt: true,
+          homework: { select: { title: true } },
+          teacherComment: true, manualScore: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 1000,
+      }),
+      this.prisma.notification.findMany({
+        where: { userId },
+        select: { id: true, type: true, title: true, body: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }),
+    ]);
 
-    const submissions = await this.prisma.submission.findMany({
-      where: { studentId: userId },
-      select: {
-        id: true, status: true, totalScore: true, createdAt: true, updatedAt: true,
-        homework: { select: { title: true } },
-        teacherComment: true, manualScore: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 1000,
-    });
-
-    const notifications = await this.prisma.notification.findMany({
-      where: { userId },
-      select: { id: true, type: true, title: true, body: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-    });
+    this.logger.debug(
+      `User data exported userId=${userId} submissions=${submissions.length} notifications=${notifications.length} durationMs=${Date.now() - startedAt}`,
+    );
 
     return { user, submissions, notifications, exportedAt: new Date().toISOString() };
   }
 
   async resetPasswordWithCode(email: string, code: string, newPassword: string) {
+    const startedAt = Date.now();
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedCode = code.trim();
 
@@ -286,6 +314,10 @@ export class AuthService {
       userId: user.id,
       detail: 'Password reset via email code',
     });
+
+    this.logger.debug(
+      `Password reset via code userId=${user.id} durationMs=${Date.now() - startedAt}`,
+    );
 
     return { ok: true };
   }

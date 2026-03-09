@@ -15,6 +15,7 @@ export class AnnouncementService {
   ) {}
 
   async create(data: CreateAnnouncementDto, author: AuthUser) {
+    const startedAt = Date.now();
     if (data.classId) {
       const isTeacher = await this.prisma.class.findFirst({
         where: { id: data.classId, teachers: { some: { id: author.id } } },
@@ -27,6 +28,7 @@ export class AnnouncementService {
       include: { author: { select: { id: true, name: true } }, class: { select: { id: true, name: true } } },
     });
 
+    let notifCount = 0;
     if (data.classId) {
       const enrollments = await this.prisma.enrollment.findMany({
         where: { classId: data.classId },
@@ -39,14 +41,20 @@ export class AnnouncementService {
         body: data.content.slice(0, 200),
         linkTo: `/student/announcements`,
       }));
+      notifCount = notifs.length;
       await this.dispatchNotifications(notifs);
     }
+
+    this.logger.debug(
+      `Announcement created id=${announcement.id} authorId=${author.id} classId=${data.classId || 'global'} notifications=${notifCount} durationMs=${Date.now() - startedAt}`,
+    );
 
     return announcement;
   }
 
   async listByClass(classId: string, limit = 20) {
-    return this.prisma.announcement.findMany({
+    const startedAt = Date.now();
+    const items = await this.prisma.announcement.findMany({
       where: { classId },
       include: {
         author: { select: { id: true, name: true } },
@@ -55,24 +63,38 @@ export class AnnouncementService {
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
+
+    this.logger.debug(
+      `Announcements listed by class classId=${classId} returned=${items.length} limit=${limit} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return items;
   }
 
   async listForStudent(studentId: string, limit = 20) {
+    const startedAt = Date.now();
     const enrollments = await this.prisma.enrollment.findMany({
       where: { studentId },
       select: { classId: true },
     });
     const classIds = enrollments.map(e => e.classId);
 
-    return this.prisma.announcement.findMany({
+    const items = await this.prisma.announcement.findMany({
       where: { OR: [{ classId: { in: classIds } }, { classId: null }] },
       include: { author: { select: { id: true, name: true } }, class: { select: { id: true, name: true } } },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
+
+    this.logger.debug(
+      `Announcements listed for student studentId=${studentId} classes=${classIds.length} returned=${items.length} limit=${limit} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return items;
   }
 
   async listForTeacher(teacherId: string, classId?: string, limit = 20) {
+    const startedAt = Date.now();
     const classes = await this.prisma.class.findMany({
       where: { teachers: { some: { id: teacherId } } },
       select: { id: true },
@@ -87,28 +109,47 @@ export class AnnouncementService {
       ? { OR: [{ classId }, { classId: null }] }
       : { OR: [{ classId: { in: classIds } }, { classId: null }] };
 
-    return this.prisma.announcement.findMany({
+    const items = await this.prisma.announcement.findMany({
       where,
       include: { author: { select: { id: true, name: true } }, class: { select: { id: true, name: true } } },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
+
+    this.logger.debug(
+      `Announcements listed for teacher teacherId=${teacherId} classId=${classId || 'all'} classes=${classIds.length} returned=${items.length} limit=${limit} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return items;
   }
 
   async listForAdmin(classId?: string, limit = 20) {
-    return this.prisma.announcement.findMany({
+    const startedAt = Date.now();
+    const items = await this.prisma.announcement.findMany({
       where: classId ? { classId } : {},
       include: { author: { select: { id: true, name: true } }, class: { select: { id: true, name: true } } },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
+
+    this.logger.debug(
+      `Announcements listed for admin classId=${classId || 'all'} returned=${items.length} limit=${limit} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return items;
   }
 
   async delete(id: string, user: AuthUser) {
+    const startedAt = Date.now();
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
     if (!announcement) throw new NotFoundException('Announcement not found');
     if (announcement.authorId !== user.id && user.role !== Role.ADMIN) throw new ForbiddenException('Not authorized');
     await this.prisma.announcement.delete({ where: { id } });
+
+    this.logger.debug(
+      `Announcement deleted id=${id} actorUserId=${user.id} authorId=${announcement.authorId} durationMs=${Date.now() - startedAt}`,
+    );
+
     return { ok: true };
   }
 
