@@ -19,7 +19,7 @@ describe('AccountLockoutService', () => {
 
   describe('isLocked', () => {
     it('should return false when not locked', async () => {
-      redis.exists.mockResolvedValue(false);
+      redis.ttl.mockResolvedValue(-2);
       const result = await service.isLocked('testuser');
       expect(result.locked).toBe(false);
       expect(result.remainingSeconds).toBe(0);
@@ -42,9 +42,9 @@ describe('AccountLockoutService', () => {
     });
 
     it('should use the correct lock key', async () => {
-      redis.exists.mockResolvedValue(false);
+      redis.ttl.mockResolvedValue(-2);
       await service.isLocked('user@example');
-      expect(redis.exists).toHaveBeenCalledWith('auth:lockout:lock:user@example');
+      expect(redis.ttl).toHaveBeenCalledWith('auth:lockout:lock:user@example');
     });
   });
 
