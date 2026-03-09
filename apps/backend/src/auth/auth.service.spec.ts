@@ -214,5 +214,248 @@ describe('AuthService', () => {
         }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('should throw BadRequestException for empty account', async () => {
+      await expect(
+        authService.login({ account: '   ', password: 'pass' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw ForbiddenException when account is locked', async () => {
+      lockoutService.isLocked = jest.fn().mockResolvedValue({ locked: true, remainingSeconds: 600 });
+
+      await expect(
+        authService.login({ account: 'testuser', password: 'pass' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ForbiddenException when lockout threshold reached on failed login', async () => {
+      prismaService.user.findUnique = jest.fn().mockResolvedValue(null);
+      lockoutService.recordFailure = jest.fn().mockResolvedValue({ locked: true, attempts: 5 });
+
+      await expect(
+        authService.login({ account: 'testuser', password: 'wrong' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('logout', () => {
+    it('should revoke token and log audit', async () => {
+      await authService.logout('jti-123', 3600, 'user-1', '127.0.0.1');
+
+      expect(tokenBlacklistService.revoke).toHaveBeenCalledWith('jti-123', 3600);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'LOGOUT', userId: 'user-1' }),
+      );
+    });
+  });
+
+  describe('isTokenRevoked', () => {
+    it('should delegate to tokenBlacklist', async () => {
+      tokenBlacklistService.isRevoked = jest.fn().mockResolvedValue(true);
+
+      const result = await authService.isTokenRevoked('jti-abc');
+
+      expect(result).toBe(true);
+      expect(tokenBlacklistService.isRevoked).toHaveBeenCalledWith('jti-abc');
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('should update name, email, and phone', async () => {
+      const updated = { ...mockUser, name: 'New Name', email: 'new@test.com', phone: '123' };
+      prismaService.user.update = jest.fn().mockResolvedValue(updated);
+
+      const result = await authService.updateProfile('user-1', {
+        name: ' New Name ',
+        email: ' New@Test.com ',
+        phone: ' 123 ',
+      });
+
+      expect(result.name).toBe('New Name');
+      expect(result).not.toHaveProperty('passwordHash');
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { name: 'New Name', email: 'new@test.com', phone: '123' },
+      });
+    });
+
+    it('should clear email when set to empty string', async () => {
+      prismaService.user.update = jest.fn().mockResolvedValue(mockUser);
+
+      await authService.updateProfile('user-1', { email: '' });
+
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { email: null },
+      });
+    });
+
+    it('should clear phone when set to empty string', async () => {
+      prismaService.user.update = jest.fn().mockResolvedValue(mockUser);
+
+      await authService.updateProfile('user-1', { phone: '' });
+
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { phone: null },
+      });
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should change password when old password is correct', async () => {
+      const hashedPassword = await bcrypt.hash('oldpass', 10);
+      prismaService.user.findUnique = jest.fn().mockResolvedValue({ ...mockUser, passwordHash: hashedPassword });
+      prismaService.user.update = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.changePassword('user-1', 'oldpass', 'newpass');
+
+      expect(result).toEqual({ ok: true });
+      expect(prismaService.user.update).toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PASSWORD_CHANGE' }),
+      );
+    });
+
+    it('should throw UnauthorizedException when user not found', async () => {
+      prismaService.user.findUnique = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        authService.changePassword('missing', 'old', 'new'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw BadRequestException when old password is wrong', async () => {
+      const hashedPassword = await bcrypt.hash('correctpass', 10);
+      prismaService.user.findUnique = jest.fn().mockResolvedValue({ ...mockUser, passwordHash: hashedPassword });
+
+      await expect(
+        authService.changePassword('user-1', 'wrongold', 'newpass'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when new password equals old password', async () => {
+      const hashedPassword = await bcrypt.hash('samepass', 10);
+      prismaService.user.findUnique = jest.fn().mockResolvedValue({ ...mockUser, passwordHash: hashedPassword });
+
+      await expect(
+        authService.changePassword('user-1', 'samepass', 'samepass'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('sendPasswordResetCode', () => {
+    it('should return ok even when user not found (no email leak)', async () => {
+      prismaService.user.findFirst = jest.fn().mockResolvedValue(null);
+
+      const result = await authService.sendPasswordResetCode('unknown@test.com');
+
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('should send email with code when user has email', async () => {
+      prismaService.user.findFirst = jest.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'user@test.com',
+        name: 'User',
+      });
+      const redisService = (authService as any).redis;
+      const emailServiceMock = (authService as any).emailService;
+
+      const result = await authService.sendPasswordResetCode('user@test.com');
+
+      expect(result).toEqual({ ok: true });
+      expect(redisService.set).toHaveBeenCalledWith(
+        'pwd-reset:user@test.com',
+        expect.stringMatching(/^\d{6}$/),
+        300,
+      );
+      expect(emailServiceMock.send).toHaveBeenCalled();
+    });
+  });
+
+  describe('exportUserData', () => {
+    it('should return user data with submissions and notifications', async () => {
+      prismaService.user.findUnique = jest.fn().mockResolvedValue({
+        id: 'user-1',
+        account: 'testuser',
+        name: 'Test',
+        role: Role.STUDENT,
+      });
+      Object.defineProperty(prismaService, 'submission', {
+        value: { findMany: jest.fn().mockResolvedValue([{ id: 'sub-1', status: 'DONE' }]) },
+        configurable: true,
+      });
+      Object.defineProperty(prismaService, 'notification', {
+        value: { findMany: jest.fn().mockResolvedValue([{ id: 'notif-1', type: 'GRADING_DONE' }]) },
+        configurable: true,
+      });
+
+      const result = await authService.exportUserData('user-1');
+
+      expect(result.user).toBeDefined();
+      expect(result.submissions).toHaveLength(1);
+      expect(result.notifications).toHaveLength(1);
+      expect(result.exportedAt).toBeDefined();
+    });
+  });
+
+  describe('resetPasswordWithCode', () => {
+    it('should reset password when code is valid', async () => {
+      const hashedPassword = await bcrypt.hash('oldpass', 10);
+      const redisService = (authService as any).redis;
+      redisService.get = jest.fn().mockResolvedValue('123456');
+      prismaService.user.findFirst = jest.fn().mockResolvedValue({ ...mockUser, email: 'user@test.com', passwordHash: hashedPassword });
+      prismaService.user.update = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.resetPasswordWithCode('user@test.com', '123456', 'newpass');
+
+      expect(result).toEqual({ ok: true });
+      expect(prismaService.user.update).toHaveBeenCalled();
+      expect(redisService.del).toHaveBeenCalledWith('pwd-reset:user@test.com');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PASSWORD_RESET' }),
+      );
+    });
+
+    it('should throw BadRequestException for invalid code', async () => {
+      const redisService = (authService as any).redis;
+      redisService.get = jest.fn().mockResolvedValue('000000');
+
+      await expect(
+        authService.resetPasswordWithCode('user@test.com', '999999', 'newpass'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when no stored code exists', async () => {
+      const redisService = (authService as any).redis;
+      redisService.get = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        authService.resetPasswordWithCode('user@test.com', '123456', 'newpass'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when user not found', async () => {
+      const redisService = (authService as any).redis;
+      redisService.get = jest.fn().mockResolvedValue('123456');
+      prismaService.user.findFirst = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        authService.resetPasswordWithCode('user@test.com', '123456', 'newpass'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when new password equals current', async () => {
+      const hashedPassword = await bcrypt.hash('samepass', 10);
+      const redisService = (authService as any).redis;
+      redisService.get = jest.fn().mockResolvedValue('123456');
+      prismaService.user.findFirst = jest.fn().mockResolvedValue({ ...mockUser, passwordHash: hashedPassword });
+
+      await expect(
+        authService.resetPasswordWithCode('user@test.com', '123456', 'samepass'),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });
