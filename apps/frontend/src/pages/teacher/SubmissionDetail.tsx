@@ -63,12 +63,15 @@ export const TeacherSubmissionDetailPage = () => {
   const [feedbackComment, setFeedbackComment] = useState(data?.teacherComment || '');
   const [feedbackScore, setFeedbackScore] = useState<number | null>(data?.manualScore ?? null);
 
+  const teacherComment = data?.teacherComment || '';
+  const manualScore = data?.manualScore ?? null;
+
   useEffect(() => {
-    if (data) { // eslint-disable-line react-hooks/exhaustive-deps
-      setFeedbackComment(data.teacherComment || '');
-      setFeedbackScore(data.manualScore ?? null);
+    if (data) {
+      setFeedbackComment(teacherComment);
+      setFeedbackScore(manualScore);
     }
-  }, [data?.teacherComment, data?.manualScore]);
+  }, [data, teacherComment, manualScore]);
 
   const feedbackMutation = useMutation({
     mutationFn: () => addTeacherFeedback(id || '', {
