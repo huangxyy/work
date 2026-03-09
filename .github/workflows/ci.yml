@@ -51,11 +51,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Audit backend dependencies
-        run: pnpm --filter backend audit --audit-level=high
+        working-directory: apps/backend
+        run: pnpm audit --audit-level=high
         continue-on-error: true
 
       - name: Audit frontend dependencies
-        run: pnpm --filter frontend audit --audit-level=high
+        working-directory: apps/frontend
+        run: pnpm audit --audit-level=high
         continue-on-error: true
 
   typecheck:
