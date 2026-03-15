@@ -2,7 +2,7 @@ import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
 import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { downloadStudentReportPdf, fetchClassComparison, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
@@ -26,7 +26,16 @@ export const StudentReportPage = () => {
   const [rangeDays, setRangeDays] = useState(7);
   const [exporting, setExporting] = useState(false);
   const reportRef = useRef<HTMLDivElement | null>(null);
+  const revokeUrlTimerRef = useRef<NodeJS.Timeout | null>(null);
   const rangeTag = rangeDays === 7 ? t('common.last7Days') : t('common.recent');
+
+  useEffect(() => {
+    return () => {
+      if (revokeUrlTimerRef.current) {
+        clearTimeout(revokeUrlTimerRef.current);
+      }
+    };
+  }, []);
 
   const reportQuery = useQuery({
     queryKey: ['student-report', rangeDays],
@@ -135,8 +144,9 @@ export const StudentReportPage = () => {
       link.href = url;
       link.download = `student-report-${rangeDays}d.pdf`;
       link.click();
-      setTimeout(() => window.URL.revokeObjectURL(url), 200);
-    } catch {
+      revokeUrlTimerRef.current = setTimeout(() => window.URL.revokeObjectURL(url), 200);
+    } catch (error) {
+      console.error('导出PDF失败:', error);
       if (!reportRef.current) {
         message.error(t('student.report.exportFailed'));
         return;
@@ -168,7 +178,8 @@ export const StudentReportPage = () => {
           heightLeft -= pageHeight;
         }
         pdf.save(`student-report-${rangeDays}d.pdf`);
-      } catch {
+      } catch (fallbackError) {
+        console.error('PDF备用导出失败:', fallbackError);
         message.error(t('student.report.exportFailed'));
       }
     } finally {

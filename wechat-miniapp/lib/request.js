@@ -141,35 +141,148 @@ function request(options) {
   });
 }
 
+const MIN_VALID_FILE_SIZE = 100;
+
+function parseErrorResponse(filePath) {
+  return new Promise((resolve) => {
+    const fileSystem = wx.getFileSystemManager();
+    fileSystem.readFile({
+      filePath,
+      encoding: 'utf8',
+      success(fileRes) {
+        try {
+          const errorData = JSON.parse(fileRes.data);
+          console.error('[downloadFile] Server error in file:', errorData);
+          resolve({
+            isError: true,
+            errorData,
+            message: errorData.message || errorData.error || '服务器返回错误',
+          });
+        } catch (parseError) {
+          console.error('[downloadFile] Failed to parse error response:', parseError);
+          resolve({
+            isError: true,
+            message: fileRes.data || '服务器返回错误',
+          });
+        }
+      },
+      fail() {
+        resolve({ isError: false });
+      },
+    });
+  });
+}
+
 function downloadFile(options) {
   return new Promise((resolve, reject) => {
     const token = getToken();
+    const fullUrl = buildUrlWithQuery(options.url, options.data);
+    console.log('[downloadFile] URL:', fullUrl);
+    console.log('[downloadFile] Token exists:', !!token);
     wx.downloadFile({
-      url: buildUrlWithQuery(options.url, options.data),
+      url: fullUrl,
       timeout: options.timeout || 60000,
       header: {
         ...(options.header || {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       success(res) {
+        console.log('[downloadFile] Response:', {
+          statusCode: res.statusCode,
+          tempFilePath: res.tempFilePath,
+          hasTempFilePath: !!res.tempFilePath,
+        });
         const { statusCode, tempFilePath } = res;
-        if (statusCode >= 200 && statusCode < 300 && tempFilePath) {
-          resolve(res);
-          return;
-        }
+
         if (statusCode === 401) {
           clearSession();
           redirectToLogin();
+          reject({
+            statusCode,
+            message: '登录已过期，请重新登录',
+          });
+          return;
         }
+
+        if (statusCode >= 400) {
+          if (tempFilePath) {
+            parseErrorResponse(tempFilePath).then((parseResult) => {
+              if (parseResult.isError) {
+                reject({
+                  statusCode,
+                  message: parseResult.message,
+                  errorData: parseResult.errorData,
+                });
+              } else {
+                reject({
+                  statusCode,
+                  message: `下载失败 (状态码: ${statusCode})`,
+                });
+              }
+            });
+          } else {
+            reject({
+              statusCode,
+              message: `下载失败 (状态码: ${statusCode})`,
+            });
+          }
+          return;
+        }
+
+        if (!tempFilePath) {
+          reject({
+            statusCode,
+            message: '下载失败：未获取到文件',
+          });
+          return;
+        }
+
+        if (statusCode >= 200 && statusCode < 300) {
+          const fileSystem = wx.getFileSystemManager();
+          fileSystem.stat({
+            path: tempFilePath,
+            success(statRes) {
+              const stats = Array.isArray(statRes.stats) ? statRes.stats[0] : statRes.stats;
+              const fileSize = stats && stats.size ? stats.size : 0;
+              console.log('[downloadFile] File size:', fileSize);
+
+              if (fileSize < MIN_VALID_FILE_SIZE) {
+                console.warn('[downloadFile] File too small, might be error response');
+                parseErrorResponse(tempFilePath).then((parseResult) => {
+                  if (parseResult.isError) {
+                    reject({
+                      statusCode,
+                      message: parseResult.message,
+                      errorData: parseResult.errorData,
+                      isSmallFile: true,
+                    });
+                  } else {
+                    resolve(res);
+                  }
+                });
+              } else {
+                resolve(res);
+              }
+            },
+            fail(statErr) {
+              console.warn('[downloadFile] Failed to stat file:', statErr);
+              resolve(res);
+            },
+          });
+          return;
+        }
+
         reject({
           statusCode,
-          data: res,
-          message: pickErrorMessage(res, '下载失败'),
+          tempFilePath,
+          message: `下载失败 (状态码: ${statusCode})`,
         });
       },
       fail(err) {
+        console.error('[downloadFile] Request failed:', err);
         reject({
           message: err && err.errMsg ? err.errMsg : '下载失败，请稍后重试',
+          err,
         });
       },
     });

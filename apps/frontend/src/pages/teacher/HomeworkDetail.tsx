@@ -30,7 +30,7 @@ import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { Dayjs } from 'dayjs';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   createTeacherBatchSubmissions,
@@ -124,6 +124,19 @@ export const TeacherHomeworkDetailPage = () => {
   const [excludedItems, setExcludedItems] = useState<Set<string>>(new Set());
   const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
   const [skippedFileNames, setSkippedFileNames] = useState<Record<string, string>>({});
+  const uploadStageTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previewPercentTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (uploadStageTimerRef.current) {
+        clearTimeout(uploadStageTimerRef.current);
+      }
+      if (previewPercentTimerRef.current) {
+        clearTimeout(previewPercentTimerRef.current);
+      }
+    };
+  }, []);
 
   const resolveApiErrorMessage = (error: unknown, fallback: string) => {
     if (!isAxiosError(error)) {
@@ -267,7 +280,7 @@ export const TeacherHomeworkDetailPage = () => {
       submissionsQuery.refetch();
       batchesQuery.refetch();
       // Reset stage after a delay
-      setTimeout(() => setUploadStage(null), 2000);
+      uploadStageTimerRef.current = setTimeout(() => setUploadStage(null), 2000);
     },
     onError: (error: unknown) => {
       setUploadPercent(0);
@@ -287,7 +300,7 @@ export const TeacherHomeworkDetailPage = () => {
       setPreviewPercent(100);
       message.success(t('teacher.batchUpload.previewSuccess'));
       // Reset preview percent after a delay
-      setTimeout(() => setPreviewPercent(0), 2000);
+      previewPercentTimerRef.current = setTimeout(() => setPreviewPercent(0), 2000);
     },
     onError: (error: unknown) => {
       setPreviewPercent(0);
@@ -385,7 +398,7 @@ export const TeacherHomeworkDetailPage = () => {
     onSuccess: (data) => {
       setImportResults({
         created: data.created.length,
-        conflicts: data.existing.map((e) => ({ account: e.account, name: e.name, reason: '账号已存在' })),
+        conflicts: data.existing.map((e) => ({ account: e.account, name: e.name, reason: t('teacher.batchUpload.accountExists') })),
       });
       if (data.created.length > 0) {
         message.success(`${t('teacher.batchUpload.batchImportSuccess')} ${data.created.length}`);
@@ -408,7 +421,7 @@ export const TeacherHomeworkDetailPage = () => {
         name: item.extractedName!.zh,
       }));
     if (students.length === 0) {
-      message.warning('没有可导入的学生');
+      message.warning(t('teacher.batchUpload.noStudentsToImport'));
       return;
     }
     setImportResults(null);
@@ -494,7 +507,8 @@ export const TeacherHomeworkDetailPage = () => {
     try {
       const blob = await downloadTeacherHomeworkSubmissionsCsv(id, language);
       downloadBlob(blob, `homework-${id}-submissions.csv`);
-    } catch {
+    } catch (error) {
+      console.error('导出CSV失败:', error);
       message.error(t('teacher.homeworkDetail.exportFailed'));
     }
   };
@@ -506,7 +520,8 @@ export const TeacherHomeworkDetailPage = () => {
     try {
       const blob = await downloadTeacherHomeworkImagesZip(id);
       downloadBlob(blob, `homework-${id}-images.zip`);
-    } catch {
+    } catch (error) {
+      console.error('导出图片失败:', error);
       message.error(t('teacher.homeworkDetail.exportFailed'));
     }
   };
@@ -518,7 +533,8 @@ export const TeacherHomeworkDetailPage = () => {
     try {
       const blob = await downloadTeacherHomeworkRemindersCsv(id, language);
       downloadBlob(blob, `homework-${id}-reminders.csv`);
-    } catch {
+    } catch (error) {
+      console.error('导出提醒列表失败:', error);
       message.error(t('teacher.homeworkDetail.exportFailed'));
     }
   };
@@ -532,7 +548,8 @@ export const TeacherHomeworkDetailPage = () => {
       const blob = await downloadTeacherSubmissionsPdf(id, submissionIds, language);
       downloadBlob(blob, `homework-${id}-grading-sheets.pdf`);
       message.success(`${t('teacher.homeworkDetail.exportPdfSuccess')} ${selectedRowKeys.length}`);
-    } catch {
+    } catch (error) {
+      console.error('批量导出PDF失败:', error);
       message.error(t('teacher.homeworkDetail.exportFailed'));
     }
   };
@@ -599,7 +616,8 @@ export const TeacherHomeworkDetailPage = () => {
         nameOverrides: Object.keys(nameOverrides).length ? nameOverrides : undefined,
         excludedFileKeys: excludedItems.size > 0 ? JSON.stringify(Array.from(excludedItems)) : undefined,
       });
-    } catch {
+    } catch (error) {
+      console.error('批量上传失败:', error);
       return;
     }
   };
@@ -656,93 +674,97 @@ export const TeacherHomeworkDetailPage = () => {
         archive: zipFiles.length ? zipFiles[0] : null,
         nameOverrides: Object.keys(nameOverrides).length ? nameOverrides : undefined,
       });
-    } catch {
+    } catch (error) {
+      console.error('预览失败:', error);
       return;
     }
   };
 
-  const columns: ProColumns<SubmissionRow>[] = [
-    {
-      title: (
-        <Checkbox
-          checked={selectedRowKeys.length === filteredSubmissions.filter((s) => s.status === 'DONE').length && filteredSubmissions.filter((s) => s.status === 'DONE').length > 0}
-          indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < filteredSubmissions.filter((s) => s.status === 'DONE').length}
-          onChange={(e) => handleSelectAll(e.target.checked)}
-        />
-      ),
-      dataIndex: 'id',
-      width: 50,
-      render: (_, record) => (
-        <Checkbox
-          checked={selectedRowKeys.includes(record.id)}
-          onChange={(e) => handleSelectRow(record.id, e.target.checked)}
-          disabled={record.status !== 'DONE'}
-        />
-      ),
-    },
-    {
-      title: t('common.student'),
-      dataIndex: 'studentName',
-      render: (value) => <Typography.Text strong>{value}</Typography.Text>,
-    },
-    {
-      title: t('common.account'),
-      dataIndex: 'studentAccount',
-      width: 160,
-    },
-    {
-      title: t('common.status'),
-      dataIndex: 'status',
-      render: (_, item) => {
-        const statusMap: Record<string, string> = {
-          QUEUED: t('status.queued'),
-          PROCESSING: t('status.processing'),
-          DONE: t('status.done'),
-          FAILED: t('status.failed'),
-        };
-        return <Tag color={item.status === 'DONE' ? 'success' : item.status === 'FAILED' ? 'error' : item.status === 'PROCESSING' ? 'processing' : 'default'}>{statusMap[item.status] || item.status}</Tag>;
+  const columns: ProColumns<SubmissionRow>[] = useMemo(
+    () => [
+      {
+        title: (
+          <Checkbox
+            checked={selectedRowKeys.length === filteredSubmissions.filter((s) => s.status === 'DONE').length && filteredSubmissions.filter((s) => s.status === 'DONE').length > 0}
+            indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < filteredSubmissions.filter((s) => s.status === 'DONE').length}
+            onChange={(e) => handleSelectAll(e.target.checked)}
+          />
+        ),
+        dataIndex: 'id',
+        width: 50,
+        render: (_, record) => (
+          <Checkbox
+            checked={selectedRowKeys.includes(record.id)}
+            onChange={(e) => handleSelectRow(record.id, e.target.checked)}
+            disabled={record.status !== 'DONE'}
+          />
+        ),
       },
-      width: 140,
-    },
-    {
-      title: t('common.score'),
-      dataIndex: 'totalScore',
-      renderText: (value) => (typeof value === 'number' ? value : '--'),
-      width: 120,
-    },
-    {
-      title: t('common.lastUpdated'),
-      dataIndex: 'updatedAt',
-      renderText: (value) => formatDateShort(value),
-      width: 200,
-    },
-    {
-      title: t('common.action'),
-      valueType: 'option',
-      render: (_, item) => [
-        <Button key="view" onClick={() => navigate(`/teacher/submission/${item.id}`)}>
-          {t('common.view')}
-        </Button>,
-        <Button
-          key="regrade"
-          size="small"
-          onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'cheap' })}
-          loading={regradeMutation.isPending}
-        >
-          {t('teacher.homeworkDetail.regrade')}
-        </Button>,
-        <Button
-          key="regrade-quality"
-          size="small"
-          type="primary"
-          onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'quality' })}
-          loading={regradeMutation.isPending}
-        >
-          {t('teacher.homeworkDetail.regradeQuality')}
-        </Button>,
-      ],
-    },
-  ];
+      {
+        title: t('common.student'),
+        dataIndex: 'studentName',
+        render: (value) => <Typography.Text strong>{value}</Typography.Text>,
+      },
+      {
+        title: t('common.account'),
+        dataIndex: 'studentAccount',
+        width: 160,
+      },
+      {
+        title: t('common.status'),
+        dataIndex: 'status',
+        render: (_, item) => {
+          const statusMap: Record<string, string> = {
+            QUEUED: t('status.queued'),
+            PROCESSING: t('status.processing'),
+            DONE: t('status.done'),
+            FAILED: t('status.failed'),
+          };
+          return <Tag color={item.status === 'DONE' ? 'success' : item.status === 'FAILED' ? 'error' : item.status === 'PROCESSING' ? 'processing' : 'default'}>{statusMap[item.status] || item.status}</Tag>;
+        },
+        width: 140,
+      },
+      {
+        title: t('common.score'),
+        dataIndex: 'totalScore',
+        renderText: (value) => (typeof value === 'number' ? value : '--'),
+        width: 120,
+      },
+      {
+        title: t('common.lastUpdated'),
+        dataIndex: 'updatedAt',
+        renderText: (value) => formatDateShort(value),
+        width: 200,
+      },
+      {
+        title: t('common.action'),
+        valueType: 'option',
+        render: (_, item) => [
+          <Button key="view" onClick={() => navigate(`/teacher/submission/${item.id}`)}>
+            {t('common.view')}
+          </Button>,
+          <Button
+            key="regrade"
+            size="small"
+            onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'cheap' })}
+            loading={regradeMutation.isPending}
+          >
+            {t('teacher.homeworkDetail.regrade')}
+          </Button>,
+          <Button
+            key="regrade-quality"
+            size="small"
+            type="primary"
+            onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'quality' })}
+            loading={regradeMutation.isPending}
+          >
+            {t('teacher.homeworkDetail.regradeQuality')}
+          </Button>,
+        ],
+      },
+    ],
+    [t, selectedRowKeys, filteredSubmissions, navigate, regradeMutation],
+  );
 
   const batchStatusMeta = useMemo(
     () => ({
@@ -755,97 +777,100 @@ export const TeacherHomeworkDetailPage = () => {
     [t],
   );
 
-  const batchColumns: ColumnsType<BatchHistoryRow> = [
-    {
-      title: t('teacher.batchUpload.historyCreatedAt'),
-      dataIndex: 'createdAt',
-      render: (value: string) => formatDateShort(value),
-      width: 180,
-    },
-    {
-      title: t('teacher.batchUpload.historyUploader'),
-      dataIndex: 'uploader',
-      render: (value: { name: string; account: string }) =>
-        value ? `${value.name} (${value.account})` : '--',
-      width: 180,
-    },
-    {
-      title: t('teacher.batchUpload.totalImages'),
-      dataIndex: 'totalImages',
-      width: 120,
-    },
-    {
-      title: t('teacher.batchUpload.matchedImages'),
-      dataIndex: 'matchedImages',
-      width: 140,
-    },
-    {
-      title: t('teacher.batchUpload.unmatchedImages'),
-      dataIndex: 'unmatchedCount',
-      width: 140,
-    },
-    {
-      title: t('teacher.batchUpload.createdSubmissions'),
-      dataIndex: 'createdSubmissions',
-      width: 140,
-    },
-    {
-      title: t('teacher.batchUpload.historyStatus'),
-      dataIndex: 'status',
-      render: (value: string) => {
-        const meta = batchStatusMeta[value as keyof typeof batchStatusMeta];
-        return meta ? <Tag color={meta.color}>{meta.label}</Tag> : value;
+  const batchColumns: ColumnsType<BatchHistoryRow> = useMemo(
+    () => [
+      {
+        title: t('teacher.batchUpload.historyCreatedAt'),
+        dataIndex: 'createdAt',
+        render: (value: string) => formatDateShort(value),
+        width: 180,
       },
-      width: 140,
-    },
-    {
-      title: t('teacher.batchUpload.progress'),
-      dataIndex: 'statusCounts',
-      render: (counts: BatchStatusCounts | undefined, row: BatchHistoryRow) => {
-        const total = row.createdSubmissions || 0;
-        const done = counts?.done || 0;
-        const processing = counts?.processing || 0;
-        const queued = counts?.queued || 0;
-        const failed = counts?.failed || 0;
-        const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+      {
+        title: t('teacher.batchUpload.historyUploader'),
+        dataIndex: 'uploader',
+        render: (value: { name: string; account: string }) =>
+          value ? `${value.name} (${value.account})` : '--',
+        width: 180,
+      },
+      {
+        title: t('teacher.batchUpload.totalImages'),
+        dataIndex: 'totalImages',
+        width: 120,
+      },
+      {
+        title: t('teacher.batchUpload.matchedImages'),
+        dataIndex: 'matchedImages',
+        width: 140,
+      },
+      {
+        title: t('teacher.batchUpload.unmatchedImages'),
+        dataIndex: 'unmatchedCount',
+        width: 140,
+      },
+      {
+        title: t('teacher.batchUpload.createdSubmissions'),
+        dataIndex: 'createdSubmissions',
+        width: 140,
+      },
+      {
+        title: t('teacher.batchUpload.historyStatus'),
+        dataIndex: 'status',
+        render: (value: string) => {
+          const meta = batchStatusMeta[value as keyof typeof batchStatusMeta];
+          return meta ? <Tag color={meta.color}>{meta.label}</Tag> : value;
+        },
+        width: 140,
+      },
+      {
+        title: t('teacher.batchUpload.progress'),
+        dataIndex: 'statusCounts',
+        render: (counts: BatchStatusCounts | undefined, row: BatchHistoryRow) => {
+          const total = row.createdSubmissions || 0;
+          const done = counts?.done || 0;
+          const processing = counts?.processing || 0;
+          const queued = counts?.queued || 0;
+          const failed = counts?.failed || 0;
+          const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
-        return (
-          <Space direction="vertical" size={4}>
-            <Typography.Text strong style={{ fontSize: 14 }}>
-              {percent}% ({done}/{total})
-            </Typography.Text>
-            <Space size={[4, 4]} wrap>
-              <Tag color="success">{t('status.done')} {done}</Tag>
-              <Tag color="processing">{t('status.processing')} {processing}</Tag>
-              <Tag>{t('status.queued')} {queued}</Tag>
-              <Tag color="error">{t('status.failed')} {failed}</Tag>
+          return (
+            <Space direction="vertical" size={4}>
+              <Typography.Text strong style={{ fontSize: 14 }}>
+                {percent}% ({done}/{total})
+              </Typography.Text>
+              <Space size={[4, 4]} wrap>
+                <Tag color="success">{t('status.done')} {done}</Tag>
+                <Tag color="processing">{t('status.processing')} {processing}</Tag>
+                <Tag>{t('status.queued')} {queued}</Tag>
+                <Tag color="error">{t('status.failed')} {failed}</Tag>
+              </Space>
             </Space>
-          </Space>
-        );
+          );
+        },
+        width: 200,
       },
-      width: 200,
-    },
-    {
-      title: t('common.action'),
-      dataIndex: 'id',
-      render: (_: string, row: BatchHistoryRow) => (
-        <Space size={8}>
-          <Button size="small" onClick={() => navigate(`/teacher/batches/${row.id}`)}>
-            {t('common.view')}
-          </Button>
-          <Button
-            size="small"
-            disabled={!row.statusCounts?.failed}
-            loading={retryBatchMutation.isPending}
-            onClick={() => retryBatchMutation.mutate(row.id)}
-          >
-            {t('teacher.batchUpload.retryFailed')}
-          </Button>
-        </Space>
-      ),
-      width: 160,
-    },
-  ];
+      {
+        title: t('common.action'),
+        dataIndex: 'id',
+        render: (_: string, row: BatchHistoryRow) => (
+          <Space size={8}>
+            <Button size="small" onClick={() => navigate(`/teacher/batches/${row.id}`)}>
+              {t('common.view')}
+            </Button>
+            <Button
+              size="small"
+              disabled={!row.statusCounts?.failed}
+              loading={retryBatchMutation.isPending}
+              onClick={() => retryBatchMutation.mutate(row.id)}
+            >
+              {t('teacher.batchUpload.retryFailed')}
+            </Button>
+          </Space>
+        ),
+        width: 160,
+      },
+    ],
+    [t, batchStatusMeta, navigate, retryBatchMutation],
+  );
 
   const isOverdue = Boolean(homework?.dueAt && new Date(homework.dueAt).getTime() < Date.now());
   const lateSubmissionTag = allowLateSubmission

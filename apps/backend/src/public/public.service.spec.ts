@@ -184,10 +184,29 @@ describe('PublicService', () => {
 
   describe('isSafeCssValue (via mergeTheme)', () => {
     it('should block dangerous CSS values in LLM-generated theme', async () => {
-      // Access the private method indirectly via generateLandingConfig
-      // We'll test by providing a runtime with LLM that returns unsafe theme
+      // Mock fetch to return a response with dangerous CSS values
+      const mockFetch = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                theme: {
+                  background: 'url(javascript:alert(1))',
+                  surface: 'expression(alert(1))',
+                  text: '@import evil.css',
+                  accent: 'safe-color-value',
+                  noiseOpacity: 0.15,
+                },
+              }),
+            },
+          }],
+        }),
+      } as Response);
+
       llmConfig.resolveRuntimeConfig.mockResolvedValue({
-        baseUrl: 'https://api.openai.com',
+        baseUrl: 'https://api.example.com',
         model: 'gpt-4',
         providerName: 'openai',
         headers: {},
@@ -196,10 +215,17 @@ describe('PublicService', () => {
         timeoutMs: 5000,
       });
 
-      // The LLM fetch will fail (no real server), so it falls back to default
-      // We test isSafeCssValue indirectly - it's tested through the mergeTheme path
-      const result = await service.getLanding({});
-      expect(result.theme).toBeDefined();
+      const result = await service.getLanding({ refresh: true });
+
+      // Dangerous CSS values should be blocked, safe values should pass
+      expect(result.theme.background).not.toContain('url(');
+      expect(result.theme.surface).not.toContain('expression');
+      expect(result.theme.text).not.toContain('@import');
+      // Safe value should be preserved
+      expect(result.theme.accent).toBe('safe-color-value');
+      expect(result.theme.noiseOpacity).toBe(0.15);
+
+      mockFetch.mockRestore();
     });
   });
 

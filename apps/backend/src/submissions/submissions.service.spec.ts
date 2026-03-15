@@ -2,7 +2,7 @@ import AdmZip = require('adm-zip');
 import { unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Role, SubmissionStatus } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { GradingPolicyService } from '../grading-policy/grading-policy.service';
@@ -2383,27 +2383,56 @@ describe('SubmissionsService', () => {
     });
 
     it('should create and enroll new students when the generated account is unused', async () => {
-      prismaService.user.findUnique = jest.fn().mockResolvedValue(null);
-      prismaService.user.create = jest.fn().mockResolvedValue({ id: 'student-new', account: 'wangwu', name: '王五' });
-      prismaService.enrollment.create = jest.fn().mockResolvedValue({ id: 'enrollment-1' });
+      const originalEnv = process.env.DEFAULT_STUDENT_PASSWORD;
+      process.env.DEFAULT_STUDENT_PASSWORD = 'TestPassword123';
 
-      const result = await (service as any).resolveStudentByName('王五', 'class-1', candidates);
+      try {
+        prismaService.user.findUnique = jest.fn().mockResolvedValue(null);
+        prismaService.user.create = jest.fn().mockResolvedValue({ id: 'student-new', account: 'wangwu', name: '王五' });
+        prismaService.enrollment.create = jest.fn().mockResolvedValue({ id: 'enrollment-1' });
 
-      expect(result).toEqual({ account: 'wangwu', name: '王五', isNew: true });
-      expect(prismaService.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          account: 'wangwu',
-          name: '王五',
-          role: Role.STUDENT,
-          passwordHash: expect.any(String),
-        }),
-      });
-      expect(prismaService.enrollment.create).toHaveBeenCalledWith({
-        data: {
-          classId: 'class-1',
-          studentId: 'student-new',
-        },
-      });
+        const result = await (service as any).resolveStudentByName('王五', 'class-1', candidates);
+
+        expect(result).toEqual({ account: 'wangwu', name: '王五', isNew: true });
+        expect(prismaService.user.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            account: 'wangwu',
+            name: '王五',
+            role: Role.STUDENT,
+            passwordHash: expect.any(String),
+          }),
+        });
+        expect(prismaService.enrollment.create).toHaveBeenCalledWith({
+          data: {
+            classId: 'class-1',
+            studentId: 'student-new',
+          },
+        });
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.DEFAULT_STUDENT_PASSWORD = originalEnv;
+        } else {
+          delete process.env.DEFAULT_STUDENT_PASSWORD;
+        }
+      }
+    });
+
+    it('should throw InternalServerErrorException when DEFAULT_STUDENT_PASSWORD is not set', async () => {
+      const originalEnv = process.env.DEFAULT_STUDENT_PASSWORD;
+      delete process.env.DEFAULT_STUDENT_PASSWORD;
+
+      try {
+        prismaService.user.findUnique = jest.fn().mockResolvedValue(null);
+
+        await expect((service as any).resolveStudentByName('王五', 'class-1', candidates)).rejects.toThrow(
+          InternalServerErrorException,
+        );
+        expect(prismaService.user.create).not.toHaveBeenCalled();
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.DEFAULT_STUDENT_PASSWORD = originalEnv;
+        }
+      }
     });
 
     it('should return null when a generated account is invalid', async () => {

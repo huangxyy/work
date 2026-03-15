@@ -155,7 +155,8 @@ export const AdminClassesPage = () => {
                 teacherIds: (values.teacherIds as string[]) || [],
               });
               return true;
-            } catch {
+            } catch (error) {
+              console.error('分配教师失败:', error);
               return false;
             }
           }}
@@ -246,7 +247,8 @@ export const AdminClassesPage = () => {
                   try {
                     await importMutation.mutateAsync({ classId: activeClass.id, text });
                     return true;
-                  } catch {
+                  } catch (error) {
+                    console.error('导入学生失败:', error);
                     return false;
                   }
                 }}

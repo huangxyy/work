@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { authStore, type UserRole } from '../api/client';
 import { fetchMe } from '../api/auth';
 import { Spin, Result } from 'antd';
+import { useI18n } from '../i18n';
 
 type RequireAuthProps = {
   /** Allowed roles for this route group. If empty, any authenticated user is allowed. */
@@ -26,6 +27,7 @@ const ROLE_HOME: Record<UserRole, string> = {
  */
 export const RequireAuth = ({ allowedRoles, children }: RequireAuthProps) => {
   const location = useLocation();
+  const { t } = useI18n();
   const [isValidating, setIsValidating] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -57,8 +59,8 @@ export const RequireAuth = ({ allowedRoles, children }: RequireAuthProps) => {
           const isNetworkError = !(error instanceof Object && 'response' in error && error.response);
           setValidationError(
             isNetworkError
-              ? '网络连接失败，请检查网络后重试'
-              : '登录状态已过期，正在跳转到登录页…',
+              ? t('auth.networkError')
+              : t('auth.sessionExpired'),
           );
           setIsAuthenticated(false);
           setIsValidating(false);
@@ -71,7 +73,7 @@ export const RequireAuth = ({ allowedRoles, children }: RequireAuthProps) => {
     return () => {
       mounted = false;
     };
-  }, [token]);
+  }, [token, t]);
 
   if (isValidating) {
     return (
@@ -88,7 +90,7 @@ export const RequireAuth = ({ allowedRoles, children }: RequireAuthProps) => {
         title={validationError}
         extra={
           <a href="/login" style={{ color: '#1677ff' }}>
-            返回登录
+            {t('auth.backToLogin')}
           </a>
         }
       />

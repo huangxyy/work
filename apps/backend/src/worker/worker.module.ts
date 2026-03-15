@@ -9,6 +9,7 @@ import { GradingModule } from '../grading/grading.module';
 import { SystemConfigModule } from '../system-config/system-config.module';
 import { OcrModule } from '../ocr/ocr.module';
 import { NotificationModule } from '../notifications/notification.module';
+import { RedisModule } from '../common/redis';
 
 const buildRedisConnection = (redisUrl: string) => {
   try {
@@ -28,6 +29,7 @@ const buildRedisConnection = (redisUrl: string) => {
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    RedisModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

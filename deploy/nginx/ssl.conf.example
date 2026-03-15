@@ -1,0 +1,217 @@
+# =============================================================================
+# Homework AI - Nginx HTTPS 配置示例
+# =============================================================================
+# 用途: 为生产环境配置 SSL/TLS 加密
+# 使用:
+#   1. 将此文件重命名为 ssl.conf
+#   2. 配置 SSL 证书路径
+#   3. 在主配置文件中引入此配置
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# HTTP 重定向到 HTTPS
+# -----------------------------------------------------------------------------
+server {
+    listen 80;
+    server_name your-domain.com www.your-domain.com;
+
+    # Let's Encrypt 验证路径
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # 其他请求重定向到 HTTPS
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
+}
+
+# -----------------------------------------------------------------------------
+# HTTPS 主配置
+# -----------------------------------------------------------------------------
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com www.your-domain.com;
+
+    # =============================================================================
+    # SSL 证书配置
+    # =============================================================================
+
+    # 方式一: 使用已有证书（替换为实际路径）
+    ssl_certificate /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+
+    # 方式二: 使用 Let's Encrypt 证书
+    # ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    # =============================================================================
+    # SSL 协议和密码套件配置
+    # =============================================================================
+
+    # 使用的协议版本
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # 优先使用服务器密码套件
+    ssl_prefer_server_ciphers on;
+
+    # 允许的密码套件
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384';
+
+    # =============================================================================
+    # SSL 会话缓存
+    # =============================================================================
+
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    # =============================================================================
+    # OCSP Stapling
+    # =============================================================================
+
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+    # 指定 OCSP 响应服务器
+    # resolver 8.8.8.8 8.8.4.4 valid=300s;
+    # resolver_timeout 5s;
+
+    # =============================================================================
+    # 安全头配置
+    # =============================================================================
+
+    # HSTS (强制 HTTPS)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+    # 防止点击劫持
+    add_header X-Frame-Options "SAMEORIGIN" always;
+
+    # 防止 MIME 类型嗅探
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # XSS 保护
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # 内容安全策略
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';" always;
+
+    # Referrer 策略
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # =============================================================================
+    # 日志配置
+    # =============================================================================
+
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    # =============================================================================
+    # 代理配置
+    # =============================================================================
+
+    # 前端静态资源
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
+
+        # 静态资源缓存
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # API 代理
+    location /api/ {
+        proxy_pass http://backend-api:3000/api/;
+        proxy_http_version 1.1;
+
+        # 请求头
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+
+        # 缓冲设置
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+        proxy_busy_buffers_size 8k;
+    }
+
+    # =============================================================================
+    # 文件上传大小限制
+    # =============================================================================
+
+    client_max_body_size 50M;
+    client_body_buffer_size 1M;
+}
+
+# =============================================================================
+# 证书申请说明
+# =============================================================================
+
+# 1. 使用 Let's Encrypt 免费证书:
+#
+#    安装 certbot:
+#    sudo apt-get install certbot python3-certbot-nginx
+#
+#    申请证书:
+#    sudo certbot certonly --nginx -d your-domain.com -d www.your-domain.com
+#
+#    自动续期:
+#    sudo certbot renew --dry-run
+
+# 2. 使用自签名证书（仅用于测试）:
+#
+#    生成证书:
+#    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+#      -keyout /etc/nginx/ssl/privkey.pem \
+#      -out /etc/nginx/ssl/fullchain.pem
+#
+#    注意: 浏览器会显示安全警告，仅用于开发测试
+
+# 3. 使用商业证书:
+#
+#    从证书颁发机构购买证书后，将证书文件放置到指定目录
+#    更新 ssl_certificate 和 ssl_certificate_key 路径
+
+# =============================================================================
+# Docker Compose 配置示例
+# =============================================================================
+
+# 在 docker-compose.yml 中添加以下配置:
+#
+# services:
+#   nginx:
+#     image: nginx:1.27-alpine
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+#       - ./nginx/ssl.conf:/etc/nginx/conf.d/ssl.conf:ro
+#       - ./apps/frontend/dist:/usr/share/nginx/html:ro
+#       - ./nginx/ssl:/etc/nginx/ssl:ro              # SSL 证书目录
+#       - ./nginx/certbot:/var/www/certbot:ro        # Let's Encrypt 验证目录
+#       - certbot-etc:/etc/letsencrypt:ro            # Let's Encrypt 证书目录
+#     depends_on:
+#       - backend-api
+#
+#   certbot:
+#     image: certbot/certbot:latest
+#     volumes:
+#       - ./nginx/certbot:/var/www/certbot
+#       - certbot-etc:/etc/letsencrypt
+#     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+#
+# volumes:
+#   certbot-etc:

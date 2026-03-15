@@ -1,5 +1,6 @@
 import { Empty } from 'antd';
 import type { ReactNode } from 'react';
+import { memo } from 'react';
 
 type SoftEmptyProps = {
   description?: string;
@@ -21,8 +22,8 @@ const emptySvg = encodeURIComponent(`
 
 const image = `data:image/svg+xml;utf8,${emptySvg}`;
 
-export const SoftEmpty = ({ description, imageHeight = 96, children }: SoftEmptyProps) => (
+export const SoftEmpty = memo(({ description, imageHeight = 96, children }: SoftEmptyProps) => (
   <Empty className="soft-empty" image={image} styles={{ image: { height: imageHeight } }} description={description}>
     {children}
   </Empty>
-);
+));

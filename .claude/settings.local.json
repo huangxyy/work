@@ -17,7 +17,9 @@
       "Bash(start /min cmd /c \"pnpm start:dev > ..\\\\logs\\\\backend.log 2>&1\")",
       "Bash(start /min cmd /c \"pnpm start:worker:dev > ..\\\\logs\\\\worker.log 2>&1\")",
       "Bash(pnpm typecheck:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)",
+      "Bash(powershell.exe:*)"
     ]
   }
 }

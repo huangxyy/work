@@ -111,7 +111,8 @@ export const TeacherStudentReportPage = () => {
       link.download = `student-${studentId}-${rangeDays}d.pdf`;
       link.click();
       setTimeout(() => window.URL.revokeObjectURL(url), 200);
-    } catch {
+    } catch (error) {
+      console.error('导出PDF失败:', error);
       if (!reportRef.current) {
         message.error(t('teacher.reports.exportFailed'));
         return;
@@ -143,7 +144,8 @@ export const TeacherStudentReportPage = () => {
           heightLeft -= pageHeight;
         }
         pdf.save(`student-${studentId}-${rangeDays}d.pdf`);
-      } catch {
+      } catch (fallbackError) {
+        console.error('PDF备用导出失败:', fallbackError);
         message.error(t('teacher.reports.exportFailed'));
       }
     } finally {

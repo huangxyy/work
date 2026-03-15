@@ -1,5 +1,6 @@
 import { Statistic } from 'antd';
 import type { StatisticProps } from 'antd';
+import { memo } from 'react';
 import { CountUpNumber } from './CountUpNumber';
 
 type AnimatedStatisticProps = StatisticProps & {
@@ -7,7 +8,7 @@ type AnimatedStatisticProps = StatisticProps & {
   decimals?: number;
 };
 
-export const AnimatedStatistic = ({ value, duration, decimals, formatter, ...rest }: AnimatedStatisticProps) => {
+export const AnimatedStatistic = memo(({ value, duration, decimals, formatter, ...rest }: AnimatedStatisticProps) => {
   if (formatter) {
     return <Statistic value={value} formatter={formatter} {...rest} />;
   }
@@ -22,4 +23,4 @@ export const AnimatedStatistic = ({ value, duration, decimals, formatter, ...res
       {...rest}
     />
   );
-};
+});

@@ -1,5 +1,5 @@
 import type { ECharts, EChartsOption } from 'echarts';
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 
 type ChartPanelProps = {
   option: EChartsOption;
@@ -7,7 +7,7 @@ type ChartPanelProps = {
   className?: string;
 };
 
-export const ChartPanel = ({ option, height = 260, className }: ChartPanelProps) => {
+export const ChartPanel = memo(({ option, height = 260, className }: ChartPanelProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<ECharts | null>(null);
   const optionRef = useRef(option);
@@ -69,4 +69,4 @@ export const ChartPanel = ({ option, height = 260, className }: ChartPanelProps)
   const classes = className ? `chart-panel ${className}` : 'chart-panel';
 
   return <div ref={containerRef} className={classes} style={{ width: '100%', height, overflow: 'hidden' }} />;
-};
+});

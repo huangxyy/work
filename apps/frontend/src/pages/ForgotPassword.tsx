@@ -22,7 +22,8 @@ export const ForgotPasswordPage = () => {
       setEmail(values.email);
       setStep(1);
       message.success(t('forgotPassword.codeSent'));
-    } catch {
+    } catch (error) {
+      console.error('发送验证码失败:', error);
       message.error(t('forgotPassword.sendFailed'));
     } finally {
       setLoading(false);
@@ -34,7 +35,8 @@ export const ForgotPasswordPage = () => {
     try {
       await api.post('/auth/reset-password', { email, code: values.code, newPassword: values.newPassword });
       setDone(true);
-    } catch {
+    } catch (error) {
+      console.error('重置密码失败:', error);
       message.error(t('forgotPassword.resetFailed'));
     } finally {
       setLoading(false);

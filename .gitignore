@@ -1,8 +1,18 @@
 node_modules
 
 .DS_Store
+# 环境变量文件（包含敏感信息，严禁提交）
 .env
 .env.local
+.env.*.local
+apps/**/.env
+apps/**/.env.local
+apps/**/.env.*.local
+deploy/.env
+deploy/.env.*
+deploy/.env.prod
+
+# 构建产物
 apps/**/dist
 apps/**/node_modules
 apps/**/tsconfig.tsbuildinfo

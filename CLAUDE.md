@@ -28,6 +28,8 @@ pnpm start:dev       # Start API server with hot-reload
 pnpm start:worker:dev # Start worker process
 pnpm build           # Build for production
 pnpm test            # Run Jest tests
+pnpm test:watch      # Run tests in watch mode
+pnpm test:cov        # Run tests with coverage
 pnpm prisma:generate # Generate Prisma client
 pnpm prisma:migrate  # Run database migrations
 ```
@@ -38,6 +40,18 @@ pnpm dev             # Start Vite dev server (port 3001)
 pnpm build           # Build for production
 pnpm preview         # Preview production build
 pnpm lint            # ESLint
+pnpm test            # Run Vitest tests
+pnpm test:watch      # Run tests in watch mode
+pnpm test:cov        # Run tests with coverage
+```
+
+### Running Single Tests
+```bash
+# Backend: Run a specific test file
+pnpm --filter backend test -- path/to/file.spec.ts
+
+# Frontend: Run a specific test file
+pnpm --filter frontend test -- path/to/file.test.ts
 ```
 
 ## Startup Scripts
@@ -45,6 +59,8 @@ pnpm lint            # ESLint
 - `start-services.bat` - Main startup script for Windows (supports `--skip-docker` flag)
 - `restart-services.ps1` - PowerShell version with more features
 - `scripts/check-ports.bat` - Auto-fixes nginx port configuration
+- `pnpm handover:package` - Create deployment package for handover
+- `pnpm handover:package:with-accounts` - Include test accounts file in package
 
 ## Critical Architecture: Grading Workflow
 
@@ -100,9 +116,13 @@ pnpm lint            # ESLint
 - `Submission` - Student homework submissions with images
 - `BatchUpload` - Teacher bulk upload tracking
 - `SubmissionImage` - Individual images per submission
-- `GradingPolicy` - Per-class/homework grading overrides
+- `GradingPolicy` - Per-class/homework LLM grading mode overrides
 - `SystemConfig` - Key-value config (OCR keys, LLM settings)
 - `LlmCallLog` - API usage tracking
+- `Notification` - User notifications (type: `GRADING_DONE`, etc.)
+- `Announcement` - Class-wide announcements
+- `HomeworkTemplate` - Reusable homework templates for teachers
+- `AuditLog` - Action tracking for admin audit trail
 
 **Submission Status**: QUEUED → PROCESSING → DONE/FAILED
 
@@ -113,6 +133,12 @@ pnpm lint            # ESLint
 | Baidu OCR | Text recognition from images | BAIDU_OCR_API_KEY, BAIDU_OCR_SECRET_KEY |
 | DeepSeek LLM | Essay grading | LLM_API_KEY, LLM_BASE_URL, LLM_MODEL |
 | MinIO | Image storage | MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY |
+
+**Additional LLM Config Keys**:
+- `LLM_MAX_TOKENS` - Maximum output tokens (default: 800, recommend 2000+)
+- `LLM_MAX_INPUT_CHARS` - Input truncation threshold (default: 6000)
+- `LLM_DAILY_QUOTA` - Daily call limit for budget tracking
+- `LLM_QUOTA_MODE` - 'soft' (degrade) or 'hard' (reject) when exceeded
 
 ## Important Patterns
 
@@ -131,6 +157,22 @@ type GradingJobData = {
 };
 ```
 
+**Job Types**: The `grading` queue processes three job types:
+- `demo` - Test job for queue health checking
+- `grading` - Standard grading job for new submissions
+- `regrade` - Re-grading job for re-processing failed/submission
+
+**Worker Concurrency**: Controlled by `WORKER_CONCURRENCY` env var (default: 5)
+
+**LLM Grading Modes**:
+- `cheap` - Fast model, lower cost, suitable for batch operations
+- `quality` - Full model, higher quality, more detailed feedback
+
+**Grading Degradation Strategy**: When LLM calls fail or quota is exceeded, the service:
+1. Retries with reduced `maxTokens`
+2. Falls back to "short mode" (no rewrite, simplified scoring)
+3. Logs degradation reason in grading metadata
+
 ### Frontend API Pattern
 - All API calls in `src/api/` modules
 - Returns typed responses (not axios promises directly)
@@ -145,12 +187,34 @@ type GradingJobData = {
 - Backend: `HttpExceptionFilter` in `src/common/filters/`
 - Frontend: `resolveApiErrorMessage()` helper for extracting meaningful messages
 
+### Notification Types
+Notifications are created via `NotificationService` with types:
+- `GRADING_DONE` - Student notification when grading completes
+- Other types defined in `src/notifications/`
+
+### Audit Logging
+The `AuditLog` model tracks important user actions for admin review:
+- Action type, user ID, target ID, IP address
+- Automatically logged by `AuditInterceptor` on write operations
+- Configured in `src/common/audit/`
+
 ## Default Test Accounts
 
-Password: `Test1234`
+> ⚠️ **Security Warning**: The following passwords are for local development only. Must change for production!
+
+**Password**: `Dev@Pass2024!` (development environment only)
 - Admin: `admin`
 - Teacher: `teacher01`
 - Student: `student01`
+
+### Password Security Policy
+
+Production passwords must meet these requirements:
+- **Minimum length**: 16 characters
+- **Complexity**: Uppercase, lowercase, numbers, special characters
+- **Uniqueness**: Different passwords for different services
+- **Rotation**: Change every 90 days recommended
+- **Generation**: Use password manager or `openssl rand -base64 24`
 
 ## Port Configuration
 

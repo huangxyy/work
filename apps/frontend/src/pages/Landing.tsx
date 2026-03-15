@@ -195,7 +195,7 @@ export const LandingPage = () => {
   const languageKey: 'zh' | 'en' = language.startsWith('zh') ? 'zh' : 'en';
   const landing = landingQuery.data ?? DEFAULT_LANDING_PAYLOAD;
   const fallbackContent = DEFAULT_LANDING_PAYLOAD.content[languageKey];
-  const content = landing.content[languageKey] ?? fallbackContent;
+  const content = landing.content?.[languageKey] ?? fallbackContent;
   const zh = languageKey === 'zh';
 
   const handleConsultSubmit = () => {

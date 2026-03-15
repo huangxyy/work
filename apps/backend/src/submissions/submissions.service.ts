@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -2650,7 +2651,15 @@ export class SubmissionsService {
       this.logger.warn(`User ${account} already exists, adding to class ${classId}`);
     } else {
       // 创建新用户
-      const defaultPassword = process.env.DEFAULT_STUDENT_PASSWORD || '123456';
+      const defaultPassword = process.env.DEFAULT_STUDENT_PASSWORD;
+      if (!defaultPassword) {
+        this.logger.error(
+          'DEFAULT_STUDENT_PASSWORD environment variable is not set. Cannot create new student accounts.',
+        );
+        throw new InternalServerErrorException(
+          'Server configuration error: default student password not configured',
+        );
+      }
       const passwordHash = await bcrypt.hash(defaultPassword, 10);
       const created = await this.prisma.user.create({
         data: {

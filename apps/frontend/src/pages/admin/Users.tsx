@@ -176,7 +176,8 @@ export const AdminUsersPage = () => {
                 payload: { role: values.role as 'STUDENT' | 'TEACHER' | 'ADMIN' },
               });
               return true;
-            } catch {
+            } catch (error) {
+              console.error('修改角色失败:', error);
               return false;
             }
           }}
@@ -206,7 +207,8 @@ export const AdminUsersPage = () => {
                   name: item.name,
                 });
                 return true;
-              } catch {
+              } catch (error) {
+                console.error('分配班级失败:', error);
                 return false;
               }
             }}
@@ -232,7 +234,8 @@ export const AdminUsersPage = () => {
                 password: values.password as string,
               });
               return true;
-            } catch {
+            } catch (error) {
+              console.error('重置密码失败:', error);
               return false;
             }
           }}
@@ -392,7 +395,8 @@ export const AdminUsersPage = () => {
                   message.success(`${t('admin.users.bulkImportDone')}: ${res.created} ${t('admin.users.bulkCreated')}, ${res.exists} ${t('admin.users.bulkExists')}`);
                   queryClient.invalidateQueries({ queryKey: ['admin-users'] });
                   return true;
-                } catch {
+                } catch (error) {
+                  console.error('批量导入失败:', error);
                   message.error(t('admin.users.bulkImportFailed'));
                   return false;
                 }
@@ -449,7 +453,8 @@ export const AdminUsersPage = () => {
                     classId: role === 'STUDENT' ? (values.classId as string | undefined) : undefined,
                   });
                   return true;
-                } catch {
+                } catch (error) {
+                  console.error('创建用户失败:', error);
                   return false;
                 }
               }}

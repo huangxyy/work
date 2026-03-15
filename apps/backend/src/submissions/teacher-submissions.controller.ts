@@ -232,7 +232,7 @@ export class TeacherSubmissionsController {
   }
 
   @Get('pdf')
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   async exportPdf(
     @Query() query: ExportHomeworkPdfQueryDto,
     @Req() req: { user: AuthUser },

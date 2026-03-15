@@ -58,11 +58,21 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   if (corsOrigins.includes('*')) {
+    if (isProduction) {
+      Logger.error('SECURITY WARNING: CORS_ORIGIN set to * in production environment! This is a security risk. Please configure specific origins.');
+      // In production, reject wildcard origins for security
+      throw new Error('Wildcard CORS origin (*) is not allowed in production. Please configure CORS_ORIGIN with specific domains.');
+    }
     app.enableCors({ origin: '*', credentials: false });
     Logger.warn('CORS_ORIGIN set to *, allowing all origins without credentials. Avoid this in production.');
   } else if (corsOrigins.length === 0) {
-    app.enableCors({ origin: ['http://localhost:5173', 'http://localhost:3001'], credentials: true });
-    Logger.warn('CORS_ORIGIN is not configured, falling back to localhost dev origins.');
+    const devOrigins = ['http://localhost:5173', 'http://localhost:3001'];
+    app.enableCors({ origin: devOrigins, credentials: true });
+    if (isProduction) {
+      Logger.warn('CORS_ORIGIN is not configured in production. Falling back to localhost origins which may not work correctly.');
+    } else {
+      Logger.debug('CORS_ORIGIN is not configured, falling back to localhost dev origins.');
+    }
   } else {
     app.enableCors({ origin: corsOrigins, credentials: true });
   }

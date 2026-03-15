@@ -201,8 +201,46 @@ export const TeacherReportPage = () => {
       link.download = `class-${selectedClassId}-report.pdf`;
       link.click();
       window.URL.revokeObjectURL(url);
-    } catch {
-      message.error(t('teacher.reports.exportFailed'));
+    } catch (error) {
+      console.error('导出PDF失败:', error);
+      // 尝试使用备用方案（html2canvas + jsPDF）
+      if (!reportRef.current) {
+        message.error(t('teacher.reports.exportFailed'));
+        return;
+      }
+      try {
+        message.loading(t('teacher.reports.fallbackExporting'));
+        const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+          import('html2canvas'),
+          import('jspdf'),
+        ]);
+        const canvas = await html2canvas(reportRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = pageWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let position = 0;
+        let heightLeft = imgHeight;
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+          position -= pageHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+        pdf.save(`class-${selectedClassId}-report.pdf`);
+        message.success(t('teacher.reports.exportSuccess'));
+      } catch (fallbackError) {
+        console.error('PDF备用导出失败:', fallbackError);
+        message.error(t('teacher.reports.exportFailed'));
+      }
     } finally {
       setExporting(false);
     }
@@ -216,7 +254,8 @@ export const TeacherReportPage = () => {
     try {
       const blob = await downloadTeacherClassReportCsv(selectedClassId, rangeDays, language);
       downloadBlob(blob, `class-${selectedClassId}-report.csv`);
-    } catch {
+    } catch (error) {
+      console.error('导出CSV失败:', error);
       message.error(t('teacher.reports.exportFailed'));
     }
   };

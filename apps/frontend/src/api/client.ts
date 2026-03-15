@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestHeaders } from 'axios';
+import { authTokenStorage, authUserStorage } from '../utils/storage';
 
 export type UserRole = 'STUDENT' | 'TEACHER' | 'ADMIN';
 
@@ -39,7 +40,8 @@ const buildRequestKey = (config: ConfigWithMeta) => {
   if (config.params) {
     try {
       params = JSON.stringify(config.params);
-    } catch {
+    } catch (error) {
+      // 忽略序列化错误
       params = '';
     }
   }
@@ -65,7 +67,8 @@ api.interceptors.request.use((config) => {
     configWithMeta.metadata = { requestKey };
   }
 
-  const token = localStorage.getItem('auth_token');
+  // 使用封装的 storage 工具
+  const token = authTokenStorage.get();
   if (token) {
     const headers = (config.headers || {}) as AxiosRequestHeaders;
     headers.Authorization = `Bearer ${token}`;
@@ -109,24 +112,14 @@ api.interceptors.response.use(
 );
 
 export const authStore = {
-  getToken: () => localStorage.getItem('auth_token'),
-  setToken: (token: string) => localStorage.setItem('auth_token', token),
+  getToken: () => authTokenStorage.get(),
+  setToken: (token: string) => authTokenStorage.set(token),
   clear: () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    authTokenStorage.remove();
+    authUserStorage.remove();
   },
-  setUser: (user: AuthUser) => localStorage.setItem('auth_user', JSON.stringify(user)),
-  getUser: (): AuthUser | null => {
-    const raw = localStorage.getItem('auth_user');
-    if (!raw) {
-      return null;
-    }
-    try {
-      return JSON.parse(raw) as AuthUser;
-    } catch {
-      return null;
-    }
-  },
+  setUser: (user: AuthUser) => authUserStorage.set(user),
+  getUser: (): AuthUser | null => authUserStorage.get(),
 };
 
 export type LoginResponse = {

@@ -266,91 +266,105 @@ export class ReportsService {
 
   async exportClassPdf(classId: string, query: ReportRangeQueryDto, user: AuthUser) {
     const startedAt = Date.now();
-    const report = await this.getClassOverview(classId, query, user);
-    const requestedZh = this.isZhLang(query.lang);
-    const font = this.resolvePdfFont(query.lang);
-    const isZh = requestedZh && font !== 'Helvetica';
-    if (requestedZh && !isZh) {
-      this.logger.warn('CJK font not found for class report PDF, fallback to English template');
-    }
-    const buffer = await this.renderPdf((doc) => {
-      doc.font(isZh ? font : 'Helvetica');
-      this.writeHeader(doc, isZh ? '班级报告' : 'Class Report', [
-        isZh ? `班级：${report.className}` : `Class: ${report.className}`,
-        isZh ? `班级ID：${report.classId}` : `Class ID: ${report.classId}`,
-        isZh ? `范围：近${report.rangeDays}天` : `Range: last ${report.rangeDays} days`,
-        isZh ? `生成时间：${this.formatDateTime(new Date())}` : `Generated: ${this.formatDateTime(new Date())}`,
-      ]);
-
-      this.writeSection(doc, isZh ? '汇总' : 'Summary', () => {
-        const baseRows: Array<[string, number | string]> = [
-          [isZh ? '学生总数' : 'Total Students', report.totalStudents],
-          [isZh ? '已提交学生' : 'Submitted Students', report.submittedStudents],
-          [isZh ? '未提交学生' : 'Pending Students', report.pendingStudents],
-          [isZh ? '提交率' : 'Submission Rate', this.formatRatio(report.submissionRate)],
-        ];
-        if (!report.summary.count) {
-          this.writeKeyValues(doc, baseRows);
-          doc.text(isZh ? '暂无已完成提交。' : 'No completed submissions.');
-          return;
+    try {
+      const report = await this.getClassOverview(classId, query, user);
+      const requestedZh = this.isZhLang(query.lang);
+      const font = this.resolvePdfFont(query.lang);
+      const isZh = requestedZh && font !== 'Helvetica';
+      if (requestedZh && !isZh) {
+        this.logger.warn('CJK font not found for class report PDF, fallback to English template');
+      }
+      const buffer = await this.renderPdf(font, (doc) => {
+        if (isZh) {
+          doc.font('SimHei');
+        } else {
+          doc.font('Helvetica');
         }
-        this.writeKeyValues(doc, [
-          ...baseRows,
-          [isZh ? '平均分' : 'Average', report.summary.avg],
-          [isZh ? '最高分' : 'Highest', report.summary.max],
-          [isZh ? '最低分' : 'Lowest', report.summary.min],
-          [isZh ? '提交次数' : 'Submissions', report.summary.count],
+        this.writeHeader(doc, isZh ? '班级报告' : 'Class Report', [
+          isZh ? `班级：${report.className}` : `Class: ${report.className}`,
+          isZh ? `班级ID：${report.classId}` : `Class ID: ${report.classId}`,
+          isZh ? `范围：近${report.rangeDays}天` : `Range: last ${report.rangeDays} days`,
+          isZh ? `生成时间：${this.formatDateTime(new Date())}` : `Generated: ${this.formatDateTime(new Date())}`,
         ]);
-      });
 
-      this.writeSection(doc, isZh ? '分数分布' : 'Score Distribution', () => {
-        if (!report.distribution.length) {
-          doc.text(isZh ? '暂无分布数据。' : 'No distribution data.');
-          return;
-        }
-        report.distribution.forEach((item) => {
-          doc.text(`${item.bucket}: ${item.count}`);
+        this.writeSection(doc, isZh ? '汇总' : 'Summary', () => {
+          const baseRows: Array<[string, number | string]> = [
+            [isZh ? '学生总数' : 'Total Students', report.totalStudents],
+            [isZh ? '已提交学生' : 'Submitted Students', report.submittedStudents],
+            [isZh ? '未提交学生' : 'Pending Students', report.pendingStudents],
+            [isZh ? '提交率' : 'Submission Rate', this.formatRatio(report.submissionRate)],
+          ];
+          if (!report.summary.count) {
+            this.writeKeyValues(doc, baseRows);
+            doc.text(isZh ? '暂无已完成提交。' : 'No completed submissions.');
+            return;
+          }
+          this.writeKeyValues(doc, [
+            ...baseRows,
+            [isZh ? '平均分' : 'Average', report.summary.avg],
+            [isZh ? '最高分' : 'Highest', report.summary.max],
+            [isZh ? '最低分' : 'Lowest', report.summary.min],
+            [isZh ? '提交次数' : 'Submissions', report.summary.count],
+          ]);
+        });
+
+        this.writeSection(doc, isZh ? '分数分布' : 'Score Distribution', () => {
+          if (!report.distribution.length) {
+            doc.text(isZh ? '暂无分布数据。' : 'No distribution data.');
+            return;
+          }
+          report.distribution.forEach((item) => {
+            doc.text(`${item.bucket}: ${item.count}`);
+          });
+        });
+
+        this.writeSection(doc, isZh ? '优秀学生' : 'Top Students', () => {
+          if (!report.topRank.length) {
+            doc.text(isZh ? '暂无排名数据。' : 'No ranking data.');
+            return;
+          }
+          report.topRank.forEach((item, index) => {
+            doc.text(
+              isZh
+                ? `${index + 1}. ${item.name} - 平均 ${item.avgScore}（${item.count} 次提交）`
+                : `${index + 1}. ${item.name} - avg ${item.avgScore} (${item.count} submissions)`,
+            );
+          });
+        });
+
+        this.writeSection(doc, isZh ? '趋势' : 'Trend', () => {
+          if (!report.trend.length) {
+            doc.text(isZh ? '暂无趋势数据。' : 'No trend data.');
+            return;
+          }
+          report.trend.forEach((item) => {
+            doc.text(isZh ? `${item.date} - 平均 ${item.avg}（${item.count}）` : `${item.date} - avg ${item.avg} (${item.count})`);
+          });
+        });
+
+        this.writeSection(doc, isZh ? '高频错误类型' : 'Top Error Types', () => {
+          if (!report.errorTypes.length) {
+            doc.text(isZh ? '暂无错误统计。' : 'No error stats.');
+            return;
+          }
+          report.errorTypes.forEach((item) => {
+            doc.text(`${localizeErrorType(item.type, isZh)}: ${item.count} (${this.formatRatio(item.ratio)})`);
+          });
         });
       });
-
-      this.writeSection(doc, isZh ? '优秀学生' : 'Top Students', () => {
-        if (!report.topRank.length) {
-          doc.text(isZh ? '暂无排名数据。' : 'No ranking data.');
-          return;
-        }
-        report.topRank.forEach((item, index) => {
-          doc.text(
-            isZh
-              ? `${index + 1}. ${item.name} - 平均 ${item.avgScore}（${item.count} 次提交）`
-              : `${index + 1}. ${item.name} - avg ${item.avgScore} (${item.count} submissions)`,
-          );
-        });
-      });
-
-      this.writeSection(doc, isZh ? '趋势' : 'Trend', () => {
-        if (!report.trend.length) {
-          doc.text(isZh ? '暂无趋势数据。' : 'No trend data.');
-          return;
-        }
-        report.trend.forEach((item) => {
-          doc.text(isZh ? `${item.date} - 平均 ${item.avg}（${item.count}）` : `${item.date} - avg ${item.avg} (${item.count})`);
-        });
-      });
-
-      this.writeSection(doc, isZh ? '高频错误类型' : 'Top Error Types', () => {
-        if (!report.errorTypes.length) {
-          doc.text(isZh ? '暂无错误统计。' : 'No error stats.');
-          return;
-        }
-        report.errorTypes.forEach((item) => {
-          doc.text(`${localizeErrorType(item.type, isZh)}: ${item.count} (${this.formatRatio(item.ratio)})`);
-        });
-      });
-    });
-    this.logger.log(
-      `Class report PDF exported classId=${report.classId} days=${report.rangeDays} submissions=${report.summary.count} bytes=${buffer.length} durationMs=${Date.now() - startedAt}`,
-    );
-    return buffer;
+      this.logger.log(
+        `Class report PDF exported classId=${report.classId} days=${report.rangeDays} submissions=${report.summary.count} bytes=${buffer.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return buffer;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Class report PDF generation failed classId=${classId} lang=${query.lang}: ${message}`,
+        stack,
+      );
+      throw error;
+    }
   }
 
   async getStudentOverview(
@@ -397,65 +411,102 @@ export class ReportsService {
   }
 
   async exportStudentPdf(studentId: string, query: ReportRangeQueryDto, user: AuthUser) {
-    const report = await this.getStudentOverview(studentId, query, user);
-    const requestedZh = this.isZhLang(query.lang);
-    const font = this.resolvePdfFont(query.lang);
-    const isZh = requestedZh && font !== 'Helvetica';
-    if (requestedZh && !isZh) {
-      this.logger.warn('CJK font not found for student report PDF, fallback to English template');
+    const startedAt = Date.now();
+    try {
+      const report = await this.getStudentOverview(studentId, query, user);
+      const requestedZh = this.isZhLang(query.lang);
+      const font = this.resolvePdfFont(query.lang);
+      const isZh = requestedZh && font !== 'Helvetica';
+
+      this.logger.log(
+        `[exportStudentPdf] studentId=${studentId} lang=${query.lang} ` +
+        `requestedZh=${requestedZh} font=${font} isZh=${isZh}`
+      );
+
+      if (requestedZh && !isZh) {
+        this.logger.warn('CJK font not found for student report PDF, fallback to English template');
+      }
+
+      const buffer = await this.renderPdf(font, (doc) => {
+        try {
+          if (isZh) {
+            // 对于中文字体，使用已注册的字体
+            doc.font('SimHei');
+            this.logger.debug(`Using registered CJK font: SimHei`);
+          } else {
+            doc.font('Helvetica');
+          }
+
+          this.writeHeader(doc, isZh ? '学生报告' : 'Student Report', [
+            isZh ? `学生：${report.studentName}` : `Student: ${report.studentName}`,
+            isZh ? `学生ID：${report.studentId}` : `Student ID: ${report.studentId}`,
+            isZh ? `范围：近${report.rangeDays}天` : `Range: last ${report.rangeDays} days`,
+            isZh ? `生成时间：${this.formatDateTime(new Date())}` : `Generated: ${this.formatDateTime(new Date())}`,
+          ]);
+
+          this.writeSection(doc, isZh ? '汇总' : 'Summary', () => {
+            if (!report.summary.count) {
+              doc.text(isZh ? '暂无已完成提交。' : 'No completed submissions.');
+              return;
+            }
+            this.writeKeyValues(doc, [
+              [isZh ? '平均分' : 'Average', report.summary.avg],
+              [isZh ? '最高分' : 'Highest', report.summary.max],
+              [isZh ? '最低分' : 'Lowest', report.summary.min],
+              [isZh ? '提交次数' : 'Submissions', report.summary.count],
+            ]);
+          });
+
+          this.writeSection(doc, isZh ? '趋势' : 'Trend', () => {
+            if (!report.trend.length) {
+              doc.text(isZh ? '暂无趋势数据。' : 'No trend data.');
+              return;
+            }
+            report.trend.forEach((item) => {
+              doc.text(isZh ? `${item.date} - 平均 ${item.avg}（${item.count}）` : `${item.date} - avg ${item.avg} (${item.count})`);
+            });
+          });
+
+          this.writeSection(doc, isZh ? '高频错误类型' : 'Top Error Types', () => {
+            if (!report.errorTypes.length) {
+              doc.text(isZh ? '暂无错误统计。' : 'No error stats.');
+              return;
+            }
+            report.errorTypes.forEach((item) => {
+              doc.text(`${localizeErrorType(item.type, isZh)}: ${item.count} (${this.formatRatio(item.ratio)})`);
+            });
+          });
+
+          this.writeSection(doc, isZh ? '下一步建议' : 'Next Steps', () => {
+            if (!report.nextSteps.length) {
+              doc.text(isZh ? '暂无下一步建议。' : 'No next-step suggestions.');
+              return;
+            }
+            report.nextSteps.forEach((item) => {
+              doc.text(isZh ? `- ${item.text}（${item.count}）` : `- ${item.text} (${item.count})`);
+            });
+          });
+        } catch (error) {
+          this.logger.error('Error during PDF content rendering:', error);
+          throw error;
+        }
+      });
+
+      this.logger.log(
+        `Student report PDF exported studentId=${studentId} ` +
+        `bytes=${buffer.length} durationMs=${Date.now() - startedAt}`
+      );
+
+      return buffer;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Student report PDF generation failed studentId=${studentId} lang=${query.lang}: ${message}`,
+        stack,
+      );
+      throw error;
     }
-    return this.renderPdf((doc) => {
-      doc.font(isZh ? font : 'Helvetica');
-      this.writeHeader(doc, isZh ? '学生报告' : 'Student Report', [
-        isZh ? `学生：${report.studentName}` : `Student: ${report.studentName}`,
-        isZh ? `学生ID：${report.studentId}` : `Student ID: ${report.studentId}`,
-        isZh ? `范围：近${report.rangeDays}天` : `Range: last ${report.rangeDays} days`,
-        isZh ? `生成时间：${this.formatDateTime(new Date())}` : `Generated: ${this.formatDateTime(new Date())}`,
-      ]);
-
-      this.writeSection(doc, isZh ? '汇总' : 'Summary', () => {
-        if (!report.summary.count) {
-          doc.text(isZh ? '暂无已完成提交。' : 'No completed submissions.');
-          return;
-        }
-        this.writeKeyValues(doc, [
-          [isZh ? '平均分' : 'Average', report.summary.avg],
-          [isZh ? '最高分' : 'Highest', report.summary.max],
-          [isZh ? '最低分' : 'Lowest', report.summary.min],
-          [isZh ? '提交次数' : 'Submissions', report.summary.count],
-        ]);
-      });
-
-      this.writeSection(doc, isZh ? '趋势' : 'Trend', () => {
-        if (!report.trend.length) {
-          doc.text(isZh ? '暂无趋势数据。' : 'No trend data.');
-          return;
-        }
-        report.trend.forEach((item) => {
-          doc.text(isZh ? `${item.date} - 平均 ${item.avg}（${item.count}）` : `${item.date} - avg ${item.avg} (${item.count})`);
-        });
-      });
-
-      this.writeSection(doc, isZh ? '高频错误类型' : 'Top Error Types', () => {
-        if (!report.errorTypes.length) {
-          doc.text(isZh ? '暂无错误统计。' : 'No error stats.');
-          return;
-        }
-        report.errorTypes.forEach((item) => {
-          doc.text(`${localizeErrorType(item.type, isZh)}: ${item.count} (${this.formatRatio(item.ratio)})`);
-        });
-      });
-
-      this.writeSection(doc, isZh ? '下一步建议' : 'Next Steps', () => {
-        if (!report.nextSteps.length) {
-          doc.text(isZh ? '暂无下一步建议。' : 'No next-step suggestions.');
-          return;
-        }
-        report.nextSteps.forEach((item) => {
-          doc.text(isZh ? `- ${item.text}（${item.count}）` : `- ${item.text} (${item.count})`);
-        });
-      });
-    });
   }
 
   async getStudentClassComparison(studentId: string, rangeDays: number) {
@@ -830,29 +881,60 @@ export class ReportsService {
         ? envFont
         : resolve(process.cwd(), envFont)
       : '';
-    const candidates = [
-      resolvedEnv,
-      'C:\\Windows\\Fonts\\msyh.ttc',
-      'C:\\Windows\\Fonts\\msyh.ttf',
-      'C:\\Windows\\Fonts\\simhei.ttf',
-      'C:\\Windows\\Fonts\\simsun.ttc',
+
+    // Windows 字体：优先使用单独的 TTF 文件，避免 PDFKit 与 TTC 文件的兼容性问题
+    // 注意：PDFKit 需要使用正斜杠路径
+    const windowsFonts = [
+      'C:/Windows/Fonts/msyh.ttf',        // 微软雅黑 (单字体)
+      'C:/Windows/Fonts/msyhbd.ttf',      // 微软雅黑粗体 (单字体)
+      'C:/Windows/Fonts/simhei.ttf',      // 黑体 (单字体)
+      'C:/Windows/Fonts/simsun.ttf',      // 宋体 (单字体)
+      'C:/Windows/Fonts/simkai.ttf',      // 楷体 (单字体)
+      'C:/Windows/Fonts/simfang.ttf',     // 仿宋 (单字体)
+    ];
+
+    // macOS 字体
+    const macFonts = [
+      '/Library/Fonts/Arial Unicode.ttf',
+      '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
       '/System/Library/Fonts/PingFang.ttc',
       '/System/Library/Fonts/STHeiti Light.ttc',
       '/System/Library/Fonts/STHeiti Medium.ttc',
-      '/Library/Fonts/Arial Unicode.ttf',
-      '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-      '/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf',
+    ];
+
+    // Linux 字体
+    const linuxFonts = [
       '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+      '/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf',
       '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
       '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
       '/usr/share/fonts/truetype/arphic/uming.ttc',
       '/usr/share/fonts/truetype/arphic/ukai.ttc',
-    ].filter(Boolean);
+    ];
+
+    // 合并所有候选字体，优先使用环境变量配置的字体
+    // 需要将 Windows 路径转换为正斜杠，否则 PDFKit 无法正确解析
+    const normalizePath = (path: string): string => {
+      return path.replace(/\\/g, '/');
+    };
+
+    const candidates = [resolvedEnv, ...windowsFonts, ...macFonts, ...linuxFonts]
+      .filter(Boolean)
+      .map(normalizePath);
+
     for (const candidate of candidates) {
-      if (candidate && existsSync(candidate)) {
+      // 对于正斜杠路径，需要转回反斜杠来检查文件是否存在
+      const checkPath = candidate.replace(/\//g, '\\');
+      if (existsSync(checkPath)) {
+        // TTC 文件需要特殊处理，记录警告但继续使用（可能导致中文显示问题）
+        if (candidate.endsWith('.ttc') && !candidate.includes('PingFang')) {
+          this.logger.warn(`Using TTC font file which may have compatibility issues: ${candidate}`);
+        }
         return candidate;
       }
     }
+
+    this.logger.warn('No CJK font found, falling back to Helvetica (Chinese characters will not display)');
     return 'Helvetica';
   }
 
@@ -915,15 +997,60 @@ export class ReportsService {
       .join(',');
   }
 
-  private renderPdf(build: (doc: PDFDocumentInstance) => void): Promise<Buffer> {
+  private renderPdf(fontPath: string, build: (doc: PDFDocumentInstance) => void): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 48 });
-      const chunks: Buffer[] = [];
-      doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', (error) => reject(error));
-      build(doc);
-      doc.end();
+      try {
+        const doc = new PDFDocument({
+          size: 'A4',
+          margin: 48,
+          // 添加 PDF 压缩选项
+          compress: false,
+          // 确保 PDF 版本兼容性
+          pdfVersion: '1.4',
+        });
+
+        // 注册中文字体（如果需要）
+        if (fontPath !== 'Helvetica') {
+          try {
+            doc.registerFont('SimHei', fontPath);
+            this.logger.debug(`Registered CJK font: ${fontPath}`);
+          } catch (error) {
+            this.logger.warn(`Failed to register font ${fontPath}:`, error);
+          }
+        }
+
+        const chunks: Buffer[] = [];
+
+        doc.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+
+        doc.on('end', () => {
+          try {
+            resolve(Buffer.concat(chunks));
+          } catch (error) {
+            reject(error);
+          }
+        });
+
+        doc.on('error', (error) => {
+          this.logger.error('PDF generation error:', error);
+          reject(error);
+        });
+
+        try {
+          build(doc);
+        } catch (error) {
+          this.logger.error('PDF content build error:', error);
+          reject(error);
+          return;
+        }
+
+        doc.end();
+      } catch (error) {
+        this.logger.error('PDF document initialization error:', error);
+        reject(error);
+      }
     });
   }
 

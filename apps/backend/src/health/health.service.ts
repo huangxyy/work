@@ -125,7 +125,11 @@ export class HealthService {
     }
     // Clean up stale client
     if (this.redisClient) {
-      try { this.redisClient.disconnect(); } catch { /* ignore */ }
+      try {
+        this.redisClient.disconnect();
+      } catch (error) {
+        this.logger.debug(`Error disconnecting stale Redis client: ${error}`);
+      }
       this.redisClient = null;
     }
     const Redis = (await import('ioredis')).default;
@@ -190,7 +194,11 @@ export class HealthService {
       this.logger.error(`Redis health check failed durationMs=${responseTime}: ${message}`);
       // Reset the client so next check retries a fresh connection
       if (this.redisClient) {
-        try { this.redisClient.disconnect(); } catch { /* ignore */ }
+        try {
+          this.redisClient.disconnect();
+        } catch (error) {
+          this.logger.debug(`Error disconnecting failed Redis client: ${error}`);
+        }
         this.redisClient = null;
       }
       return {

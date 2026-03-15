@@ -3,7 +3,7 @@ import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, DatePicker, Input, InputNumber, Select, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import type { Dayjs } from 'dayjs';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { downloadStudentSubmissionsCsv, fetchStudentSubmissions } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -32,6 +32,15 @@ export const StudentSubmissionsPage = () => {
   const [scoreMin, setScoreMin] = useState<number | null>(null);
   const [scoreMax, setScoreMax] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const revokeUrlTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (revokeUrlTimerRef.current) {
+        clearTimeout(revokeUrlTimerRef.current);
+      }
+    };
+  }, []);
 
   const statusMeta = useMemo(
     () => ({
@@ -96,7 +105,7 @@ export const StudentSubmissionsPage = () => {
     link.href = url;
     link.download = filename;
     link.click();
-    setTimeout(() => window.URL.revokeObjectURL(url), 200);
+    revokeUrlTimerRef.current = setTimeout(() => window.URL.revokeObjectURL(url), 200);
   }, []);
 
   const handleExport = async () => {
@@ -111,7 +120,8 @@ export const StudentSubmissionsPage = () => {
         lang: language,
       });
       downloadBlob(blob, 'student-submissions.csv');
-    } catch {
+    } catch (error) {
+      console.error('导出CSV失败:', error);
       message.error(t('student.submissions.exportFailed'));
     }
   };

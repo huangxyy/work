@@ -55,7 +55,7 @@ export class ReportsController {
 
   @Get('class/:classId/pdf')
   @Roles(Role.TEACHER, Role.ADMIN)
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   async exportClassPdf(
     @Param('classId', ParseCuidPipe) classId: string,
     @Query() query: ReportRangeQueryDto,
@@ -85,7 +85,7 @@ export class ReportsController {
 
   @Get('student/:studentId/pdf')
   @Roles(Role.TEACHER, Role.ADMIN)
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   async exportStudentPdf(
     @Param('studentId', ParseCuidPipe) studentId: string,
     @Query() query: ReportRangeQueryDto,

@@ -1,4 +1,3 @@
-import { StreamableFile } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Role } from '@prisma/client';
 import type { Response } from 'express';
@@ -63,19 +62,20 @@ describe('StudentReportsController', () => {
 
   it('should export student pdf with the expected headers', async () => {
     const query: ReportRangeQueryDto = { days: 30, lang: 'zh-CN' };
-    const res = { setHeader: jest.fn() } as unknown as Response;
+    const res = { setHeader: jest.fn(), send: jest.fn() } as unknown as Response;
     const pdf = Buffer.from('student-report');
     reportsService.exportStudentPdf.mockResolvedValue(pdf);
 
-    const result = await controller.exportPdf(query, { user: mockStudent }, res);
+    await controller.exportPdf(query, { user: mockStudent }, res);
 
-    expect(result).toBeInstanceOf(StreamableFile);
     expect(reportsService.exportStudentPdf).toHaveBeenCalledWith('student-1', query, mockStudent);
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
     expect(res.setHeader).toHaveBeenCalledWith(
       'Content-Disposition',
-      'attachment; filename="student-student-1-report.pdf"',
+      expect.stringContaining('attachment; filename="student-report-student-1.pdf"'),
     );
     expect(res.setHeader).toHaveBeenCalledWith('Content-Length', pdf.length);
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache, no-store, must-revalidate');
+    expect(res.send).toHaveBeenCalledWith(pdf);
   });
 });
