@@ -384,4 +384,54 @@ export class ClassesService {
     );
     return { removed: result.count };
   }
+
+  /**
+   * Delete a class (only if it has no homework or submissions)
+   * Teachers can only delete classes they own, admins can delete any class
+   */
+  async deleteClass(classId: string, user: AuthUser) {
+    const startedAt = Date.now();
+
+    // Check access
+    if (user.role === Role.ADMIN) {
+      const klass = await this.prisma.class.findUnique({ where: { id: classId } });
+      if (!klass) {
+        throw new NotFoundException('Class not found');
+      }
+    } else if (user.role === Role.TEACHER) {
+      const klass = await this.prisma.class.findFirst({
+        where: { id: classId, teachers: { some: { id: user.id } } },
+      });
+      if (!klass) {
+        throw new ForbiddenException('No access to this class');
+      }
+    } else {
+      throw new ForbiddenException('Only teachers and admins can delete classes');
+    }
+
+    // Check if class has any homework
+    const homeworkCount = await this.prisma.homework.count({
+      where: { classId },
+    });
+
+    if (homeworkCount > 0) {
+      throw new BadRequestException(
+        `Cannot delete class with ${homeworkCount} homework(s). Please delete all homeworks first.`,
+      );
+    }
+
+    // Delete all enrollments
+    await this.prisma.enrollment.deleteMany({
+      where: { classId },
+    });
+
+    // Delete the class
+    await this.prisma.class.delete({
+      where: { id: classId },
+    });
+
+    this.logger.debug(
+      `Class deleted classId=${classId} userId=${user.id} durationMs=${Date.now() - startedAt}`,
+    );
+  }
 }

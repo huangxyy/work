@@ -3616,5 +3616,58 @@ export class SubmissionsService {
       doc.end();
     });
   }
+
+  /**
+   * Delete a failed submission (only FAILED status allowed)
+   * This is used by teachers to clean up failed submission records
+   */
+  async deleteFailedSubmission(submissionId: string, user: AuthUser): Promise<void> {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: {
+        homework: true,
+        images: true,
+      },
+    });
+
+    if (!submission) {
+      throw new NotFoundException('Submission not found');
+    }
+
+    // Only allow deleting FAILED submissions
+    if (submission.status !== SubmissionStatus.FAILED) {
+      throw new BadRequestException('Only failed submissions can be deleted');
+    }
+
+    // Check access: teacher must be assigned to the homework's class, admin can delete any
+    if (user.role === Role.TEACHER) {
+      const classAccess = await this.prisma.class.findFirst({
+        where: {
+          id: submission.homework.classId,
+          teachers: { some: { id: user.id } },
+        },
+      });
+      if (!classAccess) {
+        throw new ForbiddenException('You do not have access to this submission');
+      }
+    } else if (user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only teachers and admins can delete submissions');
+    }
+
+    // Delete submission images from storage
+    const deletePromises = submission.images.map((image) =>
+      this.storage.deleteObject(image.objectKey).catch((err) => {
+        this.logger.warn(`Failed to delete image ${image.objectKey}: ${err}`);
+      })
+    );
+    await Promise.allSettled(deletePromises);
+
+    // Delete submission (cascade will delete submission images)
+    await this.prisma.submission.delete({
+      where: { id: submissionId },
+    });
+
+    this.logger.log(`Deleted failed submission ${submissionId} by user ${user.account}`);
+  }
 }
 

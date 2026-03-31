@@ -135,7 +135,7 @@ pnpm --filter frontend test -- path/to/file.test.ts
 | MinIO | Image storage | MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY |
 
 **Additional LLM Config Keys**:
-- `LLM_MAX_TOKENS` - Maximum output tokens (default: 800, recommend 2000+)
+- `LLM_MAX_TOKENS` - Maximum output tokens (default: 2000, recommend 2000+)
 - `LLM_MAX_INPUT_CHARS` - Input truncation threshold (default: 6000)
 - `LLM_DAILY_QUOTA` - Daily call limit for budget tracking
 - `LLM_QUOTA_MODE` - 'soft' (degrade) or 'hard' (reject) when exceeded
@@ -202,10 +202,18 @@ The `AuditLog` model tracks important user actions for admin review:
 
 > ⚠️ **Security Warning**: The following passwords are for local development only. Must change for production!
 
-**Password**: `Dev@Pass2024!` (development environment only)
+**Password**: `123456` (development environment only)
 - Admin: `admin`
 - Teacher: `teacher01`
 - Student: `student01`
+
+## Service Passwords (Development)
+
+All development passwords are set to `123456`:
+- MySQL root password: `123456`
+- MinIO secret key: `minioadmin123` (MinIO requires 8+ characters)
+- All user passwords: `123456`
+- JWT secret: `123456...` (64 characters)
 
 ### Password Security Policy
 

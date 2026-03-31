@@ -26,6 +26,7 @@ export {
   importClassStudents,
   updateClassTeachers,
   removeClassStudent,
+  deleteClass,
 } from './classes';
 
 // Homeworks
@@ -91,6 +92,7 @@ export {
   downloadTeacherHomeworkImagesZip,
   downloadTeacherHomeworkRemindersCsv,
   downloadTeacherSubmissionsPdf,
+  deleteTeacherSubmission,
   type TeacherSubmissionRow,
   type TeacherBatchUploadResult,
   type TeacherBatchPreviewResult,

@@ -47,3 +47,8 @@ export const removeClassStudent = async (classId: string, studentId: string) => 
   const response = await api.delete(`/classes/${classId}/students/${studentId}`);
   return response.data as { removed: number };
 };
+
+export const deleteClass = async (classId: string) => {
+  const response = await api.delete(`/classes/${classId}`);
+  return response.data;
+};

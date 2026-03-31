@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Descriptions,
+  Modal,
   Popconfirm,
   Skeleton,
   Space,
@@ -16,6 +17,7 @@ import { isAxiosError } from 'axios';
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  deleteClass,
   fetchClassStudents,
   fetchClasses,
   fetchHomeworksByClass,
@@ -77,6 +79,8 @@ export const TeacherClassDetailPage = () => {
       importClassStudents(classId, { text }),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['class-students', id] });
+      // Force refetch to ensure UI updates immediately
+      await queryClient.refetchQueries({ queryKey: ['class-students', id] });
 
       const { created, existing, failed, enrolled } = data;
       let messageText = `${t('teacher.classDetail.importSuccess')}: ${enrolled}`;
@@ -112,6 +116,33 @@ export const TeacherClassDetailPage = () => {
       message.error(detail || t('teacher.classDetail.importFailed'));
     },
   });
+
+  const deleteClassMutation = useMutation({
+    mutationFn: () => deleteClass(id!),
+    onSuccess: async () => {
+      message.success(t('teacher.classDetail.deleteSuccess'));
+      await queryClient.invalidateQueries({ queryKey: ['classes'] });
+      navigate('/teacher/classes');
+    },
+    onError: (error: unknown) => {
+      const apiMessage = isAxiosError(error)
+        ? (error.response?.data as { message?: string | string[] } | undefined)?.message
+        : undefined;
+      const detail = Array.isArray(apiMessage) ? apiMessage.join('; ') : apiMessage;
+      message.error(detail || t('teacher.classDetail.deleteFailed'));
+    },
+  });
+
+  const handleDeleteClass = () => {
+    Modal.confirm({
+      title: t('teacher.classDetail.deleteConfirmTitle'),
+      content: t('teacher.classDetail.deleteConfirmDesc'),
+      okText: t('common.delete'),
+      okType: 'danger',
+      cancelText: t('common.cancel'),
+      onOk: () => deleteClassMutation.mutate(),
+    });
+  };
 
   const handleDownloadStudentReport = (studentId: string) => {
     window.open(`/teacher/reports/student/${studentId}?export=1`, '_blank');
@@ -226,6 +257,23 @@ export const TeacherClassDetailPage = () => {
                       </Descriptions.Item>
                       <Descriptions.Item label={t('teacher.classDetail.grade')}>
                         {classItem.grade ? <Tag className="apple-tag-pill">{classItem.grade}</Tag> : t('teacher.classDetail.unassigned')}
+                      </Descriptions.Item>
+                      <Descriptions.Item label={t('common.action')}>
+                        <Space>
+                          <Button
+                            danger
+                            onClick={handleDeleteClass}
+                            loading={deleteClassMutation.isPending}
+                            disabled={(homeworksQuery.data?.length ?? 0) > 0}
+                          >
+                            {t('teacher.classDetail.deleteClass')}
+                          </Button>
+                          {(homeworksQuery.data?.length ?? 0) > 0 && (
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                              {t('teacher.classDetail.deleteClassHint')}
+                            </Typography.Text>
+                          )}
+                        </Space>
                       </Descriptions.Item>
                     </Descriptions>
                     <ProCard gutter={16} wrap>

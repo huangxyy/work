@@ -266,6 +266,7 @@ export const TeacherHomeworksPage = () => {
         <Button
           key="delete"
           danger
+          size="small"
           loading={deleteMutation.isPending && deletingHomeworkId === item.id}
           onClick={() => handleDeleteHomework(item.id)}
         >

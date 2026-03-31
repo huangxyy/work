@@ -62,4 +62,13 @@ export class ClassesController {
   ) {
     return this.classesService.removeStudent(classId, studentId, req.user);
   }
+
+  @Delete(':id')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async deleteClass(
+    @Param('id', ParseCuidPipe) id: string,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.classesService.deleteClass(id, req.user);
+  }
 }

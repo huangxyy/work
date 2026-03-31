@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -290,5 +291,13 @@ export class TeacherSubmissionsController {
       // 缩略图不存在时返回 404 — do not leak internal error details
       res.status(404).send('Thumbnail not found');
     }
+  }
+
+  @Delete(':id')
+  async deleteFailed(
+    @Param('id', ParseCuidPipe) id: string,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.submissionsService.deleteFailedSubmission(id, req.user);
   }
 }

@@ -382,3 +382,8 @@ export const retrySkippedSubmission = async (
   });
   return response.data as { submissionId: string };
 };
+
+export const deleteTeacherSubmission = async (submissionId: string) => {
+  const response = await api.delete(`/teacher/submissions/${submissionId}`);
+  return response.data;
+};

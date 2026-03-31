@@ -35,6 +35,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   createTeacherBatchSubmissions,
   deleteHomework,
+  deleteTeacherSubmission,
   fetchHomeworkDeletePreview,
   fetchUnsubmittedStudents,
   importClassStudents,
@@ -392,6 +393,15 @@ export const TeacherHomeworkDetailPage = () => {
     onError: (error: unknown) => message.error(resolveApiErrorMessage(error, t('teacher.batchUpload.retrySkippedFailed'))),
   });
 
+  const deleteSubmissionMutation = useMutation({
+    mutationFn: (submissionId: string) => deleteTeacherSubmission(submissionId),
+    onSuccess: () => {
+      message.success(t('teacher.homeworkDetail.deleteFailedSuccess'));
+      submissionsQuery.refetch();
+    },
+    onError: (error: unknown) => message.error(resolveApiErrorMessage(error, t('teacher.homeworkDetail.deleteFailedFailed'))),
+  });
+
   const batchImportMutation = useMutation({
     mutationFn: ({ classId, students }: { classId: string; students: Array<{ account: string; name: string }> }) =>
       importClassStudents(classId, { students }),
@@ -739,31 +749,49 @@ export const TeacherHomeworkDetailPage = () => {
       {
         title: t('common.action'),
         valueType: 'option',
-        render: (_, item) => [
-          <Button key="view" onClick={() => navigate(`/teacher/submission/${item.id}`)}>
-            {t('common.view')}
-          </Button>,
-          <Button
-            key="regrade"
-            size="small"
-            onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'cheap' })}
-            loading={regradeMutation.isPending}
-          >
-            {t('teacher.homeworkDetail.regrade')}
-          </Button>,
-          <Button
-            key="regrade-quality"
-            size="small"
-            type="primary"
-            onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'quality' })}
-            loading={regradeMutation.isPending}
-          >
-            {t('teacher.homeworkDetail.regradeQuality')}
-          </Button>,
-        ],
+        render: (_, item) => {
+          const actions = [
+            <Button key="view" onClick={() => navigate(`/teacher/submission/${item.id}`)}>
+              {t('common.view')}
+            </Button>,
+            <Button
+              key="regrade"
+              size="small"
+              onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'cheap' })}
+              loading={regradeMutation.isPending}
+            >
+              {t('teacher.homeworkDetail.regrade')}
+            </Button>,
+            <Button
+              key="regrade-quality"
+              size="small"
+              type="primary"
+              onClick={() => regradeMutation.mutate({ submissionId: item.id, mode: 'quality' })}
+              loading={regradeMutation.isPending}
+            >
+              {t('teacher.homeworkDetail.regradeQuality')}
+            </Button>,
+          ];
+          // Add delete button for failed submissions
+          if (item.status === 'FAILED') {
+            actions.push(
+              <Popconfirm
+                key="delete"
+                title={t('teacher.homeworkDetail.deleteFailedConfirm')}
+                onConfirm={() => deleteSubmissionMutation.mutate(item.id)}
+                okButtonProps={{ loading: deleteSubmissionMutation.isPending }}
+              >
+                <Button danger size="small">
+                  {t('common.delete')}
+                </Button>
+              </Popconfirm>,
+            );
+          }
+          return actions;
+        },
       },
     ],
-    [t, selectedRowKeys, filteredSubmissions, navigate, regradeMutation],
+    [t, selectedRowKeys, filteredSubmissions, navigate, regradeMutation, deleteSubmissionMutation],
   );
 
   const batchStatusMeta = useMemo(
