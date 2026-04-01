@@ -24,7 +24,7 @@ export class HomeworksService {
     if (user.role === Role.ADMIN) {
       const klass = await this.prisma.class.findUnique({ where: { id: classId } });
       if (!klass) {
-        throw new NotFoundException('Class not found');
+        throw new NotFoundException('班级不存在');
       }
       return klass;
     }
@@ -34,12 +34,12 @@ export class HomeworksService {
         where: { id: classId, teachers: { some: { id: user.id } } },
       });
       if (!klass) {
-        throw new ForbiddenException('No access to this class');
+        throw new ForbiddenException('无权访问该班级');
       }
       return klass;
     }
 
-    throw new ForbiddenException('Only teacher or admin can access homework');
+    throw new ForbiddenException('仅教师或管理员可以访问作业');
   }
 
   private async ensureHomeworkAccess(homeworkId: string, user: AuthUser) {
@@ -49,7 +49,7 @@ export class HomeworksService {
         select: { id: true, classId: true },
       });
       if (!homework) {
-        throw new NotFoundException('Homework not found');
+        throw new NotFoundException('作业不存在');
       }
       return homework;
     }
@@ -63,12 +63,12 @@ export class HomeworksService {
         select: { id: true, classId: true },
       });
       if (!homework) {
-        throw new ForbiddenException('No access to this homework');
+        throw new ForbiddenException('无权访问该作业');
       }
       return homework;
     }
 
-    throw new ForbiddenException('Only teacher or admin can access homework');
+    throw new ForbiddenException('仅教师或管理员可以访问作业');
   }
 
   private async getLateSubmissionMap(homeworkIds: string[]): Promise<Map<string, boolean>> {

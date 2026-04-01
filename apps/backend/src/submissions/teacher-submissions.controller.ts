@@ -279,7 +279,7 @@ export class TeacherSubmissionsController {
   ) {
     // Validate fileKey to prevent path traversal (only allow UUID-like strings)
     if (!fileKey || !/^[a-zA-Z0-9_-]+$/.test(fileKey)) {
-      throw new BadRequestException('Invalid file key');
+      throw new BadRequestException('无效的文件标识');
     }
     const objectKey = `thumbnails/${fileKey}.jpg`;
     try {

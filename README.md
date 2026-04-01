@@ -12,14 +12,19 @@
 - **实时批改**：基于 BullMQ 的异步批改队列
 - **数据导出**：支持 PDF、CSV 格式的报告导出
 - **运维闭环**：管理员可进行系统配置、队列管理、提交诊断和 LLM 日志审计
+- **消息通知**：批改完成自动通知学生
+- **班级公告**：教师可发布班级公告
+- **作业模板**：教师可创建 reusable 作业模板
+- **审计日志**：关键操作审计追踪
 - **中英双语**：完整的中英文界面支持
+- **微信小程序**：独立的学生端小程序，采用 Rainbow World 彩虹世界主题设计
 
 ## 技术栈
 
 ### 前端
 - React 18 + TypeScript
 - Vite 5
-- Ant Design Pro 5
+- Ant Design 5
 - React Router 6
 - React Query (TanStack Query)
 - ECharts 5
@@ -35,6 +40,11 @@
 ### AI 服务
 - 百度 OCR：手写文字识别
 - DeepSeek LLM：作文批改
+
+### 微信小程序
+- 原生微信小程序框架
+- Rainbow World 主题设计系统
+- 渐变色页面主题
 
 ## 项目结构
 
@@ -106,11 +116,13 @@ pnpm dev:worker
 
 ### 默认测试账号
 
-| 角色   | 账号      | 密码      |
-| ------ | --------- | --------- |
-| 管理员 | admin     | Test1234  |
-| 教师   | teacher01 | Test1234  |
-| 学生   | student01 | Test1234  |
+> ⚠️ **安全警告**：以下密码仅用于本地开发，生产环境必须更改！
+
+| 角色   | 账号      | 密码   |
+| ------ | --------- | ------ |
+| 管理员 | admin     | 123456 |
+| 教师   | teacher01 | 123456 |
+| 学生   | student01 | 123456 |
 
 ## 开发命令
 
@@ -154,6 +166,8 @@ Worker处理任务:
     3. 计算总分 → submission.totalScore
     ↓
 保存结果 (状态: DONE / FAILED)
+    ↓
+通知学生 (GRADING_DONE)
 ```
 
 ## 配置说明
@@ -171,11 +185,25 @@ Worker处理任务:
 | `LLM_BASE_URL` | DeepSeek API 地址 |
 | `LLM_MODEL` | 使用的模型名称 |
 | `LLM_MAX_TOKENS` | 最大 Token 数（建议 2000+） |
+| `LLM_MAX_INPUT_CHARS` | 输入截断阈值（默认 6000） |
+| `LLM_DAILY_QUOTA` | 每日调用限额 |
 | `MINIO_ENDPOINT` | MinIO 服务地址 |
 | `MINIO_ACCESS_KEY` | MinIO 访问密钥 |
 | `MINIO_SECRET_KEY` | MinIO 秘密密钥 |
 | `WORKER_CONCURRENCY` | Worker 并发数 |
 | `RETENTION_DAYS` | 数据保留天数 |
+
+## 端口配置
+
+| 服务 | 端口 |
+| ---- | ---- |
+| Backend API | 3000 |
+| Frontend | 3001 |
+| Nginx (proxy) | 80 |
+| MySQL | 3306 |
+| Redis | 6379 |
+| MinIO API | 9000 |
+| MinIO Console | 9001 |
 
 ## 常见问题
 
@@ -212,6 +240,10 @@ taskkill /F /PID <进程ID>
 Stop-Process -Id <进程ID> -Force
 ```
 
+### PDF 导出乱码或失败
+
+检查中文字体文件路径配置（`PDF_FONT_PATH`）。
+
 ## 文档
 
 - [架构设计](./docs/ARCH.md) - 系统架构与技术选型
@@ -220,8 +252,14 @@ Stop-Process -Id <进程ID> -Force
 - [部署文档](./docs/DEPLOY.md) - 生产环境部署指南
 - [运维手册](./docs/RUNBOOK.md) - 日常运维与故障排查
 - [交接文档](./docs/HANDOVER.md) - 打包移交与二次部署指南
-- [微信小程序](./wechat-miniapp/README.md) - 学生端小程序文档
+- [快速开始](./docs/QUICK_START.md) - 快速上手指南
+- [监控指南](./docs/MONITORING.md) - 系统监控配置
+- [故障排查](./docs/TROUBLESHOOTING.md) - 常见问题排查
+- [备份恢复](./docs/BACKUP_RESTORE.md) - 数据备份与恢复
+- [性能优化](./docs/OPTIMIZATION.md) - 性能调优指南
+- [微信小程序](./docs/WECHAT_MINIAPP.md) - 小程序详细文档
 - [AI 批改能力矩阵](./docs/AI_GRADING_CAPABILITY_MATRIX.md) - 文档与实现对照
+- [未来路线图](./docs/future-roadmap.md) - 开发规划
 
 ## 许可证
 

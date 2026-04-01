@@ -177,7 +177,7 @@ export class AdminController {
   @UseInterceptors(FileInterceptor('image', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
   async testOcr(@UploadedFile() file: Express.Multer.File) {
     if (!file?.buffer?.length) {
-      throw new BadRequestException('Image file is required');
+      throw new BadRequestException('请上传图片文件');
     }
     return this.adminService.testOcrWithImage(file.buffer);
   }

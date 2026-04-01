@@ -203,20 +203,20 @@ export class SubmissionsService {
     user: AuthUser,
   ) {
     if (user.role !== Role.STUDENT) {
-      throw new ForbiddenException('Only students can submit');
+      throw new ForbiddenException('仅学生可以提交作业');
     }
 
     if (!files || files.length === 0) {
-      throw new BadRequestException('Please upload at least 1 image');
+      throw new BadRequestException('请至少上传一张图片');
     }
 
     if (files.length > 3) {
-      throw new BadRequestException('Up to 3 images are allowed');
+      throw new BadRequestException('最多上传3张图片');
     }
 
     const nonImages = files.filter((file) => !file.mimetype.startsWith('image/'));
     if (nonImages.length > 0) {
-      throw new BadRequestException('Only image files are allowed');
+      throw new BadRequestException('仅支持图片文件');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -229,14 +229,14 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     if (homework.dueAt && homework.dueAt.getTime() < Date.now()) {
       const allowLateSubmission = await this.isLateSubmissionAllowed(homework.id);
       if (!allowLateSubmission) {
         throw new BadRequestException(
-          'Homework is overdue and submission is closed. Ask your teacher to allow late submission.',
+          '作业已逾期且已关闭提交，请联系老师开启逾期提交',
         );
       }
     }
@@ -262,7 +262,7 @@ export class SubmissionsService {
 
       if (activeSubmission) {
         throw new BadRequestException(
-          'You already have a submission being graded for this homework. Please wait for it to finish before submitting again.',
+          '该作业已有提交正在批改中，请等待完成后再重新提交',
         );
       }
 
@@ -325,7 +325,7 @@ export class SubmissionsService {
         include: submissionDetailInclude,
       });
     } else {
-      throw new ForbiddenException('No access');
+      throw new ForbiddenException('无权访问');
     }
 
     this.logger.debug(
@@ -344,9 +344,9 @@ export class SubmissionsService {
       where: { id: submissionId },
       include: { homework: { include: { class: { include: { teachers: { select: { id: true } } } } } } },
     });
-    if (!submission) throw new NotFoundException('Submission not found');
+    if (!submission) throw new NotFoundException('提交记录不存在');
     const isTeacher = submission.homework.class.teachers.some((t) => t.id === teacher.id);
-    if (!isTeacher && teacher.role !== Role.ADMIN) throw new ForbiddenException('Not authorized');
+    if (!isTeacher && teacher.role !== Role.ADMIN) throw new ForbiddenException('无权操作');
 
     return this.prisma.submission.update({
       where: { id: submissionId },
@@ -362,14 +362,14 @@ export class SubmissionsService {
 
   async listStudentSubmissions(user: AuthUser) {
     if (user.role !== Role.STUDENT) {
-      throw new ForbiddenException('Only students can list submissions');
+      throw new ForbiddenException('仅学生可以查看提交记录');
     }
     return this.listStudentSubmissionsWithQuery(user, {});
   }
 
   async listStudentSubmissionsWithQuery(user: AuthUser, query: StudentSubmissionsQueryDto) {
     if (user.role !== Role.STUDENT) {
-      throw new ForbiddenException('Only students can list submissions');
+      throw new ForbiddenException('仅学生可以查看提交记录');
     }
 
     const startedAt = Date.now();
@@ -402,7 +402,7 @@ export class SubmissionsService {
 
   async exportStudentSubmissionsCsv(user: AuthUser, query: StudentSubmissionsQueryDto) {
     if (user.role !== Role.STUDENT) {
-      throw new ForbiddenException('Only students can export submissions');
+      throw new ForbiddenException('仅学生可以导出提交记录');
     }
 
     const submissions = await this.prisma.submission.findMany({
@@ -438,9 +438,9 @@ export class SubmissionsService {
       where: { id: homeworkId },
       select: { classId: true, class: { select: { teachers: { select: { id: true } } } } },
     });
-    if (!homework) throw new NotFoundException('Homework not found');
+    if (!homework) throw new NotFoundException('作业不存在');
     if (teacher.role !== Role.ADMIN && !homework.class.teachers.some((t) => t.id === teacher.id)) {
-      throw new ForbiddenException();
+      throw new ForbiddenException('无权访问');
     }
 
     const [enrolledStudents, submittedList] = await Promise.all([
@@ -473,7 +473,7 @@ export class SubmissionsService {
     options?: { cursor?: string; limit?: number },
   ) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can access homework submissions');
+      throw new ForbiddenException('仅教师或管理员可以访问作业提交列表');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -485,7 +485,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const startedAt = Date.now();
@@ -524,7 +524,7 @@ export class SubmissionsService {
 
   async exportHomeworkCsv(homeworkId: string, user: AuthUser, lang?: string) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can export');
+      throw new ForbiddenException('仅教师或管理员可以导出');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -536,7 +536,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const submissions = await this.prisma.submission.findMany({
@@ -585,7 +585,7 @@ export class SubmissionsService {
 
   async exportHomeworkImagesZip(homeworkId: string, user: AuthUser) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can export');
+      throw new ForbiddenException('仅教师或管理员可以导出');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -597,7 +597,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const submissions = await this.prisma.submission.findMany({
@@ -635,7 +635,7 @@ export class SubmissionsService {
 
   async exportHomeworkRemindersCsv(homeworkId: string, user: AuthUser, lang?: string) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can export');
+      throw new ForbiddenException('仅教师或管理员可以导出');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -652,7 +652,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const enrollments = await this.prisma.enrollment.findMany({
@@ -693,7 +693,7 @@ export class SubmissionsService {
     options: PrintPacketOptions = {},
   ): Promise<PrintPacketExport> {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can export');
+      throw new ForbiddenException('仅教师或管理员可以导出');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -705,7 +705,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const submissionIdSet = new Set(
@@ -733,7 +733,7 @@ export class SubmissionsService {
     });
 
     if (!submissions.length) {
-      throw new BadRequestException('No completed submissions found for print packet export');
+      throw new BadRequestException('没有已完成的提交可供导出');
     }
 
     const latestByStudent = new Map<string, (typeof submissions)[number]>();
@@ -761,7 +761,7 @@ export class SubmissionsService {
 
     if (entries.length > PRINT_PACKET_MAX_TOTAL) {
       throw new BadRequestException(
-        `Too many students (${entries.length}). Please export no more than ${PRINT_PACKET_MAX_TOTAL} at once.`,
+        `学生数量过多（${entries.length}人），单次最多导出 ${PRINT_PACKET_MAX_TOTAL} 人`,
       );
     }
 
@@ -808,7 +808,7 @@ export class SubmissionsService {
 
   async regradeHomeworkSubmissions(dto: RegradeHomeworkSubmissionsDto, user: AuthUser) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can regrade');
+      throw new ForbiddenException('仅教师或管理员可以重新批改');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -820,7 +820,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     // Include PROCESSING submissions that may be stuck (worker crash).
@@ -876,7 +876,7 @@ export class SubmissionsService {
     options?: { cursor?: string; limit?: number },
   ) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can access batches');
+      throw new ForbiddenException('仅教师或管理员可以访问批次上传');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -888,7 +888,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const take = Math.min(Math.max(options?.limit || 200, 1), 200);
@@ -979,7 +979,7 @@ export class SubmissionsService {
 
   async getBatchUploadDetail(batchId: string, user: AuthUser) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can access batches');
+      throw new ForbiddenException('仅教师或管理员可以访问批次上传');
     }
 
     const batch = await this.prisma.batchUpload.findFirst({
@@ -994,7 +994,7 @@ export class SubmissionsService {
     });
 
     if (!batch) {
-      throw new NotFoundException('Batch not found or no access');
+      throw new NotFoundException('批次不存在或无权访问');
     }
 
     const submissions = await this.prisma.submission.findMany({
@@ -1075,7 +1075,7 @@ export class SubmissionsService {
 
   async regradeBatchSubmissions(batchId: string, user: AuthUser) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can regrade batch');
+      throw new ForbiddenException('仅教师或管理员可以重新批改批次');
     }
 
     const batch = await this.prisma.batchUpload.findFirst({
@@ -1087,7 +1087,7 @@ export class SubmissionsService {
     });
 
     if (!batch) {
-      throw new NotFoundException('Batch not found or no access');
+      throw new NotFoundException('批次不存在或无权访问');
     }
 
     const submissions = await this.prisma.submission.findMany({
@@ -1133,7 +1133,7 @@ export class SubmissionsService {
     user: AuthUser,
   ) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can upload');
+      throw new ForbiddenException('仅教师或管理员可以上传');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -1145,7 +1145,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const enrollments = await this.prisma.enrollment.findMany({
@@ -1259,11 +1259,11 @@ export class SubmissionsService {
       }
 
       if (images.length === 0) {
-        throw new BadRequestException('Please upload at least 1 image');
+        throw new BadRequestException('请至少上传一张图片');
       }
 
       if (images.length > MAX_BATCH_IMAGES) {
-        throw new BadRequestException(`Up to ${MAX_BATCH_IMAGES} images are allowed`);
+        throw new BadRequestException(`最多上传 ${MAX_BATCH_IMAGES} 张图片`);
       }
 
       // Store all images in staging for potential retry
@@ -1504,7 +1504,7 @@ export class SubmissionsService {
   ) {
     const submission = await this.getSubmission(id, user);
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('提交记录不存在');
     }
 
     // Prevent re-grading if the submission is actively being processed.
@@ -1514,7 +1514,7 @@ export class SubmissionsService {
       const updatedAt = new Date(submission.updatedAt).getTime();
       if (Date.now() - updatedAt < stuckThresholdMs) {
         throw new BadRequestException(
-          'Submission is currently being graded. Please wait for it to finish.',
+          '提交正在批改中，请等待完成后再重新提交',
         );
       }
     }
@@ -1837,7 +1837,7 @@ export class SubmissionsService {
     user: AuthUser,
   ) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can retry submissions');
+      throw new ForbiddenException('仅教师或管理员可以重试提交');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -1849,7 +1849,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     // Get class enrollments to find or create student
@@ -1930,7 +1930,7 @@ export class SubmissionsService {
     try {
       imageBuffer = await this.storage.getObject(stagingObjectKey);
     } catch (error) {
-      throw new NotFoundException('Image not found in staging. Please re-upload the file.');
+      throw new NotFoundException('暂存区中未找到图片，请重新上传文件');
     }
 
     // Determine file extension from mimeType or filename
@@ -1963,7 +1963,7 @@ export class SubmissionsService {
     const existingStatus = submission?.status;
 
     if (existingStatus === SubmissionStatus.PROCESSING) {
-      throw new BadRequestException('Existing batch submission is currently being graded. Please retry after it finishes.');
+      throw new BadRequestException('该批次提交正在批改中，请等待完成后再重试');
     }
 
     let createdNewSubmission = false;
@@ -2828,14 +2828,14 @@ export class SubmissionsService {
         options.totalUncompressed.value + declaredSize > MAX_ZIP_UNCOMPRESSED_BYTES
       ) {
         entry.autodrain();
-        throw new BadRequestException('Zip exceeds uncompressed size limit');
+        throw new BadRequestException('ZIP 文件解压后超过大小限制');
       }
 
       if (options.dryRun) {
         const buffer = await this.readEntryBuffer(entry, MAX_ZIP_ENTRY_BYTES);
         options.totalUncompressed.value += buffer.length;
         if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
-          throw new BadRequestException('Zip exceeds uncompressed size limit');
+          throw new BadRequestException('ZIP 文件解压后超过大小限制');
         }
         options.images.push({
           fileKey,
@@ -2849,7 +2849,7 @@ export class SubmissionsService {
       const buffer = await this.readEntryBuffer(entry, MAX_ZIP_ENTRY_BYTES);
       options.totalUncompressed.value += buffer.length;
       if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
-        throw new BadRequestException('Zip exceeds uncompressed size limit');
+        throw new BadRequestException('ZIP 文件解压后超过大小限制');
       }
       options.images.push({
         fileKey,
@@ -2868,7 +2868,7 @@ export class SubmissionsService {
       total += buffer.length;
       if (total > limitBytes) {
         entry.autodrain();
-        throw new BadRequestException(`Zip entry too large (max ${limitBytes} bytes)`);
+        throw new BadRequestException(`ZIP 文件中的条目过大（最大 ${limitBytes} 字节）`);
       }
       chunks.push(buffer);
     }
@@ -3297,7 +3297,7 @@ export class SubmissionsService {
     user: AuthUser,
   ) {
     if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Only teacher or admin can export');
+      throw new ForbiddenException('仅教师或管理员可以导出');
     }
 
     const homework = await this.prisma.homework.findFirst({
@@ -3309,7 +3309,7 @@ export class SubmissionsService {
     });
 
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
 
     const submissions = await this.prisma.submission.findMany({
@@ -3331,7 +3331,7 @@ export class SubmissionsService {
     });
 
     if (!submissions.length) {
-      throw new BadRequestException('No completed submissions to export');
+      throw new BadRequestException('没有已完成的提交可供导出');
     }
 
     const isZh = this.isZhLang(lang);
@@ -3631,12 +3631,12 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('提交记录不存在');
     }
 
     // Only allow deleting FAILED submissions
     if (submission.status !== SubmissionStatus.FAILED) {
-      throw new BadRequestException('Only failed submissions can be deleted');
+      throw new BadRequestException('只能删除批改失败的提交');
     }
 
     // Check access: teacher must be assigned to the homework's class, admin can delete any
@@ -3648,10 +3648,10 @@ export class SubmissionsService {
         },
       });
       if (!classAccess) {
-        throw new ForbiddenException('You do not have access to this submission');
+        throw new ForbiddenException('无权访问该提交');
       }
     } else if (user.role !== Role.ADMIN) {
-      throw new ForbiddenException('Only teachers and admins can delete submissions');
+      throw new ForbiddenException('仅教师和管理员可以删除提交');
     }
 
     // Delete submission images from storage

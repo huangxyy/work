@@ -567,7 +567,7 @@ export class ReportsService {
     if (user.role === Role.ADMIN) {
       const klass = await this.prisma.class.findUnique({ where: { id: classId } });
       if (!klass) {
-        throw new NotFoundException('Class not found');
+        throw new NotFoundException('班级不存在');
       }
       return klass;
     }
@@ -577,18 +577,18 @@ export class ReportsService {
         where: { id: classId, teachers: { some: { id: user.id } } },
       });
       if (!klass) {
-        throw new ForbiddenException('No access to this class');
+        throw new ForbiddenException('无权访问该班级');
       }
       return klass;
     }
 
-    throw new ForbiddenException('Only teacher or admin can access class reports');
+    throw new ForbiddenException('仅教师或管理员可以访问班级报告');
   }
 
   private async ensureStudentAccess(studentId: string, user: AuthUser) {
     const student = await this.prisma.user.findUnique({ where: { id: studentId } });
     if (!student) {
-      throw new NotFoundException('Student not found');
+      throw new NotFoundException('学生不存在');
     }
 
     if (user.role === Role.ADMIN) {
@@ -597,7 +597,7 @@ export class ReportsService {
 
     if (user.role === Role.STUDENT) {
       if (user.id !== studentId) {
-        throw new ForbiddenException('No access to this student');
+        throw new ForbiddenException('无权访问该学生');
       }
       return { student, classIds: null as string[] | null };
     }
@@ -612,13 +612,13 @@ export class ReportsService {
       });
 
       if (!enrollments.length) {
-        throw new ForbiddenException('No access to this student');
+        throw new ForbiddenException('无权访问该学生');
       }
 
       return { student, classIds: enrollments.map((item) => item.classId) };
     }
 
-    throw new ForbiddenException('Only teacher or admin can access student reports');
+    throw new ForbiddenException('仅教师或管理员可以访问学生报告');
   }
 
   private collectScores(

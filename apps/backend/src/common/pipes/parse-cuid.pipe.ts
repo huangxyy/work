@@ -16,7 +16,7 @@ export class ParseCuidPipe implements PipeTransform<string, string> {
 
   transform(value: string): string {
     if (!value || !ParseCuidPipe.CUID_REGEX.test(value)) {
-      throw new BadRequestException('Invalid ID format');
+      throw new BadRequestException('ID 格式无效');
     }
     return value;
   }

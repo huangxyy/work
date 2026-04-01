@@ -42,8 +42,8 @@ export class HomeworkTemplateService {
   async update(id: string, data: UpdateHomeworkTemplateDto, teacher: AuthUser) {
     const startedAt = Date.now();
     const template = await this.prisma.homeworkTemplate.findUnique({ where: { id } });
-    if (!template) throw new NotFoundException('Template not found');
-    if (template.teacherId !== teacher.id && teacher.role !== Role.ADMIN) throw new ForbiddenException();
+    if (!template) throw new NotFoundException('模板不存在');
+    if (template.teacherId !== teacher.id && teacher.role !== Role.ADMIN) throw new ForbiddenException('无权操作该模板');
     const updated = await this.prisma.homeworkTemplate.update({
       where: { id },
       data: { title: data.title ?? template.title, desc: data.desc !== undefined ? data.desc : template.desc },
@@ -59,8 +59,8 @@ export class HomeworkTemplateService {
   async delete(id: string, teacher: AuthUser) {
     const startedAt = Date.now();
     const template = await this.prisma.homeworkTemplate.findUnique({ where: { id } });
-    if (!template) throw new NotFoundException('Template not found');
-    if (template.teacherId !== teacher.id && teacher.role !== Role.ADMIN) throw new ForbiddenException();
+    if (!template) throw new NotFoundException('模板不存在');
+    if (template.teacherId !== teacher.id && teacher.role !== Role.ADMIN) throw new ForbiddenException('无权操作该模板');
     await this.prisma.homeworkTemplate.delete({ where: { id } });
 
     this.logger.debug(

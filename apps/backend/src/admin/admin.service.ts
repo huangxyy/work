@@ -288,16 +288,16 @@ export class AdminService {
     const classId = dto.classId?.trim();
 
     if (!account || !name) {
-      throw new BadRequestException('Account and name are required');
+      throw new BadRequestException('账号和姓名不能为空');
     }
 
     if (classId && role !== Role.STUDENT) {
-      throw new BadRequestException('Only students can be assigned to class on creation');
+      throw new BadRequestException('创建时只能为学生分配班级');
     }
 
     const existing = await this.prisma.user.findUnique({ where: { account } });
     if (existing) {
-      throw new BadRequestException('Account already exists');
+      throw new BadRequestException('账号已存在');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -305,7 +305,7 @@ export class AdminService {
       if (classId) {
         const klass = await tx.class.findUnique({ where: { id: classId }, select: { id: true } });
         if (!klass) {
-          throw new BadRequestException('Class not found');
+          throw new BadRequestException('班级不存在');
         }
       }
 
@@ -353,11 +353,11 @@ export class AdminService {
       select: { id: true, role: true },
     });
     if (!existing) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('用户不存在');
     }
 
     if (existing.id === currentUser.id) {
-      throw new BadRequestException('Cannot delete current user');
+      throw new BadRequestException('无法删除当前用户');
     }
 
     if (existing.role === Role.ADMIN) {
@@ -368,7 +368,7 @@ export class AdminService {
         },
       });
       if (otherAdminCount === 0) {
-        throw new BadRequestException('Cannot delete the last admin');
+        throw new BadRequestException('无法删除最后一个管理员');
       }
     }
 
@@ -395,12 +395,12 @@ export class AdminService {
       select: { id: true, role: true },
     });
     if (!existing) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('用户不存在');
     }
 
     const name = dto.name?.trim();
     if (dto.name !== undefined && !name) {
-      throw new BadRequestException('Name is required');
+      throw new BadRequestException('姓名不能为空');
     }
 
     // When changing role away from TEACHER, disconnect from all classes to avoid
@@ -473,7 +473,7 @@ export class AdminService {
       select: { id: true },
     });
     if (!existing) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('用户不存在');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -587,7 +587,7 @@ export class AdminService {
   async updateFeatureFlag(flag: string, enabled: boolean) {
     const normalizedFlag = this.normalizeText(flag);
     if (!normalizedFlag) {
-      throw new BadRequestException('Flag is required');
+      throw new BadRequestException('标志值不能为空');
     }
 
     const result = await this.systemConfigService.setFeatureFlag(normalizedFlag, enabled);
@@ -816,19 +816,19 @@ export class AdminService {
       .filter(Boolean);
 
     if (!lines.length) {
-      throw new BadRequestException('No valid lines');
+      throw new BadRequestException('没有有效的数据行');
     }
 
     const role = dto.role ?? Role.STUDENT;
     const classId = this.normalizeText(dto.classId) || undefined;
     if (classId && role !== Role.STUDENT) {
-      throw new BadRequestException('Only students can be assigned to class during bulk import');
+      throw new BadRequestException('批量导入时只能为学生分配班级');
     }
 
     if (classId) {
       const klass = await this.prisma.class.findUnique({ where: { id: classId }, select: { id: true } });
       if (!klass) {
-        throw new BadRequestException('Class not found');
+        throw new BadRequestException('班级不存在');
       }
     }
 
@@ -1014,7 +1014,7 @@ export class AdminService {
     const startedAt = Date.now();
     const normalizedUserIds = this.normalizeUserIds(userIds);
     if (!normalizedUserIds.length) {
-      throw new BadRequestException('At least one userId is required');
+      throw new BadRequestException('至少需要一个用户ID');
     }
 
     const adminsToDisable = await this.prisma.user.count({
@@ -1025,7 +1025,7 @@ export class AdminService {
         where: { role: Role.ADMIN, isActive: true, id: { notIn: normalizedUserIds } },
       });
       if (remainingActiveAdmins === 0) {
-        throw new BadRequestException('Cannot disable the last active admin');
+        throw new BadRequestException('无法禁用最后一个活跃管理员');
       }
     }
 
@@ -1053,7 +1053,7 @@ export class AdminService {
     const startedAt = Date.now();
     const normalizedUserIds = this.normalizeUserIds(userIds);
     if (!normalizedUserIds.length) {
-      throw new BadRequestException('At least one userId is required');
+      throw new BadRequestException('至少需要一个用户ID');
     }
 
     const hash = await bcrypt.hash(newPassword, 10);
@@ -1381,10 +1381,10 @@ export class AdminService {
     });
 
     if (!config.baseUrl) {
-      throw new BadRequestException('LLM_BASE_URL is not configured');
+      throw new BadRequestException('LLM_BASE_URL 未配置');
     }
     if (!config.model) {
-      throw new BadRequestException('LLM_MODEL is not configured');
+      throw new BadRequestException('LLM_MODEL 未配置');
     }
 
     const payload: Record<string, unknown> = {
@@ -1626,7 +1626,7 @@ export class AdminService {
         hostname === '[::1]' ||
         hostname === '0.0.0.0'
       ) {
-        throw new BadRequestException('URLs pointing to localhost are not allowed');
+        throw new BadRequestException('不允许使用指向 localhost 的URL');
       }
 
       // Block private/internal IP ranges
@@ -1639,12 +1639,12 @@ export class AdminService {
           (a === 192 && b === 168) || // 192.168.0.0/16
           (a === 169 && b === 254) // 169.254.0.0/16 (link-local / cloud metadata)
         ) {
-          throw new BadRequestException('URLs pointing to private networks are not allowed');
+          throw new BadRequestException('不允许使用指向私有网络的URL');
         }
       }
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException('Invalid URL format');
+      throw new BadRequestException('URL格式无效');
     }
   }
 

@@ -77,7 +77,7 @@ export class SubmissionsController {
 
     if (!files?.length) {
       console.error('[SubmissionsController] No files uploaded');
-      throw new BadRequestException('Please upload at least 1 image');
+      throw new BadRequestException('请至少上传一张图片');
     }
 
     for (const file of files) {
@@ -89,7 +89,7 @@ export class SubmissionsController {
       if (!isValidImageBuffer(file.buffer)) {
         console.error('[SubmissionsController] Invalid image buffer for:', file.originalname);
         throw new BadRequestException(
-          `File "${file.originalname}" is not a valid image (magic bytes check failed)`,
+          `文件 "${file.originalname}" 不是有效的图片格式`,
         );
       }
     }
@@ -123,7 +123,7 @@ export class SubmissionsController {
   async get(@Param('id', ParseCuidPipe) id: string, @Req() req: { user: AuthUser }) {
     const submission = await this.submissionsService.getSubmission(id, req.user);
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('提交记录不存在');
     }
 
     return {

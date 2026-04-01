@@ -20,7 +20,7 @@ export class AnnouncementService {
       const isTeacher = await this.prisma.class.findFirst({
         where: { id: data.classId, teachers: { some: { id: author.id } } },
       });
-      if (!isTeacher && author.role !== Role.ADMIN) throw new ForbiddenException('Not authorized for this class');
+      if (!isTeacher && author.role !== Role.ADMIN) throw new ForbiddenException('无权操作该班级');
     }
 
     const announcement = await this.prisma.announcement.create({
@@ -102,7 +102,7 @@ export class AnnouncementService {
     const classIds = classes.map((c) => c.id);
 
     if (classId && !classIds.includes(classId)) {
-      throw new ForbiddenException('Not authorized for this class');
+      throw new ForbiddenException('无权操作该班级');
     }
 
     const where = classId
@@ -142,8 +142,8 @@ export class AnnouncementService {
   async delete(id: string, user: AuthUser) {
     const startedAt = Date.now();
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
-    if (!announcement) throw new NotFoundException('Announcement not found');
-    if (announcement.authorId !== user.id && user.role !== Role.ADMIN) throw new ForbiddenException('Not authorized');
+    if (!announcement) throw new NotFoundException('公告不存在');
+    if (announcement.authorId !== user.id && user.role !== Role.ADMIN) throw new ForbiddenException('无权操作');
     await this.prisma.announcement.delete({ where: { id } });
 
     this.logger.debug(

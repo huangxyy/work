@@ -71,17 +71,17 @@ export class ClassesService {
       return items;
     }
 
-    throw new ForbiddenException('Only teacher or admin can list classes');
+    throw new ForbiddenException('仅教师或管理员可以查看班级列表');
   }
 
   async updateTeachers(classId: string, teacherIds: string[], user: AuthUser) {
     if (user.role !== Role.ADMIN) {
-      throw new ForbiddenException('Only admin can update teachers');
+      throw new ForbiddenException('仅管理员可以更新教师');
     }
 
     const klass = await this.prisma.class.findUnique({ where: { id: classId } });
     if (!klass) {
-      throw new NotFoundException('Class not found');
+      throw new NotFoundException('班级不存在');
     }
 
     const uniqueIds = Array.from(new Set(teacherIds || []));
@@ -91,7 +91,7 @@ export class ClassesService {
         select: { id: true },
       });
       if (teachers.length !== uniqueIds.length) {
-        throw new BadRequestException('Invalid teacher selection');
+        throw new BadRequestException('选择的教师无效');
       }
     }
 
@@ -162,14 +162,14 @@ export class ClassesService {
       const normalizedAccount = this.normalizeAccount(account || '');
       const normalizedName = (name || '').trim();
       if (!normalizedName) {
-        invalid.push({ account: normalizedAccount || '-', name: '-', error: `Invalid line: ${line}` });
+        invalid.push({ account: normalizedAccount || '-', name: '-', error: `无效行: ${line}` });
         continue;
       }
       if (!normalizedAccount || !this.looksLikeAccount(normalizedAccount)) {
         invalid.push({
           account: normalizedAccount || '-',
           name: normalizedName,
-          error: `Cannot resolve a valid account from line: ${line}`,
+          error: `无法从该行解析有效账号: ${line}`,
         });
         continue;
       }
@@ -205,7 +205,7 @@ export class ClassesService {
     if (user.role === Role.ADMIN) {
       const klass = await this.prisma.class.findUnique({ where: { id: classId } });
       if (!klass) {
-        throw new NotFoundException('Class not found');
+        throw new NotFoundException('班级不存在');
       }
       return klass;
     }
@@ -215,12 +215,12 @@ export class ClassesService {
         where: { id: classId, teachers: { some: { id: user.id } } },
       });
       if (!klass) {
-        throw new ForbiddenException('No access to this class');
+        throw new ForbiddenException('无权访问该班级');
       }
       return klass;
     }
 
-    throw new ForbiddenException('Only teacher or admin can access class');
+    throw new ForbiddenException('仅教师或管理员可以访问班级');
   }
 
   async importStudents(classId: string, dto: ImportStudentsDto, user: AuthUser) {
@@ -235,7 +235,7 @@ export class ClassesService {
     ];
 
     if (students.length === 0 && parsedText.invalid.length === 0) {
-      throw new BadRequestException('No students provided');
+      throw new BadRequestException('未提供学生信息');
     }
 
     // Match the seed default password; '123456' was too weak
@@ -283,7 +283,7 @@ export class ClassesService {
         result.failed.push({
           account: account || '-',
           name: name || '-',
-          error: 'Account must contain only letters, numbers, or underscore',
+          error: '账号只能包含字母、数字或下划线',
         });
         continue;
       }
@@ -296,7 +296,7 @@ export class ClassesService {
             result.failed.push({
               account,
               name: name || existing.name,
-              error: 'Account exists but is not a student',
+              error: '账号存在但不是学生账号',
             });
             continue;
           }
@@ -306,7 +306,7 @@ export class ClassesService {
         }
 
         if (!name) {
-          result.failed.push({ account, name: '-', error: 'Student name is required for new account' });
+          result.failed.push({ account, name: '-', error: '新建账号需要提供学生姓名' });
           continue;
         }
 
@@ -328,7 +328,7 @@ export class ClassesService {
         studentIds.push(created.id);
         result.created.push({ account, name });
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
         result.failed.push({ account, name, error: errorMessage });
       }
     }
@@ -396,17 +396,17 @@ export class ClassesService {
     if (user.role === Role.ADMIN) {
       const klass = await this.prisma.class.findUnique({ where: { id: classId } });
       if (!klass) {
-        throw new NotFoundException('Class not found');
+        throw new NotFoundException('班级不存在');
       }
     } else if (user.role === Role.TEACHER) {
       const klass = await this.prisma.class.findFirst({
         where: { id: classId, teachers: { some: { id: user.id } } },
       });
       if (!klass) {
-        throw new ForbiddenException('No access to this class');
+        throw new ForbiddenException('无权访问该班级');
       }
     } else {
-      throw new ForbiddenException('Only teachers and admins can delete classes');
+      throw new ForbiddenException('仅教师和管理员可以删除班级');
     }
 
     // Check if class has any homework
@@ -416,7 +416,7 @@ export class ClassesService {
 
     if (homeworkCount > 0) {
       throw new BadRequestException(
-        `Cannot delete class with ${homeworkCount} homework(s). Please delete all homeworks first.`,
+        `班级下有 ${homeworkCount} 个作业，无法删除。请先删除所有作业。`,
       );
     }
 

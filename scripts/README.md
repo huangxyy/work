@@ -47,6 +47,90 @@
 
 ---
 
+## 部署脚本
+
+### create-handover-package.ps1
+
+创建项目交接部署包，用于项目移交和二次部署。
+
+**使用方法**:
+```powershell
+# 基础打包
+pnpm handover:package
+
+# 包含测试账号文件
+pnpm handover:package:with-accounts
+
+# 完整打包（包含数据库和存储备份）
+.\scripts\create-handover-package.ps1 -IncludeDatabaseDump -IncludeStorageBackup
+```
+
+**参数**:
+- `-OutputDir`: 输出目录 (默认: `release`)
+- `-PackageName`: 包名前缀 (默认: `homework-ai-handover`)
+- `-IncludeDatabaseDump`: 包含数据库备份
+- `-DatabaseDumpPath`: 数据库备份文件路径
+- `-IncludeStorageBackup`: 包含存储文件备份
+- `-StorageBackupPath`: 存储备份目录路径
+- `-IncludeAccountFile`: 包含测试账号文件
+- `-AccountFilePath`: 账号文件路径
+
+**输出内容**:
+- 源代码压缩包
+- 部署说明文档
+- 环境配置模板
+- 可选的数据库和存储备份
+
+---
+
+### check-ports.bat
+
+Nginx 代理端口自动检测与同步工具，解决 Vite 开发服务器端口与 Nginx 配置不匹配的问题。
+
+**使用方法**:
+```bash
+.\scripts\check-ports.bat
+```
+
+**功能**:
+1. 检测 Nginx 配置的代理端口
+2. 检测 Vite 配置文件的期望端口
+3. 检测 Vite 实际运行的端口
+4. 自动同步 Nginx 配置并重启
+
+**适用场景**:
+- 前端服务启动后页面无法访问
+- Nginx 代理端口与 Vite 端口不匹配
+- 端口被占用导致 Vite 自动切换端口
+
+---
+
+## 验证脚本
+
+### retention/verify-retention.ps1
+
+验证数据保留策略是否正确执行。
+
+**使用方法**:
+```powershell
+.\scripts\retention\verify-retention.ps1
+```
+
+**功能**:
+- 检查过期数据是否被正确清理
+- 验证保留天数配置
+- 生成清理报告
+
+---
+
+## 模板文件
+
+### templates/README-HANDOVER.zh-CN.txt
+
+交接文档模板，用于生成项目交接说明。
+
+---
+
 ## 定时任务配置
 
 ### 添加 Cron 定时任务
@@ -102,3 +186,5 @@ cat /tmp/restore/full_20240115_103045/MANIFEST.txt
 4. **磁盘空间**: 定期清理旧备份，避免磁盘空间不足
 
 5. **备份验证**: 定期测试备份恢复流程，确保备份有效性
+
+6. **Windows 脚本**: `.ps1` 脚本需要 PowerShell 执行权限，`.bat` 脚本可直接运行

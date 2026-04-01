@@ -31,7 +31,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.jti) {
       const revoked = await this.authService.isTokenRevoked(payload.jti);
       if (revoked) {
-        throw new UnauthorizedException('Token has been revoked');
+        throw new UnauthorizedException('令牌已被撤销');
       }
     }
 
@@ -42,7 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       try {
         const user = JSON.parse(cached);
         if (user.isActive === false) {
-          throw new UnauthorizedException('Account is disabled');
+          throw new UnauthorizedException('账号已被禁用');
         }
         return { id: user.id, role: user.role, account: user.account, name: user.name, email: user.email, phone: user.phone };
       } catch (e) {
@@ -56,11 +56,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('用户不存在');
     }
 
     if (user.isActive === false) {
-      throw new UnauthorizedException('Account is disabled');
+      throw new UnauthorizedException('账号已被禁用');
     }
 
     await this.redis.set(cacheKey, JSON.stringify(user), 60).catch(() => {});

@@ -62,7 +62,7 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new BadRequestException('Registration failed. Please try a different account name.');
+      throw new BadRequestException('注册失败，请尝试其他账号');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -96,7 +96,7 @@ export class AuthService {
     const startedAt = Date.now();
     const account = dto.account.trim();
     if (!account) {
-      throw new BadRequestException('Account is required');
+      throw new BadRequestException('账号不能为空');
     }
 
     // Check account lockout first
@@ -108,7 +108,7 @@ export class AuthService {
         detail: `Account locked: ${account}, remaining ${lockStatus.remainingSeconds}s`,
       });
       throw new ForbiddenException(
-        `Account is temporarily locked. Try again in ${Math.ceil(lockStatus.remainingSeconds / 60)} minutes.`,
+        `账号已被临时锁定，请 ${Math.ceil(lockStatus.remainingSeconds / 60)} 分钟后重试`,
       );
     }
 
@@ -129,10 +129,10 @@ export class AuthService {
       });
       if (result.locked) {
         throw new ForbiddenException(
-          'Too many failed attempts. Account is temporarily locked for 15 minutes.',
+          '登录失败次数过多，账号已被临时锁定 15 分钟',
         );
       }
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('账号或密码错误');
     }
 
     if (user.isActive === false) {
@@ -142,7 +142,7 @@ export class AuthService {
         ip,
         detail: `Disabled account login attempt: ${user.account}`,
       });
-      throw new ForbiddenException('Account is disabled');
+      throw new ForbiddenException('账号已被禁用');
     }
 
     // Success — reset lockout counter
@@ -200,12 +200,12 @@ export class AuthService {
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
     const startedAt = Date.now();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException('User not found');
+    if (!user) throw new UnauthorizedException('用户不存在');
 
     const valid = await bcrypt.compare(oldPassword, user.passwordHash);
-    if (!valid) throw new BadRequestException('Current password is incorrect');
+    if (!valid) throw new BadRequestException('当前密码不正确');
     if (oldPassword === newPassword) {
-      throw new BadRequestException('New password must be different from current password');
+      throw new BadRequestException('新密码不能与当前密码相同');
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -291,15 +291,15 @@ export class AuthService {
 
     const storedCode = await this.redis.get(`pwd-reset:${normalizedEmail}`);
     if (!storedCode || storedCode !== normalizedCode) {
-      throw new BadRequestException('Invalid or expired code');
+      throw new BadRequestException('验证码无效或已过期');
     }
 
     const user = await this.prisma.user.findFirst({ where: { email: normalizedEmail } });
-    if (!user) throw new BadRequestException('Invalid or expired code');
+    if (!user) throw new BadRequestException('验证码无效或已过期');
 
     const isSamePassword = await bcrypt.compare(newPassword, user.passwordHash);
     if (isSamePassword) {
-      throw new BadRequestException('New password must be different from current password');
+      throw new BadRequestException('新密码不能与当前密码相同');
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);

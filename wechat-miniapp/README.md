@@ -4,15 +4,49 @@
 
 它与 `apps/frontend` 的 React Web 端、`apps/backend` 的 NestJS 后端保持解耦，单独放在仓库根目录，便于使用微信开发者工具直接导入和迭代。
 
+## 设计系统：Rainbow World 主题
+
+小程序采用 **Rainbow World** 彩虹世界设计系统，提供活泼有趣的视觉体验：
+
+### 主题配色
+
+每个页面拥有独特的渐变色主题：
+
+| 页面 | 主题色 | CSS 类 |
+|------|--------|--------|
+| 登录页 | 紫色欢迎主题 | `.theme-login` |
+| 作业列表 | 紫色系 `#667eea → #764ba2` | `.theme-homeworks` |
+| 作业详情 | 紫色系 | `.theme-homeworks` |
+| 提交作业 | 粉红系 `#f093fb → #f5576c` | `.theme-submit` |
+| 批改结果 | 蓝色系 `#4facfe → #00f2fe` | `.theme-result` |
+| 提交记录 | 蓝色系 | `.theme-result` |
+| 个人中心 | 绿色系 `#43e97b → #38f9d7` | `.theme-profile` |
+| 消息通知 | 橙粉系 `#fa709a → #fee140` | `.theme-messages` |
+| 学习报告 | 青粉系 `#a8edea → #fed6e3` | `.theme-report` |
+
+### 样式文件
+
+- `styles/theme.wxss` - CSS 变量定义和主题色
+- `styles/components.wxss` - 可复用组件样式（按钮、卡片、标签等）
+- `styles/animations.wxss` - 动画效果（fadeIn, scaleIn, spin, pulse）
+
+### 组件
+
+- `components/gradient-button` - 渐变按钮组件
+
 ## 当前能力
 
 - 学生账号登录
 - 作业列表与作业详情
 - 单次多图提交（最多 3 张）
-- 提交结果轮询与重提
+- 提交页本地草稿自动保存与恢复
+- 作业列表 / 作业详情跨页面识别未提交草稿
+- 批改结果轮询与重提
 - 提交记录查看、筛选、统计摘要
-- 学习报告查看
+- 筛选条件持久化
+- 学习报告查看、范围记忆与空态引导
 - 学习报告 PDF 导出与小程序内打开
+- 消息通知查看
 - 个人中心接口地址切换与登录状态同步
 - 401 自动回登录，并支持登录后回跳原页面
 
@@ -23,9 +57,16 @@ wechat-miniapp/
 ├── app.js
 ├── app.json
 ├── app.wxss
+├── components/
+│   └── gradient-button/
+│       ├── index.js
+│       ├── index.json
+│       ├── index.wxml
+│       └── index.wxss
 ├── lib/
 │   ├── auth.js
 │   ├── config.js
+│   ├── draft.js
 │   ├── page.js
 │   ├── request.js
 │   ├── ui.js
@@ -38,13 +79,22 @@ wechat-miniapp/
 │   ├── submission-result/
 │   ├── submissions/
 │   ├── report/
-│   └── profile/
+│   ├── profile/
+│   └── messages/
 ├── project.config.json
 ├── services/
+│   ├── announcements.js
 │   ├── auth.js
 │   ├── homeworks.js
+│   ├── notifications.js
 │   ├── reports.js
 │   └── submissions.js
+├── styles/
+│   ├── animations.wxss
+│   ├── components.wxss
+│   └── theme.wxss
+├── utils/
+│   └── image-compressor.js
 └── sitemap.json
 ```
 
@@ -74,10 +124,12 @@ pnpm dev:frontend
 
 ### 2. 准备测试账号
 
+> ⚠️ **安全警告**：以下密码仅用于本地开发，生产环境必须更改！
+
 默认学生测试账号：
 
 - 账号：`student01`
-- 密码：`Test1234`
+- 密码：`123456`
 
 如果数据库尚未初始化，请先执行后端种子数据流程。
 
@@ -116,8 +168,8 @@ appid: touristappid
 导入步骤：
 
 1. 打开微信开发者工具
-2. 选择“导入项目”
-3. 项目目录选择 `d:\work\wechat-miniapp`
+2. 选择"导入项目"
+3. 项目目录选择 `wechat-miniapp`
 4. AppID 可保持游客模式
 5. 导入后直接编译
 
@@ -225,6 +277,16 @@ appid: touristappid
 - 导出学生 PDF 报告
 - 在小程序内直接打开 PDF
 
+### 消息通知页
+
+路径：`pages/messages/index`
+
+能力：
+
+- 查看消息通知列表
+- 查看公告列表
+- 标记已读
+
 ### 个人中心页
 
 路径：`pages/profile/index`
@@ -264,6 +326,15 @@ appid: touristappid
 - `GET /api/student/reports/class-comparison`
 - `GET /api/student/reports/pdf`
 
+### 通知相关
+
+- `GET /api/notifications`
+- `PUT /api/notifications/:id/read`
+
+### 公告相关
+
+- `GET /api/announcements`
+
 ## 关键实现约定
 
 ### 登录态存储
@@ -298,13 +369,37 @@ appid: touristappid
 
 学生提交页会把多张图片拼成**单个** `multipart/form-data` 请求，而不是一张图发一次请求。
 
-这样可以匹配后端 `FilesInterceptor` 的处理方式，避免“一张图生成一条提交记录”的问题。
+这样可以匹配后端 `FilesInterceptor` 的处理方式，避免"一张图生成一条提交记录"的问题。
 
 相关实现位置：
 
 - `lib/request.js`
 - `services/submissions.js`
 - `pages/submit/index.js`
+
+### 本地草稿策略
+
+提交页会把以下内容自动保存在本机：
+
+- 已选择的图片
+- 批改模式
+- 是否需要改写建议
+
+再次进入同一个作业的提交页时，会优先恢复这份未提交草稿；提交成功或手动清空草稿后，会同步清理本地保存的图片文件。
+
+补充说明：
+
+- 作业列表和作业详情会提示当前作业是否已有未提交草稿
+- 个人中心页可以查看本地草稿数量，并一键清理全部草稿
+
+### 筛选持久化策略
+
+以下页面会记住上次使用的筛选条件：
+
+- `pages/homeworks/index`
+- `pages/submissions/index`
+
+当筛选条件导致列表为空时，页面空态里也会直接提供"重置筛选"入口。
 
 ## 本地联调建议
 
@@ -374,9 +469,8 @@ pnpm dev:worker
 
 ## 推荐后续迭代方向
 
-- 消息通知或待办提醒
+- 消息推送订阅
 - 作业维度的学习分析
-- 图片上传草稿保存
 - 真机网络异常提示优化
 - 学生端微信授权登录
 - 更精细的批改结果可视化
@@ -386,3 +480,4 @@ pnpm dev:worker
 - 根项目说明：`../README.md`
 - 开发文档：`../docs/DEVELOPMENT.md`
 - API 文档：`../docs/API.md`
+- 小程序详细文档：`../docs/WECHAT_MINIAPP.md`
