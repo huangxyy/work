@@ -36,12 +36,24 @@ function enrichList(list) {
     return {
       ...item,
       status,
+      statusClass: getStatusClassForList(status.key),
       hasDraft: hasSubmitDraft(item.id),
       dueLabel: item.dueAt ? formatDateTime(item.dueAt) : '灵活截止',
       descText: item.desc || '暂未提供作业说明',
       className: item.class && item.class.name ? item.class.name : '未分班级',
     };
   });
+}
+
+// 计算作业状态样式类 (用于列表显示)
+function getStatusClassForList(statusKey) {
+  const statusMap = {
+    'open': 'progress',
+    'late': 'late',
+    'overdue': 'expired',
+    'nodue': 'progress',
+  };
+  return statusMap[statusKey] || '';
 }
 
 Page({
@@ -66,6 +78,7 @@ Page({
     pendingResultList: [],
     unreadCount: 0,
     showTodoSection: true,
+    activeFilter: 'all',
   },
   onLoad() {
     this.setData(getStoredFilters());
@@ -85,6 +98,9 @@ Page({
     }
     this.loadData();
   },
+  onReady() {
+    wx.setNavigationBarTitle({ title: '我的作业' });
+  },
   onPullDownRefresh() {
     this.loadData(true);
   },
@@ -98,10 +114,29 @@ Page({
       this.applyFilters();
     });
   },
+  // 筛选切换 (用于新的 filter-chips)
+  onFilterChange(event) {
+    const filter = event.currentTarget.dataset.filter;
+    const statusIndex = this.data.statusOptions.findIndex(opt => opt.value === filter);
+    this.setData({
+      activeFilter: filter,
+      statusIndex: statusIndex >= 0 ? statusIndex : 0,
+    }, () => {
+      this.applyFilters();
+    });
+  },
+  // 作业卡片点击
+  onHomeworkTap(event) {
+    const { id } = event.currentTarget.dataset;
+    if (id) {
+      this.goDetail({ currentTarget: { dataset: { id } } });
+    }
+  },
   resetFilters() {
     this.setData({
       keyword: '',
       statusIndex: 0,
+      activeFilter: 'all',
     }, () => {
       this.applyFilters();
     });
@@ -208,6 +243,7 @@ Page({
       openCount,
       lateCount,
       overdueCount,
+      activeFilter: statusValue,
     });
     this.persistFilters();
   },
@@ -256,5 +292,35 @@ Page({
     const { id } = event.currentTarget.dataset;
     if (!id) return;
     wx.navigateTo({ url: `/pages/submission-result/index?id=${id}` });
+  },
+  // 辅助方法：计算作业状态样式类
+  getStatusClass(status) {
+    const statusMap = {
+      'OPEN': 'progress',
+      'LATE': 'late',
+      'EXPIRED': 'expired',
+      'DONE': 'done'
+    };
+    return statusMap[status] || '';
+  },
+  // 辅助方法：格式化截止时间
+  formatDeadline(deadline) {
+    if (!deadline) return '未设截止';
+    const date = new Date(deadline);
+    const now = new Date();
+    const diff = date - now;
+
+    if (diff < 0) return '已截止';
+    if (diff < 86400000) return '今天 ' + this.formatTime(date);
+    if (diff < 172800000) return '明天 ' + this.formatTime(date);
+    return this.formatDate(date);
+  },
+  // 辅助方法：格式化时间
+  formatTime(date) {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+  },
+  // 辅助方法：格式化日期
+  formatDate(date) {
+    return `${date.getMonth() + 1}月${date.getDate()}日 ${this.formatTime(date)}`;
   },
 });
