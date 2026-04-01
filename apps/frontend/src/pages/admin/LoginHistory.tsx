@@ -29,11 +29,11 @@ export const AdminLoginHistoryPage = () => {
   const { t } = useI18n();
   const [actionFilter, setActionFilter] = useState<string | undefined>();
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const [pageSize, setPageSize] = useState(20);
   const loginActions = useMemo(() => Object.keys(ACTION_COLORS), []);
 
   const logsQuery = useQuery({
-    queryKey: ['admin-login-history', page, actionFilter],
+    queryKey: ['admin-login-history', page, pageSize, actionFilter],
     queryFn: async () => {
       const res = await api.get('/admin/audit-logs', {
         params: {
@@ -89,7 +89,15 @@ export const AdminLoginHistoryPage = () => {
           columns={columns}
           dataSource={loginLogs}
           loading={logsQuery.isLoading}
-          pagination={{ current: page, pageSize, total, onChange: setPage, showTotal: (total) => t('common.totalItems', { total }) }}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            onChange: (p, ps) => { setPage(p); if (ps !== pageSize) setPageSize(ps); },
+            showSizeChanger: true,
+            showQuickJumper: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+          }}
           size="small"
         />
       </ProCard>
