@@ -66,6 +66,13 @@ describe('AuditService', () => {
   });
 
   describe('listRecent', () => {
+    it('should return items and total', async () => {
+      (prisma.auditLog.findMany as jest.Mock).mockResolvedValue([{ id: 'a1' }, { id: 'a2' }]);
+      (prisma.auditLog.count as jest.Mock).mockResolvedValue(2);
+      const result = await service.listRecent();
+      expect(result).toEqual({ items: [{ id: 'a1' }, { id: 'a2' }], total: 2 });
+    });
+
     it('should use default limit of 50', async () => {
       await service.listRecent();
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith({
@@ -74,6 +81,7 @@ describe('AuditService', () => {
         take: 50,
         skip: 0,
       });
+      expect(prisma.auditLog.count).toHaveBeenCalledWith({ where: undefined });
     });
 
     it('should cap limit at 200', async () => {
@@ -95,6 +103,7 @@ describe('AuditService', () => {
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { action: 'LOGIN_SUCCESS' } }),
       );
+      expect(prisma.auditLog.count).toHaveBeenCalledWith({ where: { action: 'LOGIN_SUCCESS' } });
     });
 
     it('should filter by multiple actions', async () => {
@@ -102,6 +111,7 @@ describe('AuditService', () => {
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { action: { in: ['LOGIN_SUCCESS', 'LOGOUT'] } } }),
       );
+      expect(prisma.auditLog.count).toHaveBeenCalledWith({ where: { action: { in: ['LOGIN_SUCCESS', 'LOGOUT'] } } });
     });
   });
 

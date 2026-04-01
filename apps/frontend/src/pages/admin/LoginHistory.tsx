@@ -29,6 +29,7 @@ export const AdminLoginHistoryPage = () => {
   const { t } = useI18n();
   const [actionFilter, setActionFilter] = useState<string | undefined>();
   const [page, setPage] = useState(1);
+  const pageSize = 50;
   const loginActions = useMemo(() => Object.keys(ACTION_COLORS), []);
 
   const logsQuery = useQuery({
@@ -36,8 +37,8 @@ export const AdminLoginHistoryPage = () => {
     queryFn: async () => {
       const res = await api.get('/admin/audit-logs', {
         params: {
-          limit: 50,
-          offset: (page - 1) * 50,
+          limit: pageSize,
+          offset: (page - 1) * pageSize,
           ...(actionFilter ? { action: actionFilter } : { actions: loginActions.join(',') }),
         },
       });
@@ -47,8 +48,10 @@ export const AdminLoginHistoryPage = () => {
   });
 
   const loginLogs = useMemo(() => {
-    return logsQuery.data || [];
+    return logsQuery.data?.items || [];
   }, [logsQuery.data]);
+
+  const total = useMemo(() => logsQuery.data?.total || 0, [logsQuery.data]);
 
   const columns = useMemo(() => [
     { title: t('admin.auditLogs.time'), dataIndex: 'createdAt', render: (v: string) => formatDate(v), width: 180 },
@@ -86,7 +89,7 @@ export const AdminLoginHistoryPage = () => {
           columns={columns}
           dataSource={loginLogs}
           loading={logsQuery.isLoading}
-          pagination={{ current: page, pageSize: 50, onChange: setPage }}
+          pagination={{ current: page, pageSize, total, onChange: setPage, showTotal: (total) => t('common.totalItems', { total }) }}
           size="small"
         />
       </ProCard>

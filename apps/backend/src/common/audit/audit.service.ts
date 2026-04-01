@@ -73,18 +73,21 @@ export class AuditService {
         ? { action: { in: actions } }
         : undefined;
 
-    const records = await this.prisma.auditLog.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take,
-      skip: offset,
-    });
+    const [records, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip: offset,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
 
     this.logger.debug(
-      `Audit logs listed returned=${records.length} offset=${offset} limit=${take} action=${action || 'none'} actions=${actions.length} durationMs=${Date.now() - startedAt}`,
+      `Audit logs listed returned=${records.length} total=${total} offset=${offset} limit=${take} action=${action || 'none'} actions=${actions.length} durationMs=${Date.now() - startedAt}`,
     );
 
-    return records;
+    return { items: records, total };
   }
 
   async countByAction(action: AuditAction, since: Date) {

@@ -57,7 +57,8 @@ export const AdminAuditLogsPage = () => {
     staleTime: 15_000,
   });
 
-  const filteredLogs = useMemo(() => logsQuery.data || [], [logsQuery.data]);
+  const filteredLogs = useMemo(() => logsQuery.data?.items || [], [logsQuery.data]);
+  const total = useMemo(() => logsQuery.data?.total || 0, [logsQuery.data]);
 
   const columns = useMemo(() => [
     { title: t('admin.auditLogs.time'), dataIndex: 'createdAt', render: (v: string) => formatDate(v), width: 180 },
@@ -67,6 +68,8 @@ export const AdminAuditLogsPage = () => {
     { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string) => v || '--' },
     { title: t('admin.auditLogs.detail'), dataIndex: 'detail', ellipsis: true },
   ], [t]);
+
+  const actionOptions = useMemo(() => Object.keys(ACTION_COLORS).map(k => ({ label: localizeAction(k, t), value: k })), [t]);
 
   return (
     <PageContainer title={t('admin.auditLogs.title')}>
@@ -81,7 +84,7 @@ export const AdminAuditLogsPage = () => {
             value={actionFilter}
             onChange={(v) => { setActionFilter(v); setPage(1); }}
             style={{ width: 200 }}
-            options={Object.keys(ACTION_COLORS).map(k => ({ label: k, value: k }))}
+            options={actionOptions}
           />
         </Space>
         <Table
@@ -89,7 +92,7 @@ export const AdminAuditLogsPage = () => {
           columns={columns}
           dataSource={filteredLogs}
           loading={logsQuery.isLoading}
-          pagination={{ current: page, pageSize, onChange: setPage, showSizeChanger: false }}
+          pagination={{ current: page, pageSize, total, onChange: setPage, showSizeChanger: false, showTotal: (total) => t('common.totalItems', { total }) }}
           size="small"
         />
       </ProCard>

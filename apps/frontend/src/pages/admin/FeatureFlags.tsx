@@ -44,6 +44,13 @@ export const AdminFeatureFlagsPage = () => {
 
   return (
     <PageContainer title={t('admin.featureFlags.title')}>
+      <Alert
+        type="warning"
+        showIcon
+        message={t('admin.featureFlags.experimentalTitle')}
+        description={t('admin.featureFlags.experimentalDesc')}
+        style={{ marginBottom: 16 }}
+      />
       {flagsQuery.isError ? (
         <Alert type="error" message={t('common.loadError')} action={<Button size="small" onClick={() => flagsQuery.refetch()}>{t('common.retry')}</Button>} className="apple-inline-alert" />
       ) : null}
