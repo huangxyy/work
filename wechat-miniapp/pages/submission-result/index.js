@@ -13,6 +13,7 @@ Page({
     grading: null,
     dimensionScores: null,
     score: '--',
+    displayScore: 0,
     updatedLabel: '',
     timeline: [],
     isFailed: false,
@@ -26,32 +27,73 @@ Page({
     hasTeacherFeedback: false,
   },
   timer: null,
+  scoreAnimationTimer: null,
+
   onLoad(options) {
     this.setData({
       id: options && options.id ? options.id : '',
     });
   },
+
   onShow() {
     if (!ensureLogin(`/pages/submission-result/index?id=${this.data.id}`)) {
       return;
     }
     this.loadData();
   },
+
   onPullDownRefresh() {
     this.loadData(true);
   },
+
   onUnload() {
     this.clearTimer();
   },
+
   onHide() {
     this.clearTimer();
   },
+
   clearTimer() {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    if (this.scoreAnimationTimer) {
+      clearInterval(this.scoreAnimationTimer);
+      this.scoreAnimationTimer = null;
+    }
   },
+
+  // Show score animation
+  animateScore(targetScore) {
+    if (targetScore === '--' || targetScore === null || targetScore === undefined) {
+      this.setData({ displayScore: '--' });
+      return;
+    }
+
+    const target = Number(targetScore);
+    const duration = 1000;
+    const steps = 30;
+    const increment = target / steps;
+    const stepDuration = duration / steps;
+
+    let current = 0;
+    this.setData({ displayScore: 0 });
+
+    this.scoreAnimationTimer = setInterval(() => {
+      current += increment;
+      if (current >= target) {
+        current = target;
+        clearInterval(this.scoreAnimationTimer);
+        this.scoreAnimationTimer = null;
+      }
+      this.setData({
+        displayScore: Math.round(current),
+      });
+    }, stepDuration);
+  },
+
   async loadData(fromPullDown) {
     const id = this.data.id;
     if (!id) {
@@ -93,12 +135,19 @@ Page({
         : submission.status === 'PROCESSING'
           ? '正在执行 OCR 与 AI 批改，页面会每 4 秒自动刷新一次。'
           : '';
+
+      const score = submission.totalScore !== null && submission.totalScore !== undefined
+        ? submission.totalScore
+        : grading && grading.totalScore !== undefined
+          ? grading.totalScore
+          : '--';
+
       this.setData({
         submission,
         statusMeta,
         grading,
         dimensionScores,
-        score: submission.totalScore !== null && submission.totalScore !== undefined ? submission.totalScore : grading && grading.totalScore !== undefined ? grading.totalScore : '--',
+        score,
         updatedLabel: submission.updatedAt ? formatDateTime(submission.updatedAt) : '暂无时间',
         timeline,
         isFailed: submission.status === 'FAILED',
@@ -111,6 +160,14 @@ Page({
         hasErrors: errorCount > 0,
         hasTeacherFeedback,
       });
+
+      // Animate score only when grading is done
+      if (submission.status === 'DONE' && score !== '--') {
+        this.animateScore(score);
+      } else {
+        this.setData({ displayScore: score });
+      }
+
       if (pollDelay > 0) {
         this.timer = setTimeout(() => {
           this.loadData();
@@ -127,6 +184,7 @@ Page({
       }
     }
   },
+
   previewImage(event) {
     const { current } = event.currentTarget.dataset;
     if (!current || !this.data.submission || !this.data.submission.images) {
@@ -137,6 +195,7 @@ Page({
       urls: this.data.submission.images.map((item) => item.url),
     });
   },
+
   goResubmit() {
     const homework = this.data.submission && this.data.submission.homework;
     if (!homework || !homework.id) {
@@ -146,6 +205,7 @@ Page({
       url: `/pages/submit/index?homeworkId=${homework.id}`,
     });
   },
+
   goHomeworkDetail() {
     const homework = this.data.submission && this.data.submission.homework;
     if (!homework || !homework.id) {
@@ -155,17 +215,20 @@ Page({
       url: `/pages/homework-detail/index?id=${homework.id}`,
     });
   },
+
   goSubmissions() {
     wx.switchTab({
       url: '/pages/submissions/index',
     });
   },
+
   goReport() {
     wx.navigateTo({
       url: '/pages/report/index',
     });
   },
+
   retryLoad() {
     this.loadData();
   },
-})
+});
