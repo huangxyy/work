@@ -4,6 +4,7 @@ const { ensureLogin } = require('../../lib/page');
 const { getSubmitDraftStorageKey } = require('../../lib/draft');
 const { showToast, showLoading, hideLoading, confirm } = require('../../lib/ui');
 const { formatDateTime, getHomeworkStatus, pickErrorMessage } = require('../../lib/utils');
+const imageCompressor = require('../../utils/image-compressor');
 
 const MODE_OPTIONS = [
   { label: '标准批改', value: 'quality' },
@@ -100,6 +101,7 @@ Page({
     hasDraft: false,
     draftNotice: '',
   },
+
   onLoad(options) {
     this.setData({
       homeworkId: options && options.homeworkId ? options.homeworkId : '',
@@ -107,15 +109,18 @@ Page({
       this.restoreDraft();
     });
   },
+
   onShow() {
     if (!ensureLogin(`/pages/submit/index?homeworkId=${this.data.homeworkId}`)) {
       return;
     }
     this.loadHomework();
   },
+
   onPullDownRefresh() {
     this.loadHomework(true);
   },
+
   async loadHomework(fromPullDown) {
     const homeworkId = this.data.homeworkId;
     if (!homeworkId) {
@@ -152,6 +157,7 @@ Page({
       }
     }
   },
+
   async restoreDraft() {
     const homeworkId = this.data.homeworkId;
     if (!homeworkId) {
@@ -197,6 +203,7 @@ Page({
         : '已恢复上次未提交设置',
     });
   },
+
   persistDraft(notice) {
     const homeworkId = this.data.homeworkId;
     if (!homeworkId) {
@@ -229,9 +236,11 @@ Page({
       draftNotice: notice || '草稿已自动保存',
     });
   },
+
   async clearDraftFiles(files) {
     await Promise.all((files || []).map((item) => removeSavedFile(item && item.path)));
   },
+
   async clearDraftManually() {
     const confirmed = await confirm({
       title: '清空草稿',
@@ -257,32 +266,64 @@ Page({
     });
     showToast('已清空草稿', 'success');
   },
-  chooseImages() {
+
+  // 选择图片（带压缩）
+  async chooseImages() {
     const remain = 3 - this.data.files.length;
     if (remain <= 0) {
       showToast('最多上传 3 张图片');
       return;
     }
+
     wx.chooseImage({
       count: remain,
-      sizeType: ['compressed'],
+      sizeType: ['original'],
       sourceType: ['album', 'camera'],
       success: async (res) => {
-        const nextFiles = (res.tempFiles || []).map(mapTempFile);
-        const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
-        if (invalid) {
-          showToast('单张图片不能超过 10MB');
-          return;
+        wx.showLoading({ title: '处理中...' });
+
+        try {
+          const tempFiles = res.tempFiles || res.tempFilePaths.map((path) => ({ path, size: 0 }));
+          const nextFiles = tempFiles.map(mapTempFile);
+
+          // 检查文件大小
+          const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
+          if (invalid) {
+            wx.hideLoading();
+            showToast('单张图片不能超过 10MB');
+            return;
+          }
+
+          // 压缩图片
+          const compressedPaths = await imageCompressor.compressImages(
+            nextFiles.map((f) => f.path),
+            80,
+            1200
+          );
+
+          // 更新文件路径为压缩后的路径
+          const compressedFiles = nextFiles.map((file, index) => ({
+            ...file,
+            path: compressedPaths[index] || file.path,
+          }));
+
+          const persistedFiles = await Promise.all(compressedFiles.map((item) => persistFile(item)));
+          this.setData({
+            files: this.data.files.concat(persistedFiles).slice(0, 3),
+          }, () => {
+            this.persistDraft(`已保存图片草稿（${this.data.files.length} 张）`);
+          });
+        } catch (err) {
+          console.error('图片处理失败:', err);
+          wx.hideLoading();
+          showToast('图片处理失败，请重试');
         }
-        const persistedFiles = await Promise.all(nextFiles.map((item) => persistFile(item)));
-        this.setData({
-          files: this.data.files.concat(persistedFiles).slice(0, 3),
-        }, () => {
-          this.persistDraft(`已保存图片草稿（${this.data.files.length} 张）`);
-        });
+
+        wx.hideLoading();
       },
     });
   },
+
   previewImage(event) {
     const { path } = event.currentTarget.dataset;
     if (!path) {
@@ -293,6 +334,7 @@ Page({
       urls: this.data.files.map((item) => item.path),
     });
   },
+
   async removeImage(event) {
     const index = Number(event.currentTarget.dataset.index);
     if (Number.isNaN(index)) {
@@ -308,16 +350,27 @@ Page({
       this.persistDraft(files.length ? `已更新图片草稿（${files.length} 张）` : '已清空图片草稿');
     });
   },
+
+  // 切换批改模式（点击卡片）
+  onModeChange(e) {
+    const mode = Number(e.currentTarget.dataset.mode);
+    this.setData({ modeIndex: mode }, () => {
+      this.persistDraft('已保存批改设置');
+    });
+  },
+
   handleModeChange(event) {
     this.setData({ modeIndex: Number(event.detail.value || 0) }, () => {
       this.persistDraft('已保存批改设置');
     });
   },
+
   handleRewriteChange(event) {
     this.setData({ needRewrite: Boolean(event.detail.value) }, () => {
       this.persistDraft('已保存改写设置');
     });
   },
+
   async handleSubmit() {
     if (!this.data.homeworkId) {
       showToast('缺少作业标识');
@@ -367,17 +420,20 @@ Page({
       this.setData({ submitting: false });
     }
   },
+
   goSubmissions() {
     wx.switchTab({
       url: '/pages/submissions/index',
     });
   },
+
   goReport() {
     wx.navigateTo({
       url: '/pages/report/index',
     });
   },
+
   retryLoad() {
     this.loadHomework();
   },
-})
+});

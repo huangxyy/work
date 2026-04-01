@@ -1,49 +1,385 @@
-.submit-title {
-  flex: 1;
-  padding-right: 20rpx;
+/* pages/submit/index.wxss */
+@import "../../styles/components.wxss";
+
+.page {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 32rpx;
+  padding-bottom: 120rpx;
 }
 
-.draft-card {
-  border: 1rpx solid rgba(37, 99, 235, 0.12);
-}
-
-.draft-note {
-  margin-top: 12rpx;
-}
-
-.draft-clear-button {
-  min-width: 144rpx;
-  height: 60rpx;
-  line-height: 60rpx;
-  padding: 0 20rpx;
-  font-size: 24rpx;
-}
-
-.switch-row {
-  gap: 20rpx;
-}
-
-.image-item {
+/* 加载状态 */
+.loading-container {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 0;
 }
 
-.image-meta {
-  gap: 12rpx;
+.loading-spinner {
+  width: 64rpx;
+  height: 64rpx;
+  border: 6rpx solid #f0f0f0;
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.image-name {
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  margin-top: 32rpx;
+  color: var(--text-secondary);
+  font-size: 28rpx;
+}
+
+/* 错误状态 */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80rpx 32rpx;
+}
+
+.error-icon {
+  font-size: 80rpx;
+  margin-bottom: 24rpx;
+}
+
+.error-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16rpx;
+}
+
+.error-text {
+  color: var(--text-secondary);
+  font-size: 28rpx;
+  margin-bottom: 48rpx;
+}
+
+/* 作业信息卡片 */
+.homework-info-card {
+  margin: -32rpx -32rpx 32rpx -32rpx;
+  border-radius: 0 0 32rpx 32rpx;
+  padding-top: calc(32rpx + env(safe-area-inset-top));
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
+.info-title {
+  font-size: 40rpx;
+  font-weight: 700;
   flex: 1;
+  padding-right: 16rpx;
+}
+
+.info-meta {
+  display: flex;
+  gap: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.meta-icon {
+  font-size: 28rpx;
+}
+
+.meta-text {
+  font-size: 24rpx;
+  opacity: 0.9;
+}
+
+.info-actions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.btn-action {
+  padding: 16rpx 32rpx;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--border-radius-pill);
+  color: #ffffff;
+  font-size: 24rpx;
+  border: none;
+  line-height: 1.4;
+}
+
+/* 草稿卡片 */
+.draft-card {
+  background: linear-gradient(135deg, #fff5f7 0%, #ffeef2 100%);
+  border: 2rpx solid rgba(245, 87, 108, 0.2);
+  margin-bottom: 32rpx;
+}
+
+.draft-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.draft-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.btn-clear {
+  padding: 12rpx 24rpx;
+  background: #ffffff;
+  border-radius: var(--border-radius-pill);
+  color: var(--color-primary);
+  font-size: 22rpx;
+  border: none;
+  line-height: 1.4;
+}
+
+.draft-text {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  margin-bottom: 8rpx;
+}
+
+.draft-hint {
+  font-size: 22rpx;
+  color: var(--text-muted);
+}
+
+/* 上传区域 */
+.upload-section {
+  margin-bottom: 32rpx;
+}
+
+.upload-tip {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 22rpx;
+  margin-top: 16rpx;
+}
+
+.image-preview-item {
+  position: relative;
+}
+
+.image-remove {
+  position: absolute;
+  top: -12rpx;
+  right: -12rpx;
+  width: 48rpx;
+  height: 48rpx;
+  background: var(--secondary-pink);
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  line-height: 1;
+  box-shadow: var(--shadow-soft);
+  z-index: 10;
+}
+
+/* 批改模式 */
+.mode-section {
+  margin-bottom: 32rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 20rpx;
+}
+
+.mode-cards {
+  display: flex;
+  gap: 16rpx;
+}
+
+.mode-card {
+  flex: 1;
+  background: #ffffff;
+  border-radius: var(--border-radius-large);
+  padding: 32rpx 16rpx;
+  text-align: center;
+  border: 4rpx solid transparent;
+  transition: all 0.3s;
+  box-shadow: var(--shadow-soft);
+}
+
+.mode-card.active {
+  background: var(--gradient-primary);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: var(--shadow-card);
+}
+
+.mode-icon {
+  font-size: 48rpx;
+  margin-bottom: 8rpx;
+}
+
+.mode-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  margin-bottom: 4rpx;
+}
+
+.mode-desc {
+  font-size: 22rpx;
+  opacity: 0.8;
+}
+
+/* 开关区域 */
+.switch-section {
+  background: #ffffff;
+  border-radius: var(--border-radius-large);
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+  box-shadow: var(--shadow-soft);
+}
+
+.switch-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.switch-info {
+  flex: 1;
+  padding-right: 24rpx;
+}
+
+.switch-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8rpx;
+}
+
+.switch-desc {
+  font-size: 22rpx;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.rainbow-switch {
+  transform: scale(0.9);
+}
+
+/* 进度区域 */
+.progress-section {
+  background: #ffffff;
+  border-radius: var(--border-radius-large);
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+  box-shadow: var(--shadow-soft);
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.progress-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.progress-value {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.progress-bar {
+  height: 16rpx;
+  background: #f0f0f0;
+  border-radius: var(--border-radius-pill);
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: var(--border-radius-pill);
+  transition: width 0.3s;
+}
+
+/* 提交按钮 */
+.submit-section {
+  padding: 16rpx 0;
+}
+
+/* 状态标签 */
+.status-tag {
+  padding: 8rpx 20rpx;
+  border-radius: var(--border-radius-pill);
+  font-size: 22rpx;
+  font-weight: 500;
   white-space: nowrap;
 }
 
-.mini-remove {
-  min-width: 120rpx;
-  height: 56rpx;
-  line-height: 56rpx;
-  padding: 0 18rpx;
-  font-size: 22rpx;
+.status-progress {
+  background: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.status-upcoming {
+  background: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.status-overdue {
+  background: rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+}
+
+/* 动画 */
+.scale-in {
+  animation: scaleIn 0.4s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
