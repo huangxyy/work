@@ -1,5 +1,5 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { ModalForm, PageContainer, ProCard, ProFormSelect, ProFormTextArea, ProTable } from '@ant-design/pro-components';
+import { Modal, ModalForm, PageContainer, ProCard, ProFormSelect, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, Descriptions, Drawer, Space, Tag, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
@@ -11,6 +11,7 @@ import {
   importClassStudents,
   removeClassStudent,
   updateClassTeachers,
+  deleteClass,
 } from '../../api';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
@@ -103,6 +104,31 @@ export const AdminClassesPage = () => {
     onError: () => message.error(t('admin.classes.removeStudentFailed')),
   });
 
+  const deleteClassMutation = useMutation({
+    mutationFn: (classId: string) => deleteClass(classId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['classes'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-class-summaries'] });
+      message.success(t('admin.classes.deleteSuccess'));
+      setDrawerOpen(false);
+    },
+    onError: (error) => {
+      console.error('删除班级失败:', error);
+      message.error(t('admin.classes.deleteFailed'));
+    },
+  });
+
+  const handleDeleteClass = useCallback((row: ClassItem) => {
+    Modal.confirm({
+      title: t('admin.classes.deleteConfirmTitle'),
+      content: t('admin.classes.deleteConfirmDesc'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      okType: 'danger',
+      onOk: () => deleteClassMutation.mutate(row.id),
+    });
+  }, [t, deleteClassMutation]);
+
   const handleOpenDrawer = useCallback((row: ClassItem) => {
     setActiveClass(row);
     setDrawerOpen(true);
@@ -177,9 +203,18 @@ export const AdminClassesPage = () => {
         >
           {t('admin.classes.manageStudents')}
         </Button>,
+        <Button
+          key="delete"
+          size="small"
+          danger
+          onClick={() => handleDeleteClass(row)}
+          loading={deleteClassMutation.isPending}
+        >
+          {t('common.delete')}
+        </Button>,
       ],
     },
-  ], [t, summaryMap, teacherOptions, updateTeachersMutation, handleOpenDrawer]);
+  ], [t, summaryMap, teacherOptions, updateTeachersMutation, handleOpenDrawer, handleDeleteClass, deleteClassMutation.isPending]);
 
   return (
     <PageContainer
@@ -219,6 +254,15 @@ export const AdminClassesPage = () => {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         width={720}
+        extra={
+          <Button
+            danger
+            onClick={() => activeClass && handleDeleteClass(activeClass)}
+            loading={deleteClassMutation.isPending}
+          >
+            {t('admin.classes.deleteClass')}
+          </Button>
+        }
       >
         {activeClass ? (
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
