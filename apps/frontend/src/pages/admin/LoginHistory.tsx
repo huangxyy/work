@@ -13,6 +13,18 @@ const ACTION_COLORS: Record<string, string> = {
   LOGOUT: 'default',
 };
 
+const ACTION_LABELS: Record<string, string> = {
+  LOGIN_SUCCESS: 'admin.auditLogs.actionLoginSuccess',
+  LOGIN_FAILED: 'admin.auditLogs.actionLoginFailed',
+  LOGIN_LOCKED: 'admin.auditLogs.actionLoginLocked',
+  LOGOUT: 'admin.auditLogs.actionLogout',
+};
+
+const localizeAction = (action: string, t: (key: string) => string): string => {
+  const key = ACTION_LABELS[action];
+  return key ? t(key) : action;
+};
+
 export const AdminLoginHistoryPage = () => {
   const { t } = useI18n();
   const [actionFilter, setActionFilter] = useState<string | undefined>();
@@ -40,7 +52,7 @@ export const AdminLoginHistoryPage = () => {
 
   const columns = useMemo(() => [
     { title: t('admin.auditLogs.time'), dataIndex: 'createdAt', render: (v: string) => formatDate(v), width: 180 },
-    { title: t('admin.auditLogs.action'), dataIndex: 'action', render: (v: string) => <Tag color={ACTION_COLORS[v] || 'default'} className="apple-tag-pill">{v}</Tag>, width: 160 },
+    { title: t('admin.auditLogs.action'), dataIndex: 'action', render: (v: string) => <Tag color={ACTION_COLORS[v] || 'default'} className="apple-tag-pill">{localizeAction(v, t)}</Tag>, width: 160 },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string) => v || '--' },
     { title: t('admin.auditLogs.detail'), dataIndex: 'detail', ellipsis: true },
   ], [t]);

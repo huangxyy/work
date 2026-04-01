@@ -14,6 +14,27 @@ const ACTION_COLORS: Record<string, string> = {
   ADMIN_ACTION: 'gold',
 };
 
+const ACTION_LABELS: Record<string, string> = {
+  LOGIN_SUCCESS: 'admin.auditLogs.actionLoginSuccess',
+  LOGIN_FAILED: 'admin.auditLogs.actionLoginFailed',
+  LOGIN_LOCKED: 'admin.auditLogs.actionLoginLocked',
+  LOGOUT: 'admin.auditLogs.actionLogout',
+  REGISTER: 'admin.auditLogs.actionRegister',
+  PASSWORD_CHANGE: 'admin.auditLogs.actionPasswordChange',
+  PASSWORD_RESET: 'admin.auditLogs.actionPasswordReset',
+  ROLE_CHANGE: 'admin.auditLogs.actionRoleChange',
+  USER_DELETE: 'admin.auditLogs.actionUserDelete',
+  USER_CREATE: 'admin.auditLogs.actionUserCreate',
+  CONFIG_UPDATE: 'admin.auditLogs.actionConfigUpdate',
+  DATA_DELETE: 'admin.auditLogs.actionDataDelete',
+  ADMIN_ACTION: 'admin.auditLogs.actionAdminAction',
+};
+
+const localizeAction = (action: string, t: (key: string) => string): string => {
+  const key = ACTION_LABELS[action];
+  return key ? t(key) : action;
+};
+
 export const AdminAuditLogsPage = () => {
   const { t } = useI18n();
   const [actionFilter, setActionFilter] = useState<string | undefined>();
@@ -40,7 +61,7 @@ export const AdminAuditLogsPage = () => {
 
   const columns = useMemo(() => [
     { title: t('admin.auditLogs.time'), dataIndex: 'createdAt', render: (v: string) => formatDate(v), width: 180 },
-    { title: t('admin.auditLogs.action'), dataIndex: 'action', render: (v: string) => <Tag color={ACTION_COLORS[v] || 'default'} className="apple-tag-pill">{v}</Tag>, width: 160 },
+    { title: t('admin.auditLogs.action'), dataIndex: 'action', render: (v: string) => <Tag color={ACTION_COLORS[v] || 'default'} className="apple-tag-pill">{localizeAction(v, t)}</Tag>, width: 160 },
     { title: t('admin.auditLogs.userId'), dataIndex: 'userId', width: 200, render: (v: string) => v || '--' },
     { title: t('admin.auditLogs.targetId'), dataIndex: 'targetId', width: 200, render: (v: string) => v || '--' },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string) => v || '--' },
