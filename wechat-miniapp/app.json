@@ -12,18 +12,18 @@
   ],
   "window": {
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#f7f9fc",
+    "navigationBarBackgroundColor": "#667eea",
     "navigationBarTitleText": "Homework AI",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#f2f5fb"
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f5f5"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",
   "tabBar": {
     "color": "#7b88a1",
-    "selectedColor": "#2563eb",
+    "selectedColor": "#667eea",
     "backgroundColor": "#ffffff",
-    "borderStyle": "black",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/homeworks/index",
@@ -38,5 +38,8 @@
         "text": "我的"
       }
     ]
+  },
+  "usingComponents": {
+    "gradient-button": "/components/gradient-button/index"
   }
 }
