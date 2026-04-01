@@ -78,7 +78,9 @@ Page({
         .then((nextUser) => {
           this.setData({ userName: nextUser && nextUser.name ? nextUser.name : '同学' });
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.log('syncUser failed:', err);
+        });
     }
     this.loadData();
   },
@@ -87,11 +89,6 @@ Page({
   },
   onPullDownRefresh() {
     this.loadData(true);
-  },
-  handleStatusChange(event) {
-    this.setData({ statusIndex: Number(event.detail.value || 0) }, () => {
-      this.applyFilters();
-    });
   },
   // 筛选切换 (用于新的 filter-chips)
   onFilterChange(event) {

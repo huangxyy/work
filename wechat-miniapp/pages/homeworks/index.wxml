@@ -68,7 +68,7 @@
         </view>
 
         <view class="card-actions">
-          <button class="action-btn ghost" data-id="{{item.id}}" catchtap="goDetail" data-id="{{item.id}}">查看详情</button>
+          <button class="action-btn ghost" data-id="{{item.id}}" catchtap="goDetail">查看详情</button>
           <button class="action-btn primary" data-id="{{item.id}}" data-closed="{{item.status.key === 'overdue'}}" catchtap="goSubmit">{{item.hasDraft ? '继续提交' : '去提交'}}</button>
         </view>
       </view>
