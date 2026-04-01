@@ -5,99 +5,6 @@
     <view class="welcome-subtitle">今天有 {{openCount}} 个作业待完成</view>
   </view>
 
-  <!-- KPI统计区 -->
-  <view class="kpi-section scale-in">
-    <view class="kpi-grid">
-      <view class="kpi-item">
-        <view class="kpi-label">全部作业</view>
-        <view class="kpi-value">{{totalCount}}</view>
-      </view>
-      <view class="kpi-item">
-        <view class="kpi-label">进行中</view>
-        <view class="kpi-value">{{openCount}}</view>
-      </view>
-      <view class="kpi-item">
-        <view class="kpi-label">可补交</view>
-        <view class="kpi-value">{{lateCount}}</view>
-      </view>
-      <view class="kpi-item">
-        <view class="kpi-label">已截止</view>
-        <view class="kpi-value">{{overdueCount}}</view>
-      </view>
-    </view>
-  </view>
-
-  <!-- 快捷操作区 -->
-  <view class="quick-actions scale-in">
-    <button class="quick-action-btn" bindtap="goSubmissions">
-      <view class="quick-action-icon">📋</view>
-      <view class="quick-action-label">提交记录</view>
-    </button>
-    <button class="quick-action-btn" bindtap="goReport">
-      <view class="quick-action-icon">📊</view>
-      <view class="quick-action-label">学习报告</view>
-    </button>
-    <button class="quick-action-btn" bindtap="goMessages">
-      <view class="quick-action-icon">
-        <text>💬</text>
-        <view wx:if="{{unreadCount > 0}}" class="badge-dot"></view>
-      </view>
-      <view class="quick-action-label">消息{{unreadCount > 0 ? ' (' + unreadCount + ')' : ''}}</view>
-    </button>
-  </view>
-
-  <!-- 待办事项区 -->
-  <view wx:if="{{urgentList.length || pendingResultList.length}}" class="todo-section scale-in">
-    <view class="section-header" bindtap="toggleTodoSection">
-      <view class="section-title">待办事项</view>
-      <view class="section-toggle">{{showTodoSection ? '收起' : '展开'}}</view>
-    </view>
-
-    <view wx:if="{{showTodoSection}}">
-      <!-- 即将截止 -->
-      <view wx:if="{{urgentList.length}}" class="todo-group">
-        <view class="todo-subtitle">即将截止 ({{urgentList.length}})</view>
-        <view wx:for="{{urgentList}}" wx:key="id" class="todo-item todo-urgent" data-id="{{item.id}}" bindtap="goDetail">
-          <view class="todo-item-header">
-            <view class="todo-item-title">{{item.title}}</view>
-            <view class="todo-countdown">⚠️ {{item.urgentLabel}}</view>
-          </view>
-          <view class="todo-item-meta">截止：{{item.dueLabel}} · {{item.className}}</view>
-        </view>
-      </view>
-
-      <!-- 待查看结果 -->
-      <view wx:if="{{pendingResultList.length}}" class="todo-group">
-        <view class="todo-subtitle">待查看结果 ({{pendingResultList.length}})</view>
-        <view wx:for="{{pendingResultList}}" wx:key="id" class="todo-item" data-id="{{item.id}}" bindtap="goSubmissionResult">
-          <view class="todo-item-header">
-            <view class="todo-item-title">{{item.homeworkTitle}}</view>
-            <view class="status-tag processing">{{item.statusLabel}}</view>
-          </view>
-          <view class="todo-item-meta">提交于 {{item.timeLabel}}</view>
-        </view>
-      </view>
-    </view>
-  </view>
-
-  <!-- 学习摘要区 -->
-  <view class="summary-section scale-in">
-    <view class="section-header">
-      <view class="section-title">最近 7 天学习摘要</view>
-    </view>
-    <view class="summary-grid">
-      <view class="summary-card">
-        <view class="summary-label">平均分</view>
-        <view class="summary-value">{{reportAvgScore}}</view>
-      </view>
-      <view class="summary-card">
-        <view class="summary-label">提交次数</view>
-        <view class="summary-value">{{reportSubmissionCount}}</view>
-      </view>
-    </view>
-    <view class="summary-hint">下一步建议：{{reportNextStep}}</view>
-  </view>
-
   <!-- 筛选区 -->
   <view class="filter-section scale-in">
     <scroll-view class="filter-chips" scroll-x enable-flex>
@@ -106,15 +13,6 @@
       <view class="filter-chip {{activeFilter === 'late' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="late">可补交</view>
       <view class="filter-chip {{activeFilter === 'overdue' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="overdue">已截止</view>
     </scroll-view>
-  </view>
-
-  <!-- 搜索区 -->
-  <view class="search-section scale-in">
-    <view class="search-box">
-      <view class="search-icon">🔍</view>
-      <input class="search-input" placeholder="搜索作业标题、说明、班级" value="{{keyword}}" bindinput="handleKeywordInput" />
-      <view wx:if="{{keyword}}" class="search-clear" bindtap="resetFilters">✕</view>
-    </view>
   </view>
 
   <!-- 作业列表 -->
@@ -138,7 +36,6 @@
       <view class="empty-icon">📚</view>
       <view class="empty-title">暂无作业</view>
       <view class="empty-text">{{hasActiveFilters ? '尝试调整筛选条件' : '下拉刷新获取最新作业'}}</view>
-      <button wx:if="{{hasActiveFilters}}" class="btn-secondary" bindtap="resetFilters">重置筛选</button>
     </view>
 
     <!-- 作业卡片列表 -->

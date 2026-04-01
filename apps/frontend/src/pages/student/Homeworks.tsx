@@ -1,13 +1,12 @@
-import type { ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Input, Select, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Space, Spin, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchStudentHomeworks } from '../../api';
-import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { formatDate } from '../../utils/dateFormat';
+
+const { Text, Paragraph } = Typography;
 
 type HomeworkItem = {
   id: string;
@@ -18,25 +17,34 @@ type HomeworkItem = {
   class: { id: string; name: string };
 };
 
-const getStatus = (t: (key: string) => string, dueAt?: string | null, allowLateSubmission?: boolean) => {
+type FilterType = 'all' | 'ongoing' | 'late' | 'expired';
+
+const getStatus = (dueAt?: string | null, allowLateSubmission?: boolean): { key: FilterType; label: string; color: string } => {
   if (!dueAt) {
-    return { key: 'nodue', label: t('status.noDue'), color: 'default' as const };
+    return { key: 'ongoing', label: '进行中', color: 'blue' };
   }
   const dueDate = new Date(dueAt);
-  if (dueDate.getTime() < Date.now()) {
+  const now = Date.now();
+  if (dueDate.getTime() < now) {
     if (allowLateSubmission) {
-      return { key: 'lateOpen', label: t('status.lateOpen'), color: 'warning' as const };
+      return { key: 'late', label: '逾期补交', color: 'orange' };
     }
-    return { key: 'overdue', label: t('status.overdue'), color: 'error' as const };
+    return { key: 'expired', label: '已截止', color: 'red' };
   }
-  return { key: 'open', label: t('status.open'), color: 'success' as const };
+  return { key: 'ongoing', label: '进行中', color: 'blue' };
+};
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return '早上好';
+  if (hour < 18) return '下午好';
+  return '晚上好';
 };
 
 export const StudentHomeworksPage = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [keyword, setKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [filter, setFilter] = useState<FilterType>('all');
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['student-homeworks'],
@@ -47,147 +55,153 @@ export const StudentHomeworksPage = () => {
   const filteredData = useMemo(() => {
     const list = data || [];
     return list.filter((item) => {
-      const status = getStatus(t, item.dueAt, item.allowLateSubmission).key;
-      if (statusFilter !== 'all' && status !== statusFilter) {
-        return false;
-      }
-      if (!keyword) {
-        return true;
-      }
-      const needle = keyword.toLowerCase();
-      return (
-        item.title.toLowerCase().includes(needle) ||
-        (item.desc || '').toLowerCase().includes(needle) ||
-        item.class.name.toLowerCase().includes(needle)
-      );
+      const status = getStatus(item.dueAt, item.allowLateSubmission);
+      if (filter === 'all') return true;
+      return status.key === filter;
     });
-  }, [data, keyword, statusFilter, t]);
+  }, [data, filter]);
 
-  const handleView = useCallback((id: string) => navigate(`/student/homeworks/${id}`), [navigate]);
+  const pendingCount = useMemo(() => {
+    if (!data) return 0;
+    return data.filter(item => {
+      const status = getStatus(item.dueAt, item.allowLateSubmission);
+      return status.key === 'ongoing' || status.key === 'late';
+    }).length;
+  }, [data]);
+
   const handleSubmit = useCallback((id: string) => navigate(`/student/submit/${id}`), [navigate]);
 
-  const columns = useMemo<ProColumns<HomeworkItem>[]>(() => [
-    {
-      title: t('common.homework'),
-      dataIndex: 'title',
-      render: (_, item) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text strong>{item.title}</Typography.Text>
-          <Typography.Text type="secondary">
-            {t('common.class')}: {item.class.name}
-          </Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: t('common.due'),
-      dataIndex: 'dueAt',
-      render: (_, item) => {
-        const status = getStatus(t, item.dueAt, item.allowLateSubmission);
-        return (
-          <Space direction="vertical" size={0}>
-            <Tag color={status.color} className="apple-tag-pill">{status.label}</Tag>
-            <Typography.Text type="secondary">
-              {item.dueAt ? formatDate(item.dueAt) : t('student.homeworks.flexibleDeadline')}
-            </Typography.Text>
-          </Space>
-        );
-      },
-      width: 220,
-    },
-    {
-      title: t('common.description'),
-      dataIndex: 'desc',
-      renderText: (value) => value || t('common.noDescription'),
-      width: 280,
-    },
-    {
-      title: t('common.action'),
-      valueType: 'option',
-      render: (_, item) => {
-        const canSubmit = getStatus(t, item.dueAt, item.allowLateSubmission).key !== 'overdue';
-        return [
-          <Button key="view" onClick={() => handleView(item.id)}>
-            {t('common.view')}
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            disabled={!canSubmit}
-            onClick={() => handleSubmit(item.id)}
-          >
-            {canSubmit ? t('common.submit') : t('student.homeworks.submitClosed')}
-          </Button>,
-        ];
-      },
-    },
-  ], [t, handleView, handleSubmit]);
+  const filters = [
+    { key: 'all' as FilterType, label: '全部' },
+    { key: 'ongoing' as FilterType, label: '进行中' },
+    { key: 'late' as FilterType, label: '逾期' },
+    { key: 'expired' as FilterType, label: '已截止' },
+  ];
 
   return (
-    <PageContainer
-      title={t('student.homeworks.title')}
-      breadcrumb={{
-        items: [
-          { title: t('nav.student'), path: '/student/dashboard' },
-          { title: t('nav.homeworks') },
-        ],
-      }}
-    >
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px' }}>
+      {/* Welcome Hero */}
+      <div style={{ marginBottom: '32px' }}>
+        <Typography.Title level={2} style={{ marginBottom: '8px' }}>
+          {getGreeting()}，同学
+        </Typography.Title>
+        <Text type="secondary">你有 {pendingCount} 个作业待提交</Text>
+      </div>
+
+      {/* Error State */}
       {isError ? (
         <Alert
           type="error"
-          message={t('student.homeworks.loadError')}
-          description={error instanceof Error ? error.message : t('common.tryAgain')}
+          message="加载失败"
+          description={error instanceof Error ? error.message : '请重试'}
           action={
             <Button size="small" onClick={() => refetch()}>
-              {t('common.retry')}
+              重试
             </Button>
           }
-          className="apple-inline-alert"
+          style={{ marginBottom: '24px' }}
         />
       ) : null}
-      <ProCard bordered className="apple-soft-card">
-        <ProTable<HomeworkItem>
-          rowKey="id"
-          columns={columns}
-          dataSource={filteredData}
-          loading={isLoading}
-          search={false}
-          pagination={{ pageSize: 6 }}
-          options={false}
-          locale={{
-            emptyText: (
-              <SoftEmpty description={t('student.homeworks.empty')}>
-                <Typography.Paragraph type="secondary" className="apple-empty-hint">
-                  {t('student.homeworks.emptyHint')}
-                </Typography.Paragraph>
-              </SoftEmpty>
-            ),
-          }}
-          toolBarRender={() => [
-            <Input.Search
-              key="search"
-              className="apple-toolbar-search"
-              placeholder={t('student.homeworks.searchPlaceholder')}
-              allowClear
-              onSearch={(value) => setKeyword(value.trim())}
-            />,
-            <Select
-              key="status"
-              className="apple-toolbar-select"
-              value={statusFilter}
-              onChange={(value) => setStatusFilter(value)}
-              options={[
-                { label: t('common.allStatuses'), value: 'all' },
-                { label: t('status.open'), value: 'open' },
-                { label: t('status.lateOpen'), value: 'lateOpen' },
-                { label: t('status.overdue'), value: 'overdue' },
-                { label: t('status.noDue'), value: 'nodue' },
-              ]}
-            />,
-          ]}
-        />
-      </ProCard>
-    </PageContainer>
+
+      {/* Filter Chips */}
+      <Space size="middle" style={{ marginBottom: '24px' }}>
+        {filters.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            style={{
+              padding: '6px 16px',
+              borderRadius: '20px',
+              border: 'none',
+              background: filter === f.key ? '#1890ff' : '#f5f5f5',
+              color: filter === f.key ? '#fff' : '#666',
+              cursor: 'pointer',
+              fontSize: '14px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              if (filter !== f.key) {
+                e.currentTarget.style.background = '#e6e6e6';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (filter !== f.key) {
+                e.currentTarget.style.background = '#f5f5f5';
+              }
+            }}
+          >
+            {f.label}
+          </button>
+        ))}
+      </Space>
+
+      {/* Loading State */}
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <Spin size="large" />
+        </div>
+      ) : null}
+
+      {/* Empty State */}
+      {!isLoading && filteredData.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <Text type="secondary">暂无作业</Text>
+          <Paragraph type="secondary" style={{ marginTop: '8px', marginBottom: 0 }}>
+            老师发布作业后会显示在这里
+          </Paragraph>
+        </div>
+      ) : null}
+
+      {/* Homework List */}
+      {!isLoading && filteredData.length > 0 && (
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          {filteredData.map((item) => {
+            const status = getStatus(item.dueAt, item.allowLateSubmission);
+            const isUrgent = status.key === 'ongoing' && item.dueAt &&
+              new Date(item.dueAt).getTime() - Date.now() < 24 * 60 * 60 * 1000;
+
+            return (
+              <div
+                key={item.id}
+                style={{
+                  background: '#fff',
+                  border: '1px solid #f0f0f0',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <Text strong style={{ fontSize: '16px' }}>
+                      {item.title}
+                    </Text>
+                    <Tag color={status.color}>{status.label}</Tag>
+                    {isUrgent && (
+                      <Tag color="red">即将截止</Tag>
+                    )}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: '14px' }}>
+                    {item.dueAt ? `截止时间：${formatDate(item.dueAt)}` : '弹性截止'} · {item.class.name}
+                  </Text>
+                </div>
+                {status.key !== 'expired' && (
+                  <Button
+                    type="primary"
+                    onClick={() => handleSubmit(item.id)}
+                    style={{ borderRadius: '8px' }}
+                  >
+                    提交作业
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </Space>
+      )}
+    </div>
   );
 };
