@@ -22,3 +22,7 @@ apps/**/tsconfig.build.tsbuildinfo
 coverage
 backup/
 release/
+
+# Git worktrees
+.worktrees/
+worktrees/
