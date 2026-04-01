@@ -25,15 +25,6 @@ view, text, button, input, picker, switch, textarea {
   padding: 32rpx;
 }
 
-.hero-card,
-.card,
-.list-card,
-.glass-card {
-  background: #ffffff;
-  border-radius: 28rpx;
-  box-shadow: 0 16rpx 48rpx rgba(15, 23, 42, 0.08);
-}
-
 .hero-card {
   padding: 32rpx;
   background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);

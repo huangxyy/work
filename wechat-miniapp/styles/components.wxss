@@ -15,10 +15,6 @@
   box-shadow: var(--shadow-soft);
 }
 
-.btn-gradient::after {
-  border: none;
-}
-
 .btn-gradient[disabled] {
   opacity: 0.5;
 }
@@ -34,10 +30,6 @@
   border: 4rpx solid var(--color-primary);
   font-size: 28rpx;
   font-weight: 500;
-}
-
-.btn-secondary::after {
-  border: none;
 }
 
 /* 状态标签 */
