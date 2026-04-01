@@ -112,22 +112,34 @@ export const AdminClassesPage = () => {
       message.success(t('admin.classes.deleteSuccess'));
       setDrawerOpen(false);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('删除班级失败:', error);
-      message.error(t('admin.classes.deleteFailed'));
+      const errorMessage = error?.response?.data?.message || error?.message || t('admin.classes.deleteFailed');
+      message.error(errorMessage);
     },
   });
 
   const handleDeleteClass = useCallback((row: ClassItem) => {
+    const studentCount = summaryMap.get(row.id)?.studentCount || 0;
     Modal.confirm({
       title: t('admin.classes.deleteConfirmTitle'),
-      content: t('admin.classes.deleteConfirmDesc'),
+      content: (
+        <div>
+          <p>{t('admin.classes.deleteConfirmDesc')}</p>
+          <p style={{ marginTop: 8, color: '#ff4d4f' }}>
+            {t('admin.classes.deleteWarning')}: {studentCount} {t('admin.classes.students')}
+          </p>
+          <p style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
+            {t('admin.classes.deleteHint')}
+          </p>
+        </div>
+      ),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       okType: 'danger',
       onOk: () => deleteClassMutation.mutate(row.id),
     });
-  }, [t, deleteClassMutation]);
+  }, [t, deleteClassMutation, summaryMap]);
 
   const handleOpenDrawer = useCallback((row: ClassItem) => {
     setActiveClass(row);
