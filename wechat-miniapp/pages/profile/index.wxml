@@ -3,7 +3,7 @@
   <!-- 用户信息卡片 -->
   <view class="user-hero scale-in">
     <view class="user-avatar">
-      <image src="{{user && user.name ? '/assets/default-avatar.png' : '/assets/default-avatar.png'}}" class="avatar-image" />
+      <view class="avatar-emoji">👤</view>
     </view>
     <view class="user-info">
       <view class="user-name">{{user && user.name ? user.name : '未登录用户'}}</view>

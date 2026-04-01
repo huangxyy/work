@@ -10,6 +10,8 @@ page {
   --secondary-green: #38f9d7;
   --primary-orange: #fa709a;
   --secondary-orange: #fee140;
+  --primary-teal: #a8edea;
+  --secondary-teal: #fed6e3;
 
   --text-primary: #333333;
   --text-secondary: #666666;
@@ -54,4 +56,16 @@ page {
 .theme-messages {
   --gradient-primary: linear-gradient(135deg, var(--primary-orange) 0%, var(--secondary-orange) 100%);
   --color-primary: var(--primary-orange);
+}
+
+/* 页面主题色 - 学习报告 (青粉渐变) */
+.theme-report {
+  --gradient-primary: linear-gradient(135deg, var(--primary-teal) 0%, var(--secondary-teal) 100%);
+  --color-primary: var(--primary-teal);
+}
+
+/* 页面主题色 - 登录页 (紫色渐变 - 复用 homeworks) */
+.theme-login {
+  --gradient-primary: linear-gradient(135deg, var(--primary-purple) 0%, var(--secondary-purple) 100%);
+  --color-primary: var(--primary-purple);
 }

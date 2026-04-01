@@ -229,4 +229,7 @@ Page({
   retryLoad() {
     this.loadData();
   },
+  stopPropagation() {
+    // Prevent event bubbling for card action buttons
+  },
 });

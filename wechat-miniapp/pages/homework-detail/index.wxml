@@ -1,68 +1,98 @@
-<view class="container safe-bottom">
-  <view wx:if="{{loading}}" class="card">
-    <view class="empty-state">
-      <view class="empty-title">正在加载作业详情</view>
-      <view class="helper-text">请稍候，正在同步作业信息和提交记录。</view>
-    </view>
+<view class="page theme-homeworks safe-bottom">
+  <!-- Loading State -->
+  <view wx:if="{{loading}}" class="loading-state">
+    <view class="spinner"></view>
+    <view class="loading-text">正在加载作业详情</view>
   </view>
 
-  <view wx:elif="{{errorText}}" class="card">
-    <view class="error-state">
-      <view class="error-title">加载失败</view>
-      <view class="helper-text">{{errorText}}</view>
-      <view class="action-row section-gap">
-        <button class="secondary-button" bindtap="retryLoad">重新加载</button>
-      </view>
-    </view>
+  <!-- Error State -->
+  <view wx:elif="{{errorText}}" class="error-container">
+    <view class="error-icon">!</view>
+    <view class="error-title">加载失败</view>
+    <view class="error-text">{{errorText}}</view>
+    <button class="btn-gradient" bindtap="retryLoad">重新加载</button>
   </view>
 
+  <!-- Homework Detail Content -->
   <block wx:elif="{{homework}}">
-    <view class="card">
-      <view class="row-between">
-        <view class="section-title detail-title">{{homework.title}}</view>
-        <view class="status-pill {{status.className}}">{{status.label}}</view>
+    <!-- Hero Card -->
+    <view class="homework-hero fade-in">
+      <view class="homework-hero-title">{{homework.title}}</view>
+      <view class="homework-hero-meta">
+        <text class="meta-item">班级: {{homework.class.name}}</text>
+        <text class="meta-divider">·</text>
+        <text class="meta-item">截止: {{dueLabel}}</text>
       </view>
-      <view wx:if="{{hasDraft}}" class="helper-text detail-draft-text">已保存未提交草稿，重新进入提交页会自动恢复。</view>
-      <view class="list-item-desc">班级：{{homework.class.name}}</view>
-      <view class="list-item-desc">截止：{{dueLabel}}</view>
-      <view class="list-item-desc">{{homework.desc || '暂未提供作业说明'}}</view>
-      <view wx:if="{{latestSubmission}}" class="card section-gap detail-latest-card">
-        <view class="row-between">
-          <view class="section-title">最近一次提交</view>
-          <view class="status-pill {{latestSubmission.statusMeta.className}}">{{latestSubmission.statusMeta.label}}</view>
+      <view class="status-tag status-{{status.className}}">{{status.label}}</view>
+    </view>
+
+    <!-- Description Card -->
+    <view class="rainbow-card fade-in">
+      <view class="card-section-title">作业说明</view>
+      <view class="card-text">{{homework.desc || '暂未提供作业说明'}}</view>
+    </view>
+
+    <!-- Draft Notice -->
+    <view wx:if="{{hasDraft}}" class="notice-card scale-in">
+      <view class="notice-icon">💾</view>
+      <view class="notice-text">已保存未提交草稿，重新进入提交页会自动恢复</view>
+    </view>
+
+    <!-- Latest Submission Card -->
+    <view wx:if="{{latestSubmission}}" class="rainbow-card fade-in">
+      <view class="card-section-title">最近提交</view>
+      <view class="submission-meta">
+        <view class="meta-row">
+          <text class="meta-label">状态:</text>
+          <view class="status-tag-small status-{{latestSubmission.statusMeta.className}}">{{latestSubmission.statusMeta.label}}</view>
         </view>
-        <view class="helper-text">更新时间：{{latestSubmission.updatedLabel}}</view>
-        <view class="helper-text">分数：{{latestSubmission.scoreLabel}}</view>
-      </view>
-      <view class="action-row">
-        <button class="primary-button" disabled="{{!canSubmit}}" bindtap="goSubmit">{{canSubmit ? (hasDraft ? '继续提交' : '提交作业') : '已截止'}}</button>
-        <button wx:if="{{latestSubmission}}" class="ghost-button" bindtap="goLatestResult">最近结果</button>
-        <button class="ghost-button" bindtap="goReport">学习报告</button>
+        <view class="meta-row">
+          <text class="meta-label">时间:</text>
+          <text class="meta-value">{{latestSubmission.updatedLabel}}</text>
+        </view>
+        <view class="meta-row">
+          <text class="meta-label">分数:</text>
+          <text class="meta-value score">{{latestSubmission.scoreLabel}}</text>
+        </view>
       </view>
     </view>
 
-    <view class="card section-gap">
-      <view class="row-between">
-        <view class="section-title">提交记录</view>
-        <button class="ghost-button" bindtap="goAllSubmissions">查看全部提交</button>
+    <!-- Action Buttons -->
+    <view class="action-buttons">
+      <button class="btn-gradient {{canSubmit ? '' : 'btn-disabled'}}" disabled="{{!canSubmit}}" bindtap="goSubmit">
+        {{canSubmit ? (hasDraft ? '继续提交' : '提交作业') : '已截止'}}
+      </button>
+      <view wx:if="{{latestSubmission}}" class="btn-secondary-row">
+        <button class="btn-ghost" bindtap="goLatestResult">最近结果</button>
+        <button class="btn-ghost" bindtap="goReport">学习报告</button>
       </view>
-      <view wx:if="{{history.length}}" class="list-stack section-gap">
-        <view wx:for="{{history}}" wx:key="id" class="list-item history-item">
-          <view class="row-between">
-            <view class="list-item-title">{{item.homeworkTitle}}</view>
-            <view class="status-pill {{item.statusMeta.className}}">{{item.statusMeta.label}}</view>
-          </view>
-          <view class="list-item-desc">更新时间：{{item.updatedLabel}}</view>
-          <view class="list-item-desc" wx:if="{{item.totalScore !== null && item.totalScore !== undefined}}">总分：{{item.totalScore}}</view>
-          <view class="action-row">
-            <button class="ghost-button" data-id="{{item.id}}" bindtap="goResult">查看结果</button>
-          </view>
+      <view wx:else class="btn-secondary-row">
+        <button class="btn-ghost" bindtap="goReport">学习报告</button>
+      </view>
+    </view>
+
+    <!-- Submission History -->
+    <view class="section-title-row">
+      <text class="section-title">提交记录</text>
+      <text class="section-link" bindtap="goAllSubmissions">查看全部 →</text>
+    </view>
+
+    <view wx:if="{{history.length}}" class="history-list">
+      <view wx:for="{{history}}" wx:key="id" class="history-item" bindtap="goResult" data-id="{{item.id}}">
+        <view class="history-header">
+          <view class="history-title">{{item.homeworkTitle}}</view>
+          <view class="status-tag-small status-{{item.statusMeta.className}}">{{item.statusMeta.label}}</view>
+        </view>
+        <view class="history-meta">
+          <text class="meta-text">{{item.updatedLabel}}</text>
+          <text class="meta-text" wx:if="{{item.totalScore !== null && item.totalScore !== undefined}}">分数: {{item.totalScore}}</text>
         </view>
       </view>
-      <view wx:else class="empty-state">
-        <view class="empty-title">还没有提交记录</view>
-        <view class="helper-text">准备好图片后，可以直接从这里进入提交页。</view>
-      </view>
+    </view>
+
+    <view wx:else class="empty-state-small">
+      <view class="empty-icon">📝</view>
+      <view class="empty-text">还没有提交记录</view>
     </view>
   </block>
 </view>

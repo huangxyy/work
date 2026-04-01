@@ -18,7 +18,8 @@
   overflow: hidden;
 }
 
-.btn-gradient::after {
+/* 移除微信小程序按钮默认边框 */
+.btn-gradient.button-after {
   border: none;
 }
 

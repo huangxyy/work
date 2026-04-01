@@ -1,7 +1,7 @@
 const { ensureLogin } = require('../../lib/page');
-const { showToast, showLoading, hideLoading } = require('../../lib/ui');
+const { showToast } = require('../../lib/ui');
 const { formatDateTime, pickErrorMessage } = require('../../lib/utils');
-const { fetchStudentReportOverview, fetchClassComparison, downloadStudentReportPdf } = require('../../services/reports');
+const { fetchStudentReportOverview, fetchClassComparison } = require('../../services/reports');
 
 const RANGE_OPTIONS = [
   { label: '近 7 天', value: 7 },
@@ -193,92 +193,12 @@ Page({
     });
   },
   async exportPdf() {
-    if (this.data.exporting) {
-      return;
-    }
-    const days = this.data.rangeOptions[this.data.rangeIndex].value;
-    console.log('[exportPdf] Starting PDF export, days:', days);
-    this.setData({ exporting: true });
-    showLoading('正在导出');
-    try {
-      const result = await downloadStudentReportPdf(days, 'zh-CN');
-      console.log('[exportPdf] Download result:', {
-        hasResult: !!result,
-        statusCode: result?.statusCode,
-        tempFilePath: result?.tempFilePath,
-        isSmallFile: result?.isSmallFile,
-      });
-
-      if (!result) {
-        showToast('导出失败：服务器无响应');
-        return;
-      }
-
-      if (result.statusCode && result.statusCode >= 400) {
-        const errorMsg = result.message || `下载失败 (状态码: ${result.statusCode})`;
-        showToast(errorMsg);
-        return;
-      }
-
-      if (result.isSmallFile) {
-        showToast(result.message || '导出失败：文件内容异常');
-        return;
-      }
-
-      if (!result.tempFilePath) {
-        showToast('导出失败：未获取到文件');
-        console.error('[exportPdf] No tempFilePath in result:', result);
-        return;
-      }
-
-      console.log('[exportPdf] Opening document:', result.tempFilePath);
-      await new Promise((resolve, reject) => {
-        wx.openDocument({
-          filePath: result.tempFilePath,
-          showMenu: true,
-          fileType: 'pdf',
-          success() {
-            console.log('[exportPdf] Document opened successfully');
-            resolve();
-          },
-          fail(err) {
-            console.error('[exportPdf] Failed to open document:', err);
-            reject(err);
-          },
-        });
-      });
-      showToast('报告已打开', 'success');
-    } catch (error) {
-      console.error('[exportPdf] Export error:', error);
-      let errMsg = '导出失败，请稍后重试';
-      if (error?.statusCode === 401) {
-        errMsg = '登录已过期，请重新登录';
-      } else if (error?.statusCode === 403) {
-        errMsg = '没有权限导出此报告';
-      } else if (error?.statusCode === 404) {
-        errMsg = '报告不存在或已被删除';
-      } else if (error?.statusCode === 500) {
-        errMsg = '服务器内部错误，请稍后重试';
-      } else if (error?.statusCode === 502 || error?.statusCode === 503 || error?.statusCode === 504) {
-        errMsg = '服务暂时不可用，请稍后重试';
-      } else if (error?.message) {
-        errMsg = error.message;
-      } else if (error?.errMsg) {
-        if (error.errMsg.includes('fail to open')) {
-          errMsg = '无法打开文件，请检查是否安装了 PDF 阅读器';
-        } else if (error.errMsg.includes('network')) {
-          errMsg = '网络连接失败，请检查网络后重试';
-        } else if (error.errMsg.includes('timeout')) {
-          errMsg = '导出超时，请稍后重试';
-        } else {
-          errMsg = error.errMsg;
-        }
-      }
-      showToast(errMsg);
-    } finally {
-      hideLoading();
-      this.setData({ exporting: false });
-    }
+    wx.showModal({
+      title: '提示',
+      content: 'PDF导出功能仅支持在浏览器中使用，请前往电脑端浏览器登录后进行导出操作。',
+      showCancel: false,
+      confirmText: '我知道了',
+    });
   },
   retryLoad() {
     this.loadData();

@@ -22,12 +22,16 @@
   margin-right: 24rpx;
 }
 
-.avatar-image {
+.avatar-emoji {
   width: 120rpx;
   height: 120rpx;
   border-radius: 50%;
   border: 6rpx solid rgba(255, 255, 255, 0.3);
   background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64rpx;
 }
 
 .user-name {

@@ -29,11 +29,11 @@
       <view class="score-label">本次得分</view>
       <view class="score-number">{{displayScore}}</view>
       <view class="score-dimensions">
-        <view class="dimension-tag">语法: {{dimensionScores?.grammar || '--'}}</view>
-        <view class="dimension-tag">词汇: {{dimensionScores?.vocabulary || '--'}}</view>
-        <view class="dimension-tag">内容: {{dimensionScores?.content || '--'}}</view>
+        <view class="dimension-tag">语法: {{dimensionScores.grammar || '--'}}</view>
+        <view class="dimension-tag">词汇: {{dimensionScores.vocabulary || '--'}}</view>
+        <view class="dimension-tag">内容: {{dimensionScores.content || '--'}}</view>
       </view>
-      <view class="score-status status-{{statusMeta?.className || 'default'}}">{{statusMeta?.label || '未知'}}</view>
+      <view class="score-status status-{{statusMeta.className || 'default'}}">{{statusMeta.label || '未知'}}</view>
     </view>
 
     <!-- Quick Stats -->

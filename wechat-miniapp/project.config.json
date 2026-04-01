@@ -8,9 +8,9 @@
     "es6": true,
     "enhance": true,
     "postcss": true,
-    "minified": true,
-    "packNpmRelationList": [],
+    "urlCheck": false,
     "ignoreUploadUnusedFiles": true,
+    "packNpmRelationList": [],
     "babelSetting": {
       "ignore": [],
       "disablePlugins": [],
@@ -27,7 +27,8 @@
     "useCompilerPlugins": false,
     "condition": false,
     "swc": false,
-    "disableSWC": true
+    "disableSWC": true,
+    "minified": false
   },
   "simulatorType": "wechat",
   "condition": {},
@@ -36,5 +37,6 @@
     "ignore": [],
     "include": []
   },
-  "editorSetting": {}
+  "editorSetting": {},
+  "libVersion": "3.15.1"
 }
