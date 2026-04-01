@@ -1,0 +1,4 @@
+<!-- components/gradient-button/index.wxml -->
+<button class="btn-gradient btn-gradient--{{size}} {{disabled ? 'btn-gradient--disabled' : ''}}" disabled="{{disabled}}" hover-class="btn-gradient--hover" bindtap="handleTap">
+  <slot></slot>
+</button>

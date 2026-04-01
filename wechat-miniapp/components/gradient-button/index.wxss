@@ -1,0 +1,46 @@
+/* components/gradient-button/index.wxss */
+@import "../../styles/theme.wxss";
+
+.btn-gradient {
+  height: 88rpx;
+  line-height: 88rpx;
+  padding: 0 48rpx;
+  border-radius: var(--border-radius-pill);
+  border: none;
+  background: var(--gradient-primary);
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: var(--shadow-soft);
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-gradient::after {
+  border: none;
+}
+
+.btn-gradient--disabled {
+  opacity: 0.5;
+}
+
+.btn-gradient--small {
+  height: 64rpx;
+  line-height: 64rpx;
+  font-size: 26rpx;
+  padding: 0 32rpx;
+}
+
+.btn-gradient--large {
+  height: 100rpx;
+  line-height: 100rpx;
+  font-size: 36rpx;
+  padding: 0 56rpx;
+}
+
+.btn-gradient--hover {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
