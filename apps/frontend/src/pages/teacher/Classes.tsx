@@ -57,7 +57,7 @@ export const TeacherClassesPage = () => {
       title: t('common.action'),
       valueType: 'option',
       render: (_, item) => [
-        <Button key="detail" onClick={() => navigate(`/teacher/classes/${item.id}`)}>
+        <Button key="detail" size="small" onClick={() => navigate(`/teacher/classes/${item.id}`)}>
           {t('common.view')}
         </Button>,
       ],

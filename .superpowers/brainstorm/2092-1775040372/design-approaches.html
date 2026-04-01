@@ -1,0 +1,77 @@
+<h2>小程序重构设计方案</h2>
+<p class="subtitle">三种活泼有趣的设计方向，请选择您最偏好的</p>
+
+<div class="cards">
+  <div class="card" data-choice="option-a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 140px; border-radius: 12px 12px 0 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">🎨</div>
+      <div style="padding: 16px;">
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <div style="background: #FF6B6B; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">圆润卡片</div>
+          <div style="background: #4ECDC4; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">渐变背景</div>
+        </div>
+        <div style="background: #f7f7f7; border-radius: 12px; padding: 12px; margin-top: 8px;">
+          <div style="color: #333; font-size: 14px; font-weight: bold;">今日作业</div>
+          <div style="color: #999; font-size: 12px; margin-top: 4px;">3个待完成</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 卡片乐园</h3>
+      <p><strong>核心特点：</strong>大圆角卡片 + 鲜艳渐变 + 弹性动效</p>
+      <p><strong>配色方案：</strong>紫色/粉色系主色调，搭配明亮点缀色</p>
+      <p><strong>优势：</strong>视觉层次分明，适合内容展示</p>
+      <p><strong>适合场景：</strong>作业列表、批改结果展示</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="option-b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); height: 140px; border-radius: 16px 16px 0 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">🌈</div>
+      <div style="padding: 16px;">
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <div style="background: #FF9F43; color: white; padding: 6px 16px; border-radius: 100px; font-size: 12px;">胶囊按钮</div>
+          <div style="background: #54A0FF; color: white; padding: 6px 16px; border-radius: 100px; font-size: 12px;">图标导航</div>
+        </div>
+        <div style="display: flex; gap: 12px; margin-top: 8px;">
+          <div style="flex: 1; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); border-radius: 16px; padding: 12px; text-align: center; color: #333; font-size: 12px;">📝 作业</div>
+          <div style="flex: 1; background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); border-radius: 16px; padding: 12px; text-align: center; color: #333; font-size: 12px;">✏️ 提交</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 彩虹世界</h3>
+      <p><strong>核心特点：</strong>多彩渐变 + 胶囊元素 + 图标化导航</p>
+      <p><strong>配色方案：</strong>彩虹色系，每个页面不同主题色</p>
+      <p><strong>优势：</strong>趣味性强，轻松愉快的学习氛围</p>
+      <p><strong>适合场景：</strong>学生端整体设计，降低学习压力</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="option-c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); height: 140px; border-radius: 20px 20px 0 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">☀️</div>
+      <div style="padding: 16px;">
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <div style="background: #FFA502; color: white; padding: 8px 20px; border-radius: 12px; font-size: 12px;">毛玻璃</div>
+          <div style="background: #FF6348; color: white; padding: 8px 20px; border-radius: 12px; font-size: 12px;">微动效</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); border-radius: 16px; padding: 12px; margin-top: 8px; border: 1px solid rgba(255,255,255,0.3);">
+          <div style="color: #333; font-size: 14px; font-weight: bold;">✨ 作业完成进度</div>
+          <div style="background: #FF6B6B; height: 8px; border-radius: 4px; margin-top: 8px; width: 70%;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 阳光乐园</h3>
+      <p><strong>核心特点：</strong>温暖色系 + 毛玻璃效果 + 细腻动效</p>
+      <p><strong>配色方案：</strong>橙色/黄色系，温暖活力感</p>
+      <p><strong>优势：</strong>现代感强，精致细节，高级活泼</p>
+      <p><strong>适合场景：</strong>追求品质感和现代感的年轻用户</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 24px; padding: 16px; background: #f0f9ff; border-radius: 12px;">
+  <p style="margin: 0; font-size: 14px; color: #666;"><strong>💡 我的推荐：</strong>方案 B（彩虹世界）。理由：教育类应用应该让学生感到轻松愉快，多彩的设计可以降低学习压力，同时保持足够的功能性。</p>
+</div>

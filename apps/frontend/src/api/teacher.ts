@@ -129,6 +129,20 @@ export const fetchTeacherGradingSettings = async () => {
   };
 };
 
+export type GradingPreferenceResponse = {
+  mode: 'cheap' | 'quality' | null;
+};
+
+export const fetchTeacherGradingPreference = async () => {
+  const response = await api.get('/teacher/settings/grading/preference');
+  return response.data as GradingPreferenceResponse;
+};
+
+export const updateTeacherGradingPreference = async (payload: { mode: 'cheap' | 'quality' }) => {
+  const response = await api.post('/teacher/settings/grading/preference', payload);
+  return response.data as GradingPreferenceResponse;
+};
+
 export const fetchTeacherGradingPolicy = async (params: {
   classId?: string;
   homeworkId?: string;

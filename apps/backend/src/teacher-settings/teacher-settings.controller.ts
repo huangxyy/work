@@ -1,23 +1,43 @@
-import { Body, Controller, Delete, Get, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { ParseCuidPipe } from '../common/pipes/parse-cuid.pipe';
+import { GradingPreferenceDto } from './dto/grading-preference.dto';
 import { GradingPolicyQueryDto } from './dto/grading-policy-query.dto';
 import { GradingPolicyUpdateDto } from './dto/grading-policy-update.dto';
+import { TeacherPreferenceService } from './teacher-preference.service';
 import { TeacherSettingsService } from './teacher-settings.service';
 
 @Controller('teacher/settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TeacherSettingsController {
-  constructor(private readonly teacherSettingsService: TeacherSettingsService) {}
+  constructor(
+    private readonly teacherSettingsService: TeacherSettingsService,
+    private readonly teacherPreferenceService: TeacherPreferenceService,
+  ) {}
 
   @Get('grading')
   @Roles(Role.TEACHER, Role.ADMIN)
   async getGradingSettings() {
     return this.teacherSettingsService.getGradingSettings();
+  }
+
+  @Get('grading/preference')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async getGradingPreference(@Req() req: { user: AuthUser }) {
+    return this.teacherPreferenceService.getGradingPreference(req.user);
+  }
+
+  @Post('grading/preference')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async updateGradingPreference(
+    @Body() body: GradingPreferenceDto,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.teacherPreferenceService.updateGradingPreference(req.user, body);
   }
 
   @Get('grading/policies')

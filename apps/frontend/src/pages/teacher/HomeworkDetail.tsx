@@ -751,7 +751,7 @@ export const TeacherHomeworkDetailPage = () => {
         valueType: 'option',
         render: (_, item) => {
           const actions = [
-            <Button key="view" onClick={() => navigate(`/teacher/submission/${item.id}`)}>
+            <Button key="view" size="small" onClick={() => navigate(`/teacher/submission/${item.id}`)}>
               {t('common.view')}
             </Button>,
             <Button

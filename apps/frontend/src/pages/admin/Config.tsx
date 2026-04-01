@@ -1324,8 +1324,8 @@ export const AdminConfigPage = () => {
               allowClear
               placeholder={t('admin.config.logSourcePlaceholder')}
               options={[
-                { label: 'grading', value: 'grading' },
-                { label: 'admin-test', value: 'admin-test' },
+                { label: t('admin.config.logSourceGrading'), value: 'grading' },
+                { label: t('admin.config.logSourceAdminTest'), value: 'admin-test' },
               ]}
               value={logFilters.source}
               onChange={(value) => setLogFilters((prev) => ({ ...prev, source: value }))}

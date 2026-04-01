@@ -235,8 +235,8 @@ export class GradingProcessor extends WorkerHost {
         await this.notificationService.create({
           userId: submission.studentId,
           type: 'GRADING_DONE',
-          title: 'Your submission has been graded',
-          body: `Score: ${gradingResponse.result.totalScore}/100`,
+          title: '作业已批改完成',
+          body: `得分：${gradingResponse.result.totalScore}/100`,
           linkTo: `/student/submission/${submissionId}`,
         });
       } catch (err) {

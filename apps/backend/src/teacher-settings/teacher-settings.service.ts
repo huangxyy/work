@@ -69,7 +69,7 @@ export class TeacherSettingsService {
   ) {
     const startedAt = Date.now();
     if (!query.classId && !query.homeworkId) {
-      throw new BadRequestException('classId or homeworkId is required');
+      throw new BadRequestException('classId 或 homeworkId 不能为空');
     }
 
     let classId = query.classId;
@@ -117,7 +117,7 @@ export class TeacherSettingsService {
   async getPolicyPreview(query: { classId?: string }, user: AuthUser) {
     const startedAt = Date.now();
     if (!query.classId) {
-      throw new BadRequestException('classId is required');
+      throw new BadRequestException('classId 不能为空');
     }
 
     await this.ensureClassAccess(query.classId, user);
@@ -211,7 +211,7 @@ export class TeacherSettingsService {
   async upsertClassPolicy(classId: string, input: GradingPolicyInput, user: AuthUser) {
     await this.ensureClassAccess(classId, user);
     if (input.mode === undefined && input.needRewrite === undefined) {
-      throw new BadRequestException('Nothing to update');
+      throw new BadRequestException('没有需要更新的内容');
     }
     return this.gradingPolicyService.upsertClassPolicy(classId, input);
   }
@@ -219,7 +219,7 @@ export class TeacherSettingsService {
   async upsertHomeworkPolicy(homeworkId: string, input: GradingPolicyInput, user: AuthUser) {
     await this.ensureHomeworkAccess(homeworkId, user);
     if (input.mode === undefined && input.needRewrite === undefined) {
-      throw new BadRequestException('Nothing to update');
+      throw new BadRequestException('没有需要更新的内容');
     }
     return this.gradingPolicyService.upsertHomeworkPolicy(homeworkId, input);
   }
@@ -256,7 +256,7 @@ export class TeacherSettingsService {
       select: { id: true },
     });
     if (!exists) {
-      throw new ForbiddenException('No access to class');
+      throw new ForbiddenException('无权访问该班级');
     }
   }
 
@@ -269,7 +269,7 @@ export class TeacherSettingsService {
       select: { id: true, classId: true },
     });
     if (!homework) {
-      throw new NotFoundException('Homework not found or no access');
+      throw new NotFoundException('作业不存在或无权访问');
     }
     return homework.classId;
   }

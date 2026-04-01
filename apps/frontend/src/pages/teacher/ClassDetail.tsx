@@ -162,7 +162,7 @@ export const TeacherClassDetailPage = () => {
       title: t('common.action'),
       valueType: 'option',
       render: (_, item) => [
-        <Button key="pdf" onClick={() => handleDownloadStudentReport(item.id)}>
+        <Button key="pdf" size="small" onClick={() => handleDownloadStudentReport(item.id)}>
           {t('teacher.classDetail.downloadReport')}
         </Button>,
         <Popconfirm

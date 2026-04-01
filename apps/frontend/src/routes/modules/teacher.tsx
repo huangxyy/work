@@ -37,8 +37,10 @@ const TeacherReportPage = lazy(() =>
 const TeacherStudentReportPage = lazy(() =>
   import('../../pages/teacher/StudentReport').then((module) => ({ default: module.TeacherStudentReportPage })),
 );
-const TeacherSettingsGradingPage = lazy(() =>
-  import('../../pages/teacher/SettingsGrading').then((module) => ({ default: module.TeacherSettingsGradingPage })),
+const TeacherGradingPreferencePage = lazy(() =>
+  import('../../pages/teacher/GradingPreference').then((module) => ({
+    default: module.TeacherGradingPreferencePage,
+  })),
 );
 const TeacherAnnouncementsPage = lazy(() =>
   import('../../pages/teacher/Announcements').then((module) => ({ default: module.TeacherAnnouncementsPage })),
@@ -58,7 +60,7 @@ export const teacherComponents = {
   TeacherSubmissionDetailPage,
   TeacherReportPage,
   TeacherStudentReportPage,
-  TeacherSettingsGradingPage,
+  TeacherGradingPreferencePage,
   TeacherAnnouncementsPage,
   ProfilePage,
 };
@@ -76,7 +78,6 @@ export const teacherRoutes: RouteObject[] = [
   { path: 'reports', element: <teacherComponents.TeacherReportPage /> },
   { path: 'reports/student/:studentId', element: <teacherComponents.TeacherStudentReportPage /> },
   { path: 'announcements', element: <teacherComponents.TeacherAnnouncementsPage /> },
-  { path: 'settings', element: <Navigate to="/teacher/settings/grading" replace /> },
-  { path: 'settings/grading', element: <teacherComponents.TeacherSettingsGradingPage /> },
+  { path: 'settings/grading', element: <teacherComponents.TeacherGradingPreferencePage /> },
   { path: 'profile', element: <teacherComponents.ProfilePage /> },
 ];

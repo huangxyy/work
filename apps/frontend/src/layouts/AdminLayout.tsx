@@ -51,18 +51,18 @@ export const AdminLayout = () => {
           icon: <AppstoreOutlined />,
         },
         {
-          path: '/admin/usage',
-          name: t('nav.usage'),
-          icon: <BarChartOutlined />,
+          path: '/admin/announcements',
+          name: t('nav.announcements'),
+          icon: <NotificationOutlined />,
         },
         {
           path: '/admin/system',
-          name: t('nav.system'),
+          name: t('nav.systemSettings'),
           icon: <SettingOutlined />,
           routes: [
             {
               path: '/admin/system/config',
-              name: t('nav.config'),
+              name: t('nav.gradingConfig'),
               icon: <SettingOutlined />,
             },
             {
@@ -76,41 +76,48 @@ export const AdminLayout = () => {
               icon: <HistoryOutlined />,
             },
             {
-              path: '/admin/system/info',
-              name: t('admin.systemInfo.title'),
-              icon: <InfoCircleOutlined />,
-            },
-            {
               path: '/admin/system/queue',
               name: t('nav.queue'),
               icon: <CloudServerOutlined />,
             },
+            {
+              path: '/admin/system/info',
+              name: t('admin.systemInfo.title'),
+              icon: <InfoCircleOutlined />,
+            },
           ],
         },
         {
-          path: '/admin/diagnosis',
-          name: t('nav.diagnosis'),
+          path: '/admin/advanced',
+          name: t('nav.advancedTools'),
           icon: <BugOutlined />,
-        },
-        {
-          path: '/admin/audit-logs',
-          name: t('nav.auditLogs'),
-          icon: <AuditOutlined />,
-        },
-        {
-          path: '/admin/login-history',
-          name: t('admin.loginHistory.title'),
-          icon: <LoginOutlined />,
-        },
-        {
-          path: '/admin/feature-flags',
-          name: t('admin.featureFlags.title'),
-          icon: <FlagOutlined />,
-        },
-        {
-          path: '/admin/announcements',
-          name: t('nav.announcements'),
-          icon: <NotificationOutlined />,
+          routes: [
+            {
+              path: '/admin/usage',
+              name: t('nav.usage'),
+              icon: <BarChartOutlined />,
+            },
+            {
+              path: '/admin/diagnosis',
+              name: t('nav.diagnosis'),
+              icon: <BugOutlined />,
+            },
+            {
+              path: '/admin/audit-logs',
+              name: t('nav.auditLogs'),
+              icon: <AuditOutlined />,
+            },
+            {
+              path: '/admin/login-history',
+              name: t('admin.loginHistory.title'),
+              icon: <LoginOutlined />,
+            },
+            {
+              path: '/admin/feature-flags',
+              name: t('admin.featureFlags.title'),
+              icon: <FlagOutlined />,
+            },
+          ],
         },
       ],
     }),

@@ -225,6 +225,7 @@ export const TeacherHomeworksPage = () => {
       render: (_, item) => [
         <Button
           key="view"
+          size="small"
           onClick={() =>
             navigate(`/teacher/homeworks/${item.id}`, {
               state: { homework: item, classId: selectedClassId },

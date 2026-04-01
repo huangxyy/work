@@ -121,16 +121,21 @@ export const AdminClassesPage = () => {
 
   const handleDeleteClass = useCallback((row: ClassItem) => {
     const studentCount = summaryMap.get(row.id)?.studentCount || 0;
+    const confirmTitle = t('admin.classes.deleteConfirmTitle');
+    const confirmDesc = t('admin.classes.deleteConfirmDesc');
+    const warningText = `${t('admin.classes.deleteWarning')}: ${studentCount} ${t('admin.classes.students')}`;
+    const hintText = t('admin.classes.deleteHint');
+
     Modal.confirm({
-      title: t('admin.classes.deleteConfirmTitle'),
+      title: confirmTitle,
       content: (
         <div>
-          <p>{t('admin.classes.deleteConfirmDesc')}</p>
+          <p>{confirmDesc}</p>
           <p style={{ marginTop: 8, color: '#ff4d4f' }}>
-            {t('admin.classes.deleteWarning')}: {studentCount} {t('admin.classes.students')}
+            {warningText}
           </p>
           <p style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
-            {t('admin.classes.deleteHint')}
+            {hintText}
           </p>
         </div>
       ),

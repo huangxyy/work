@@ -34,7 +34,9 @@ export const AdminSystemInfoPage = () => {
             <Descriptions column={2} bordered size="small">
               <Descriptions.Item label="Node.js">{data.node}</Descriptions.Item>
               <Descriptions.Item label={t('admin.systemInfo.environment')}>
-                <Tag color={data.env === 'production' ? 'green' : 'orange'} className="apple-tag-pill">{data.env}</Tag>
+                <Tag color={data.env === 'production' ? 'green' : 'orange'} className="apple-tag-pill">
+                  {data.env === 'production' ? t('admin.systemInfo.envProduction') : t('admin.systemInfo.envDevelopment')}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.systemInfo.platform')}>{data.platform} ({data.arch})</Descriptions.Item>
               <Descriptions.Item label={t('admin.systemInfo.uptime')}>{formatUptime(data.uptime)}</Descriptions.Item>

@@ -2,9 +2,11 @@ import { Test } from '@nestjs/testing';
 import { Role } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { TeacherSettingsController } from './teacher-settings.controller';
+import { GradingMode, GradingPreferenceDto } from './dto/grading-preference.dto';
 import { GradingPolicyQueryDto } from './dto/grading-policy-query.dto';
 import { GradingPolicyUpdateDto } from './dto/grading-policy-update.dto';
 import { TeacherSettingsService } from './teacher-settings.service';
+import { TeacherPreferenceService } from './teacher-preference.service';
 
 describe('TeacherSettingsController', () => {
   let controller: TeacherSettingsController;
@@ -16,6 +18,10 @@ describe('TeacherSettingsController', () => {
     upsertHomeworkPolicy: jest.Mock;
     clearClassPolicy: jest.Mock;
     clearHomeworkPolicy: jest.Mock;
+  };
+  let teacherPreferenceService: {
+    getGradingPreference: jest.Mock;
+    updateGradingPreference: jest.Mock;
   };
 
   const mockTeacher: AuthUser = {
@@ -35,6 +41,10 @@ describe('TeacherSettingsController', () => {
       clearClassPolicy: jest.fn(),
       clearHomeworkPolicy: jest.fn(),
     };
+    teacherPreferenceService = {
+      getGradingPreference: jest.fn(),
+      updateGradingPreference: jest.fn(),
+    };
 
     const moduleRef = await Test.createTestingModule({
       controllers: [TeacherSettingsController],
@@ -42,6 +52,10 @@ describe('TeacherSettingsController', () => {
         {
           provide: TeacherSettingsService,
           useValue: teacherSettingsService,
+        },
+        {
+          provide: TeacherPreferenceService,
+          useValue: teacherPreferenceService,
         },
       ],
     }).compile();
@@ -56,6 +70,25 @@ describe('TeacherSettingsController', () => {
 
     expect(result).toEqual({ grading: {}, budget: {} });
     expect(teacherSettingsService.getGradingSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('should return grading preference', async () => {
+    teacherPreferenceService.getGradingPreference.mockResolvedValue({ mode: 'cheap' });
+
+    const result = await controller.getGradingPreference({ user: mockTeacher });
+
+    expect(result).toEqual({ mode: 'cheap' });
+    expect(teacherPreferenceService.getGradingPreference).toHaveBeenCalledWith(mockTeacher);
+  });
+
+  it('should update grading preference', async () => {
+    const dto: GradingPreferenceDto = { mode: GradingMode.QUALITY };
+    teacherPreferenceService.updateGradingPreference.mockResolvedValue({ mode: GradingMode.QUALITY });
+
+    const result = await controller.updateGradingPreference(dto, { user: mockTeacher });
+
+    expect(result).toEqual({ mode: GradingMode.QUALITY });
+    expect(teacherPreferenceService.updateGradingPreference).toHaveBeenCalledWith(mockTeacher, dto);
   });
 
   it('should forward grading policy summary requests', async () => {

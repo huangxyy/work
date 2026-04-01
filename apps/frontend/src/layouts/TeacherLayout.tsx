@@ -4,7 +4,6 @@ import {
   ClusterOutlined,
   DashboardOutlined,
   NotificationOutlined,
-  SettingOutlined,
   SlidersOutlined,
 } from '@ant-design/icons';
 import { ProLayout } from '@ant-design/pro-components';
@@ -54,16 +53,9 @@ export const TeacherLayout = () => {
           icon: <NotificationOutlined />,
         },
         {
-          path: '/teacher/settings',
-          name: t('nav.settings'),
-          icon: <SettingOutlined />,
-          routes: [
-            {
-              path: '/teacher/settings/grading',
-              name: t('nav.grading'),
-              icon: <SlidersOutlined />,
-            },
-          ],
+          path: '/teacher/settings/grading',
+          name: t('nav.grading'),
+          icon: <SlidersOutlined />,
         },
       ],
     }),
