@@ -1,133 +1,118 @@
-<view class="container safe-bottom">
-  <view class="hero-card">
-    <view class="title">{{user && user.name ? user.name : '未登录用户'}}</view>
-    <view class="subtitle">{{user && user.account ? user.account : '--'}} · {{user && user.role ? user.role : '--'}}</view>
-    <view class="kpi-grid">
-      <view class="kpi-item">
-        <view class="small">当前角色</view>
-        <view class="kpi-value profile-role">{{user && user.role ? user.role : '--'}}</view>
-      </view>
-      <view class="kpi-item">
-        <view class="small">接口连接</view>
-        <view class="kpi-value profile-conn">已配置</view>
-      </view>
+<!-- pages/profile/index.wxml -->
+<view class="page theme-profile">
+  <!-- 用户信息卡片 -->
+  <view class="user-hero scale-in">
+    <view class="user-avatar">
+      <image src="{{user && user.name ? '/assets/default-avatar.png' : '/assets/default-avatar.png'}}" class="avatar-image" />
+    </view>
+    <view class="user-info">
+      <view class="user-name">{{user && user.name ? user.name : '未登录用户'}}</view>
+      <view class="user-account">{{user && user.account ? user.account : '--'}} · {{user && user.role ? user.role : '--'}}</view>
     </view>
   </view>
 
-  <view class="card section-gap">
+  <!-- 快捷入口 -->
+  <view class="menu-section fade-in">
     <view class="section-title">快捷入口</view>
-    <view class="quick-grid section-gap">
-      <view class="quick-card" bindtap="goMessages">
-        <view class="row-between">
-          <view class="quick-card-title">消息中心</view>
-          <view wx:if="{{unreadCount > 0}}" class="unread-badge">{{unreadCount > 99 ? '99+' : unreadCount}}</view>
-        </view>
-        <view class="quick-card-desc">查看通知和班级公告。</view>
-      </view>
-      <view class="quick-card" bindtap="goHomeworks">
-        <view class="quick-card-title">我的作业</view>
-        <view class="quick-card-desc">返回作业列表，继续查看详情或发起图片提交。</view>
-      </view>
-      <view class="quick-card" bindtap="goSubmissions">
-        <view class="quick-card-title">提交记录</view>
-        <view class="quick-card-desc">集中查看所有提交的状态、分数和失败原因。</view>
-      </view>
-      <view class="quick-card" bindtap="goReport">
-        <view class="quick-card-title">学习报告</view>
-        <view class="quick-card-desc">查看成绩趋势、高频问题和下一步学习建议。</view>
-      </view>
+    <view class="menu-item" bindtap="goMessages">
+      <view class="menu-icon">通知</view>
+      <view class="menu-text">消息中心</view>
+      <view wx:if="{{unreadCount > 0}}" class="unread-badge">{{unreadCount > 99 ? '99+' : unreadCount}}</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-item" bindtap="goHomeworks">
+      <view class="menu-icon">作业</view>
+      <view class="menu-text">我的作业</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-item" bindtap="goSubmissions">
+      <view class="menu-icon">记录</view>
+      <view class="menu-text">提交记录</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-item" bindtap="goReport">
+      <view class="menu-icon">报告</view>
+      <view class="menu-text">学习报告</view>
+      <view class="menu-arrow">›</view>
     </view>
   </view>
 
-  <view class="card section-gap">
-    <view class="row-between">
-      <view class="section-title">账号管理</view>
+  <!-- 账号管理 -->
+  <view class="menu-section fade-in">
+    <view class="section-title">账号管理</view>
+    <view class="menu-item" bindtap="toggleProfileCard">
+      <view class="menu-icon">👤</view>
+      <view class="menu-text">修改资料</view>
+      <view class="menu-arrow">{{showProfileCard ? '收起' : '›'}}</view>
     </view>
-    <view class="action-row section-gap">
-      <button class="secondary-button" bindtap="toggleProfileCard">{{showProfileCard ? '收起' : '修改资料'}}</button>
-      <button class="ghost-button" bindtap="togglePasswordCard">{{showPasswordCard ? '收起' : '修改密码'}}</button>
-    </view>
-
-    <view wx:if="{{showProfileCard}}" class="profile-form-card section-gap">
-      <view class="section-gap-small">
-        <view class="field-label">姓名</view>
-        <input class="field-input" value="{{profileName}}" placeholder="请输入姓名" bindinput="onProfileNameInput" />
-      </view>
-      <view class="section-gap-small">
-        <view class="field-label">邮箱</view>
-        <input class="field-input" value="{{profileEmail}}" placeholder="选填" bindinput="onProfileEmailInput" />
-      </view>
-      <view class="section-gap-small">
-        <view class="field-label">手机号</view>
-        <input class="field-input" value="{{profilePhone}}" placeholder="选填" bindinput="onProfilePhoneInput" />
-      </view>
-      <view class="action-row section-gap">
-        <button class="primary-button" loading="{{updatingProfile}}" bindtap="submitUpdateProfile">保存资料</button>
-      </view>
-    </view>
-
-    <view wx:if="{{showPasswordCard}}" class="profile-form-card section-gap">
-      <view class="section-gap-small">
-        <view class="field-label">当前密码</view>
-        <input class="field-input" type="password" value="{{oldPassword}}" placeholder="请输入当前密码" bindinput="onOldPasswordInput" />
-      </view>
-      <view class="section-gap-small">
-        <view class="field-label">新密码</view>
-        <input class="field-input" type="password" value="{{newPassword}}" placeholder="至少 8 位，包含字母和数字" bindinput="onNewPasswordInput" />
-      </view>
-      <view class="section-gap-small">
-        <view class="field-label">确认新密码</view>
-        <input class="field-input" type="password" value="{{confirmPassword}}" placeholder="再次输入新密码" bindinput="onConfirmPasswordInput" />
-      </view>
-      <view class="action-row section-gap">
-        <button class="primary-button" loading="{{changingPassword}}" bindtap="submitChangePassword">确认修改</button>
-      </view>
+    <view class="menu-item" bindtap="togglePasswordCard">
+      <view class="menu-icon">🔒</view>
+      <view class="menu-text">修改密码</view>
+      <view class="menu-arrow">{{showPasswordCard ? '收起' : '›'}}</view>
     </view>
   </view>
 
-  <view class="card section-gap">
+  <!-- 修改资料展开卡片 -->
+  <view wx:if="{{showProfileCard}}" class="expand-card fade-in">
+    <view class="form-field">
+      <view class="field-label">姓名</view>
+      <input class="field-input" value="{{profileName}}" placeholder="请输入姓名" bindinput="onProfileNameInput" />
+    </view>
+    <view class="form-field">
+      <view class="field-label">邮箱</view>
+      <input class="field-input" value="{{profileEmail}}" placeholder="选填" bindinput="onProfileEmailInput" />
+    </view>
+    <view class="form-field">
+      <view class="field-label">手机号</view>
+      <input class="field-input" value="{{profilePhone}}" placeholder="选填" bindinput="onProfilePhoneInput" />
+    </view>
+    <button class="btn-gradient" loading="{{updatingProfile}}" bindtap="submitUpdateProfile">保存资料</button>
+  </view>
+
+  <!-- 修改密码展开卡片 -->
+  <view wx:if="{{showPasswordCard}}" class="expand-card fade-in">
+    <view class="form-field">
+      <view class="field-label">当前密码</view>
+      <input class="field-input" type="password" value="{{oldPassword}}" placeholder="请输入当前密码" bindinput="onOldPasswordInput" />
+    </view>
+    <view class="form-field">
+      <view class="field-label">新密码</view>
+      <input class="field-input" type="password" value="{{newPassword}}" placeholder="至少 8 位，包含字母和数字" bindinput="onNewPasswordInput" />
+    </view>
+    <view class="form-field">
+      <view class="field-label">确认新密码</view>
+      <input class="field-input" type="password" value="{{confirmPassword}}" placeholder="再次输入新密码" bindinput="onConfirmPasswordInput" />
+    </view>
+    <button class="btn-gradient" loading="{{changingPassword}}" bindtap="submitChangePassword">确认修改</button>
+  </view>
+
+  <!-- 接口配置 -->
+  <view class="menu-section fade-in">
     <view class="section-title">接口配置</view>
-    <view class="helper-text">如果你要切换到测试环境、局域网环境或正式环境，可以直接在这里修改 API Base URL。</view>
-    <view class="section-gap">
-      <view class="field-label">API Base URL</view>
-      <input class="field-input" value="{{apiBaseUrl}}" placeholder="http://127.0.0.1:3000/api" bindinput="handleApiBaseUrlInput" />
-    </view>
-    <view class="action-row section-gap">
-      <button class="secondary-button" bindtap="saveApiBaseUrl">保存地址</button>
-      <button class="ghost-button" loading="{{syncing}}" bindtap="refreshProfile">同步用户</button>
+    <view class="config-content">
+      <view class="helper-text">修改 API Base URL 可切换测试/正式环境</view>
+      <input class="field-input config-input" value="{{apiBaseUrl}}" placeholder="http://127.0.0.1:3000/api" bindinput="handleApiBaseUrlInput" />
+      <view class="action-buttons">
+        <button class="btn-secondary" bindtap="saveApiBaseUrl">保存地址</button>
+        <button class="btn-secondary" loading="{{syncing}}" bindtap="refreshProfile">同步用户</button>
+      </view>
     </view>
   </view>
 
-  <view class="card section-gap">
-    <view class="row-between">
-      <view class="section-title">本地草稿</view>
+  <!-- 本地草稿 -->
+  <view class="menu-section fade-in">
+    <view class="menu-item">
+      <view class="menu-icon">📝</view>
+      <view class="menu-text">本地草稿</view>
       <view class="draft-count">{{draftCount}}</view>
     </view>
-    <view class="helper-text">这里统计的是当前设备上保存的未提交作业草稿。</view>
-    <view class="action-row section-gap">
-      <button class="secondary-button" disabled="{{!draftCount}}" loading="{{clearingDrafts}}" bindtap="clearAllDrafts">清理全部草稿</button>
+    <view class="draft-actions">
+      <button class="btn-secondary small" disabled="{{!draftCount}}" loading="{{clearingDrafts}}" bindtap="clearAllDrafts">清理草稿</button>
     </view>
   </view>
 
-  <view class="card section-gap">
-    <view class="section-title">当前版本能力</view>
-    <view class="chip-row section-gap">
-      <view class="chip">学生登录</view>
-      <view class="chip">作业列表</view>
-      <view class="chip">提交记录</view>
-      <view class="chip">学习报告</view>
-      <view class="chip">详情查看</view>
-      <view class="chip">图片提交</view>
-      <view class="chip">结果轮询</view>
-      <view class="chip">消息通知</view>
-      <view class="chip">班级公告</view>
-      <view class="chip">修改密码</view>
-      <view class="chip">修改资料</view>
-    </view>
-    <view class="helper-text">后续可继续扩展微信授权登录、待办中心和教师端能力。</view>
-  </view>
-
-  <view class="action-row section-gap">
-    <button class="primary-button" bindtap="handleLogout">退出登录</button>
+  <!-- 退出登录 -->
+  <view class="logout-section">
+    <button class="logout-btn" bindtap="handleLogout">退出登录</button>
   </view>
 </view>
