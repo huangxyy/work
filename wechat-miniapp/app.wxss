@@ -1,21 +1,27 @@
+@import "styles/theme.wxss";
+@import "styles/components.wxss";
+@import "styles/animations.wxss";
+
 page {
   min-height: 100%;
-  background: #f2f5fb;
-  color: #14213d;
+  background: var(--bg-page);
+  color: var(--text-primary);
   font-size: 28rpx;
 }
 
-view,
-text,
-button,
-input,
-picker,
-switch,
-textarea {
+view, text, button, input, picker, switch, textarea {
   box-sizing: border-box;
 }
 
 .container {
+  padding: 32rpx;
+}
+
+/* 保留有用的旧样式类，但使用新变量 */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-soft);
   padding: 32rpx;
 }
 

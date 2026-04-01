@@ -1,0 +1,185 @@
+/* styles/components.wxss */
+
+/* 渐变按钮 */
+.btn-gradient {
+  height: 88rpx;
+  line-height: 88rpx;
+  padding: 0 48rpx;
+  border-radius: var(--border-radius-pill);
+  border: none;
+  background: var(--gradient-primary);
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: var(--shadow-soft);
+}
+
+.btn-gradient::after {
+  border: none;
+}
+
+.btn-gradient[disabled] {
+  opacity: 0.5;
+}
+
+/* 次要按钮 */
+.btn-secondary {
+  height: 80rpx;
+  line-height: 80rpx;
+  padding: 0 40rpx;
+  border-radius: var(--border-radius-pill);
+  background: #ffffff;
+  color: var(--color-primary);
+  border: 4rpx solid var(--color-primary);
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.btn-secondary::after {
+  border: none;
+}
+
+/* 状态标签 */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 8rpx 24rpx;
+  border-radius: var(--border-radius-pill);
+  font-size: 22rpx;
+  font-weight: 500;
+}
+
+.status-tag.progress {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: #ffffff;
+}
+
+.status-tag.done {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: #ffffff;
+}
+
+.status-tag.late {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  color: #ffffff;
+}
+
+.status-tag.expired {
+  background: #e0e0e0;
+  color: #999999;
+}
+
+.status-tag.urgent {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: #ffffff;
+}
+
+/* 彩虹卡片 */
+.rainbow-card {
+  background: #ffffff;
+  border-radius: var(--border-radius-large);
+  padding: 32rpx;
+  box-shadow: var(--shadow-card);
+}
+
+.rainbow-card-hero {
+  background: var(--gradient-primary);
+  color: #ffffff;
+  border-radius: var(--border-radius-large);
+  padding: 48rpx 32rpx;
+  box-shadow: var(--shadow-card);
+}
+
+/* 筛选胶囊 */
+.filter-chips {
+  display: flex;
+  gap: 16rpx;
+  overflow-x: auto;
+  padding: 8rpx 0;
+}
+
+.filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chip {
+  padding: 16rpx 32rpx;
+  border-radius: var(--border-radius-pill);
+  font-size: 26rpx;
+  white-space: nowrap;
+  background: #ffffff;
+  color: var(--text-secondary);
+}
+
+.filter-chip.active {
+  background: var(--gradient-primary);
+  color: #ffffff;
+}
+
+/* 图片上传区 */
+.upload-area {
+  background: #ffffff;
+  border-radius: var(--border-radius-large);
+  padding: 48rpx 32rpx;
+  text-align: center;
+  border: 4rpx dashed var(--color-primary);
+}
+
+.upload-icon {
+  font-size: 80rpx;
+  margin-bottom: 16rpx;
+}
+
+.upload-hint {
+  color: var(--color-primary);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.upload-subhint {
+  color: var(--text-muted);
+  font-size: 24rpx;
+  margin-top: 8rpx;
+}
+
+/* 图片预览网格 */
+.image-preview-grid {
+  display: flex;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.image-preview-item {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: var(--border-radius-medium);
+  background: #f0f0f0;
+  position: relative;
+}
+
+.image-preview-add {
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 48rpx;
+}
+
+/* 输入框组件 */
+.rainbow-input {
+  min-height: 88rpx;
+  width: 100%;
+  padding: 24rpx 32rpx;
+  border-radius: var(--border-radius-medium);
+  background: #f5f5f5;
+  border: none;
+  font-size: 28rpx;
+  color: var(--text-primary);
+}
+
+.rainbow-input.focused {
+  background: #ffffff;
+  border: 4rpx solid var(--color-primary);
+}

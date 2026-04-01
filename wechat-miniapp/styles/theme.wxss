@@ -1,0 +1,57 @@
+/* styles/theme.wxss */
+page {
+  --primary-purple: #667eea;
+  --secondary-purple: #764ba2;
+  --primary-pink: #f093fb;
+  --secondary-pink: #f5576c;
+  --primary-blue: #4facfe;
+  --secondary-blue: #00f2fe;
+  --primary-green: #43e97b;
+  --secondary-green: #38f9d7;
+  --primary-orange: #fa709a;
+  --secondary-orange: #fee140;
+
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --bg-page: #f5f5f5;
+  --bg-card: #ffffff;
+
+  --border-radius-large: 32rpx;
+  --border-radius-medium: 24rpx;
+  --border-radius-small: 16rpx;
+  --border-radius-pill: 999rpx;
+
+  --shadow-soft: 0 4rpx 24rpx rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
+}
+
+/* 页面主题色 - 作业列表 */
+.theme-homeworks {
+  --gradient-primary: linear-gradient(135deg, var(--primary-purple) 0%, var(--secondary-purple) 100%);
+  --color-primary: var(--primary-purple);
+}
+
+/* 页面主题色 - 提交作业 */
+.theme-submit {
+  --gradient-primary: linear-gradient(135deg, var(--primary-pink) 0%, var(--secondary-pink) 100%);
+  --color-primary: var(--primary-pink);
+}
+
+/* 页面主题色 - 批改结果 */
+.theme-result {
+  --gradient-primary: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+  --color-primary: var(--primary-blue);
+}
+
+/* 页面主题色 - 个人中心 */
+.theme-profile {
+  --gradient-primary: linear-gradient(135deg, var(--primary-green) 0%, var(--secondary-green) 100%);
+  --color-primary: var(--primary-green);
+}
+
+/* 页面主题色 - 消息通知 */
+.theme-messages {
+  --gradient-primary: linear-gradient(135deg, var(--primary-orange) 0%, var(--secondary-orange) 100%);
+  --color-primary: var(--primary-orange);
+}
