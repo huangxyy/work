@@ -1,3 +1,4 @@
+import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Space, Spin, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
@@ -5,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchStudentHomeworks } from '../../api';
 import { useI18n } from '../../i18n';
 import { formatDate } from '../../utils/dateFormat';
+import { SoftEmpty } from '../../components/SoftEmpty';
 
 const { Text, Paragraph } = Typography;
 
@@ -79,15 +81,15 @@ export const StudentHomeworksPage = () => {
   ];
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px' }}>
-      {/* Welcome Hero */}
-      <div style={{ marginBottom: '32px' }}>
-        <Typography.Title level={2} style={{ marginBottom: '8px' }}>
-          {getGreeting()}，同学
-        </Typography.Title>
-        <Text type="secondary">你有 {pendingCount} 个作业待提交</Text>
-      </div>
-
+    <PageContainer
+      title={t('nav.homeworks')}
+      breadcrumb={{
+        items: [
+          { title: t('nav.student'), path: '/student/dashboard' },
+          { title: t('nav.homeworks') },
+        ],
+      }}
+    >
       {/* Error State */}
       {isError ? (
         <Alert
@@ -99,12 +101,20 @@ export const StudentHomeworksPage = () => {
               重试
             </Button>
           }
-          style={{ marginBottom: '24px' }}
+          className="apple-inline-alert"
         />
       ) : null}
 
+      {/* Welcome Hero */}
+      <div style={{ marginBottom: '16px' }}>
+        <Typography.Title level={3} style={{ marginBottom: '8px' }}>
+          {getGreeting()}，同学
+        </Typography.Title>
+        <Text type="secondary">你有 {pendingCount} 个作业待提交</Text>
+      </div>
+
       {/* Filter Chips */}
-      <Space size="middle" style={{ marginBottom: '24px' }}>
+      <Space size="middle" style={{ marginBottom: '16px' }}>
         {filters.map((f) => (
           <button
             key={f.key}
@@ -144,12 +154,13 @@ export const StudentHomeworksPage = () => {
 
       {/* Empty State */}
       {!isLoading && filteredData.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Text type="secondary">暂无作业</Text>
-          <Paragraph type="secondary" style={{ marginTop: '8px', marginBottom: 0 }}>
-            老师发布作业后会显示在这里
-          </Paragraph>
-        </div>
+        <ProCard bordered className="apple-soft-card">
+          <SoftEmpty description="暂无作业">
+            <Typography.Paragraph type="secondary" style={{ marginTop: '8px', marginBottom: 0 }}>
+              老师发布作业后会显示在这里
+            </Typography.Paragraph>
+          </SoftEmpty>
+        </ProCard>
       ) : null}
 
       {/* Homework List */}
@@ -161,17 +172,15 @@ export const StudentHomeworksPage = () => {
               new Date(item.dueAt).getTime() - Date.now() < 24 * 60 * 60 * 1000;
 
             return (
-              <div
+              <ProCard
                 key={item.id}
-                style={{
-                  background: '#fff',
-                  border: '1px solid #f0f0f0',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                bordered
+                className="apple-soft-card"
+                bodyStyle={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
+                  padding: '20px',
                 }}
               >
                 <div style={{ flex: 1 }}>
@@ -179,9 +188,9 @@ export const StudentHomeworksPage = () => {
                     <Text strong style={{ fontSize: '16px' }}>
                       {item.title}
                     </Text>
-                    <Tag color={status.color}>{status.label}</Tag>
+                    <Tag color={status.color} className="apple-tag-pill">{status.label}</Tag>
                     {isUrgent && (
-                      <Tag color="red">即将截止</Tag>
+                      <Tag color="red" className="apple-tag-pill">即将截止</Tag>
                     )}
                   </div>
                   <Text type="secondary" style={{ fontSize: '14px' }}>
@@ -197,11 +206,11 @@ export const StudentHomeworksPage = () => {
                     提交作业
                   </Button>
                 )}
-              </div>
+              </ProCard>
             );
           })}
         </Space>
       )}
-    </div>
+    </PageContainer>
   );
 };

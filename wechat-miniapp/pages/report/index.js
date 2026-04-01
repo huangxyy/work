@@ -62,7 +62,6 @@ function localizeErrorType(type) {
 Page({
   data: {
     loading: false,
-    exporting: false,
     errorText: '',
     rangeOptions: RANGE_OPTIONS,
     rangeIndex: 0,
@@ -190,14 +189,6 @@ Page({
   goSubmissions() {
     wx.switchTab({
       url: '/pages/submissions/index',
-    });
-  },
-  async exportPdf() {
-    wx.showModal({
-      title: '提示',
-      content: 'PDF导出功能仅支持在浏览器中使用，请前往电脑端浏览器登录后进行导出操作。',
-      showCancel: false,
-      confirmText: '我知道了',
     });
   },
   retryLoad() {

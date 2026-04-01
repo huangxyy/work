@@ -79,12 +79,15 @@ function toUint8Array(chunk) {
 function mergeArrayBuffers(chunks) {
   const arrays = chunks.map((chunk) => toUint8Array(chunk));
   const totalLength = arrays.reduce((sum, item) => sum + item.byteLength, 0);
+  console.log('[mergeArrayBuffers] Chunks:', arrays.length, 'Total length:', totalLength);
   const merged = new Uint8Array(totalLength);
   let offset = 0;
-  arrays.forEach((item) => {
+  arrays.forEach((item, index) => {
+    console.log(`[mergeArrayBuffers] Chunk ${index}: length=${item.byteLength}`);
     merged.set(item, offset);
     offset += item.byteLength;
   });
+  console.log('[mergeArrayBuffers] Final merged length:', merged.length);
   return merged.buffer;
 }
 
@@ -94,9 +97,46 @@ function readFileBuffer(filePath) {
     fileSystem.readFile({
       filePath,
       success(res) {
-        resolve(res.data);
+        console.log('[readFileBuffer] Read result:', {
+          filePath,
+          dataType: typeof res.data,
+          hasData: !!res.data,
+          dataLength: res.data?.byteLength || res.data?.length || 0,
+        });
+
+        // 游客模式下，res.data 可能不是 ArrayBuffer
+        if (res.data instanceof ArrayBuffer) {
+          resolve(res.data);
+          return;
+        }
+
+        // 如果是 base64 字符串，尝试解码
+        if (typeof res.data === 'string') {
+          // 移除 data:image/xxx;base64, 前缀（如果有）
+          let base64 = res.data;
+          if (base64.includes(',')) {
+            base64 = base64.split(',')[1];
+          }
+          try {
+            const binaryString = wx.base64ToArrayBuffer(base64);
+            console.log('[readFileBuffer] Decoded base64 to ArrayBuffer, length:', binaryString.byteLength);
+            resolve(binaryString);
+            return;
+          } catch (e) {
+            console.error('[readFileBuffer] Base64 decode failed:', e);
+          }
+        }
+
+        // 尝试直接使用
+        if (res.data) {
+          resolve(res.data);
+          return;
+        }
+
+        reject({ message: '无法读取图片数据' });
       },
       fail(err) {
+        console.error('[readFileBuffer] Read failed:', err);
         reject({ message: err && err.errMsg ? err.errMsg : '读取图片失败' });
       },
     });
@@ -305,6 +345,11 @@ async function uploadFiles(options) {
   const formData = options.formData || {};
   const fieldName = options.name || 'images';
 
+  console.log('[uploadFiles] formData:', formData);
+  console.log('[uploadFiles] files count:', files.length);
+  console.log('[uploadFiles] fieldName:', fieldName);
+
+  // 添加表单字段
   Object.keys(formData).forEach((key) => {
     const value = formData[key];
     if (value === undefined || value === null) {
@@ -317,18 +362,44 @@ async function uploadFiles(options) {
     );
   });
 
+  // 使用 base64 读取文件
   for (let index = 0; index < files.length; index += 1) {
     const current = files[index];
-    const fileBuffer = await readFileBuffer(current.path);
-    const encodedName = encodeURIComponent(current.name || `image-${index + 1}.jpg`);
+    const fileName = (current.name || `image-${index + 1}.jpg`).replace(/"/g, '');
     const mimeType = current.type || 'image/jpeg';
+
+    // 使用 base64 编码读取文件
+    const fileBuffer = await new Promise((resolve, reject) => {
+      const fileSystem = wx.getFileSystemManager();
+      fileSystem.readFile({
+        filePath: current.path,
+        encoding: 'base64',
+        success(res) {
+          console.log(`[readFileBuffer] file ${index} base64 length:`, res.data?.length || 0);
+          if (!res.data) {
+            reject(new Error('文件读取失败'));
+            return;
+          }
+          // 将 base64 转换为 ArrayBuffer
+          const binaryString = wx.base64ToArrayBuffer(res.data);
+          console.log(`[readFileBuffer] file ${index} converted to ArrayBuffer, length:`, binaryString.byteLength);
+          resolve(binaryString);
+        },
+        fail(err) {
+          console.error(`[readFileBuffer] file ${index} read failed:`, err);
+          reject(err);
+        },
+      });
+    });
+
     chunks.push(
       encodeUtf8(
-        `--${boundary}${lineBreak}Content-Disposition: form-data; name="${fieldName}"; filename="${encodedName}"${lineBreak}Content-Type: ${mimeType}${lineBreak}${lineBreak}`,
+        `--${boundary}${lineBreak}Content-Disposition: form-data; name="${fieldName}"; filename="${fileName}"${lineBreak}Content-Type: ${mimeType}${lineBreak}${lineBreak}`,
       ),
     );
-    chunks.push(fileBuffer);
+    chunks.push(new Uint8Array(fileBuffer));
     chunks.push(encodeUtf8(lineBreak));
+
     if (typeof options.onProgress === 'function') {
       const percent = Math.min(88, Math.round(((index + 1) / files.length) * 72) + 12);
       options.onProgress(percent);
@@ -336,7 +407,22 @@ async function uploadFiles(options) {
   }
 
   chunks.push(encodeUtf8(`--${boundary}--${lineBreak}`));
-  const requestBody = mergeArrayBuffers(chunks);
+
+  // 合并所有 chunks
+  const arrays = chunks.map((chunk) => toUint8Array(chunk));
+  const totalLength = arrays.reduce((sum, item) => sum + item.byteLength, 0);
+  console.log('[mergeArrayBuffers] Total chunks:', arrays.length, 'Total length:', totalLength);
+
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  arrays.forEach((item) => {
+    merged.set(item, offset);
+    offset += item.byteLength;
+  });
+  const requestBody = merged.buffer;
+
+  console.log('[uploadFiles] Request body size:', requestBody.byteLength);
+  console.log('[uploadFiles] Token exists:', !!token);
 
   if (typeof options.onProgress === 'function') {
     options.onProgress(92);
@@ -354,6 +440,7 @@ async function uploadFiles(options) {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       success(res) {
+        console.log('[uploadFiles] Response:', { statusCode: res.statusCode, data: res.data });
         const { statusCode } = res;
         let parsed = res.data;
         if (typeof parsed === 'string') {
@@ -373,6 +460,7 @@ async function uploadFiles(options) {
           clearSession();
           redirectToLogin();
         }
+        console.error('[uploadFiles] Error response:', parsed);
         reject({
           statusCode,
           data: parsed,
@@ -380,6 +468,7 @@ async function uploadFiles(options) {
         });
       },
       fail(err) {
+        console.error('[uploadFiles] Request failed:', err);
         reject({
           message: err && err.errMsg ? err.errMsg : '上传失败',
         });

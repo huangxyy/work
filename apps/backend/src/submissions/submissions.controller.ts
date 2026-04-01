@@ -48,11 +48,17 @@ export class SubmissionsController {
       limits: { files: 3, fileSize: 10 * 1024 * 1024 }, // 10MB per file
       fileFilter: (_req, file, cb) => {
         // Validate image file types
+        console.log('[FilesInterceptor] File received:', {
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+        });
         const allowedTypes = /jpeg|jpg|png|webp|gif/;
         const mimetype = allowedTypes.test(file.mimetype);
         if (mimetype) {
           cb(null, true);
         } else {
+          console.warn('[FilesInterceptor] Invalid mimetype:', file.mimetype);
           cb(null, false);
         }
       },
@@ -63,12 +69,25 @@ export class SubmissionsController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req: { user: AuthUser },
   ) {
+    console.log('[SubmissionsController] Create submission request:', {
+      body,
+      filesCount: files?.length || 0,
+      user: req.user?.account,
+    });
+
     if (!files?.length) {
+      console.error('[SubmissionsController] No files uploaded');
       throw new BadRequestException('Please upload at least 1 image');
     }
 
     for (const file of files) {
+      console.log('[SubmissionsController] File info:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.buffer?.length,
+      });
       if (!isValidImageBuffer(file.buffer)) {
+        console.error('[SubmissionsController] Invalid image buffer for:', file.originalname);
         throw new BadRequestException(
           `File "${file.originalname}" is not a valid image (magic bytes check failed)`,
         );

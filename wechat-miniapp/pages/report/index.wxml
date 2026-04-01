@@ -16,7 +16,6 @@
   <view class="rainbow-card">
     <view class="card-header-row">
       <text class="card-title">报告范围</text>
-      <button class="btn-export" loading="{{exporting}}" disabled="{{exporting || !reportSampleCount}}" bindtap="exportPdf">导出 PDF</button>
     </view>
     <picker mode="selector" range="{{rangeOptions}}" range-key="label" value="{{rangeIndex}}" bindchange="handleRangeChange">
       <view class="picker-card">
