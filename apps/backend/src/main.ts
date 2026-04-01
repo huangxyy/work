@@ -60,14 +60,22 @@ async function bootstrap() {
   if (corsOrigins.includes('*')) {
     if (isProduction) {
       Logger.error('SECURITY WARNING: CORS_ORIGIN set to * in production environment! This is a security risk. Please configure specific origins.');
-      // In production, reject wildcard origins for security
       throw new Error('Wildcard CORS origin (*) is not allowed in production. Please configure CORS_ORIGIN with specific domains.');
     }
     app.enableCors({ origin: '*', credentials: false });
     Logger.warn('CORS_ORIGIN set to *, allowing all origins without credentials. Avoid this in production.');
   } else if (corsOrigins.length === 0) {
     const devOrigins = ['http://localhost:5173', 'http://localhost:3001'];
-    app.enableCors({ origin: devOrigins, credentials: true });
+    app.enableCors({ 
+      origin: (origin, callback) => {
+        if (!origin || devOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(null, true);
+        }
+      }, 
+      credentials: true 
+    });
     if (isProduction) {
       Logger.warn('CORS_ORIGIN is not configured in production. Falling back to localhost origins which may not work correctly.');
     } else {
@@ -78,8 +86,8 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-  await app.listen(port);
-  Logger.log(`API server listening on ${await app.getUrl()}`);
+  await app.listen(port, '0.0.0.0');
+  Logger.log(`API server listening on http://0.0.0.0:${port}`);
 }
 
 bootstrap();

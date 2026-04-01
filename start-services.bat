@@ -156,9 +156,9 @@ echo   └───────────────────────�
 echo.
 echo   默认测试账号:
 echo   ┌─────────────────────────────────────────┐
-echo   │  管理员: admin     / Test1234            │
-echo   │  教师:   teacher01 / Test1234            │
-echo   │  学生:   student01 / Test1234            │
+echo   │  管理员: admin     / 123456               │
+echo   │  教师:   teacher01 / 123456               │
+echo   │  学生:   student01 / 123456               │
 echo   └─────────────────────────────────────────┘
 echo.
 echo   提示:

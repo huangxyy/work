@@ -106,6 +106,39 @@ pnpm --filter frontend test -- path/to/file.test.ts
 | `src/i18n.ts` | Chinese/English translations (single file) |
 | `src/api/` | API client functions (modularized) |
 
+## WeChat Mini-Program
+
+Located in `wechat-miniapp/` - Independent WeChat mini-program for students with **Rainbow World** theme design.
+
+### Design System
+
+- **Theme**: Rainbow World (活泼有趣风格) - colorful gradients, rounded corners, playful animations
+- **Page Themes**: Each page has a unique gradient color scheme (purple, pink, blue, green, orange, teal-pink)
+- **Style Files**:
+  - `styles/theme.wxss` - CSS variables and theme definitions
+  - `styles/components.wxss` - Reusable components (buttons, cards, tags)
+  - `styles/animations.wxss` - Animation effects (fadeIn, scaleIn, spin, pulse)
+
+### Pages
+
+- `pages/login/` - Student login (purple welcome theme)
+- `pages/homeworks/` - Homework list (purple gradient)
+- `pages/submit/` - Submit homework (pink gradient)
+- `pages/submission-result/` - Grading results (blue gradient)
+- `pages/submissions/` - Submission history (blue gradient)
+- `pages/homework-detail/` - Homework details (purple gradient)
+- `pages/profile/` - Personal center (green gradient)
+- `pages/messages/` - Notifications (orange-pink gradient)
+- `pages/report/` - Learning reports (teal-pink gradient)
+
+### Components
+
+- `components/gradient-button/` - Gradient button component
+
+### Documentation
+
+See `docs/WECHAT_MINIAPP.md` for detailed mini-program documentation.
+
 ## Database Schema (Prisma)
 
 **Core Models**:

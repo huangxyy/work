@@ -7,7 +7,7 @@
 微信小程序目录位于仓库根目录：
 
 ```text
-d:\work\wechat-miniapp
+work/wechat-miniapp
 ```
 
 它与以下两个主应用并列存在：
@@ -16,6 +16,36 @@ d:\work\wechat-miniapp
 - `apps/frontend`：React Web 前端
 
 这个小程序目录是**独立实现**，不会混入 `apps/*`，便于使用微信开发者工具直接导入、调试和后续迭代。
+
+## 设计系统：Rainbow World 主题
+
+小程序采用 **Rainbow World** 彩虹世界设计系统，提供活泼有趣的视觉体验：
+
+### 主题配色
+
+每个页面拥有独特的渐变色主题：
+
+| 页面 | 主题色 | CSS 类 |
+|------|--------|--------|
+| 作业列表 | 紫色系 `#667eea → #764ba2` | `.theme-homeworks` |
+| 提交作业 | 粉红系 `#f093fb → #f5576c` | `.theme-submit` |
+| 批改结果 | 蓝色系 `#4facfe → #00f2fe` | `.theme-result` |
+| 个人中心 | 绿色系 `#43e97b → #38f9d7` | `.theme-profile` |
+| 消息通知 | 橙粉系 `#fa709a → #fee140` | `.theme-messages` |
+| 学习报告 | 青粉系 `#a8edea → #fed6e3` | `.theme-report` |
+| 作业详情 | 紫色系 | `.theme-homeworks` |
+| 提交记录 | 蓝色系 | `.theme-result` |
+| 登录页 | 紫色欢迎主题 | `.theme-login` |
+
+### 样式文件
+
+- `styles/theme.wxss` - CSS 变量定义和主题色
+- `styles/components.wxss` - 可复用组件样式（按钮、卡片、标签等）
+- `styles/animations.wxss` - 动画效果（fadeIn, scaleIn, spin, pulse）
+
+### 组件
+
+- `components/gradient-button` - 渐变按钮组件
 
 ## 当前覆盖的学生端能力
 
@@ -135,11 +165,15 @@ http://192.168.1.10:3000/api
 
 ## 默认测试账号
 
+⚠️ **开发环境专用密码** - 生产环境必须更改
+
 | 角色 | 账号 | 密码 |
 |------|------|------|
-| 学生 | student01 | Test1234 |
+| 管理员 | admin | 123456 |
+| 教师 | teacher01 | 123456 |
+| 学生 | student01 | 123456 |
 
-当前小程序首版只允许学生账号登录。
+**注意**：小程序只允许学生账号登录。教师和管理员请使用 Web 端。
 
 ## 关键实现约定
 
