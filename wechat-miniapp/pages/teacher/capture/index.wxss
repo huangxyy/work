@@ -1,0 +1,131 @@
+.capture-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding: 24rpx;
+}
+
+.mode-selector,
+.homework-selector {
+  background: #ffffff;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mode-label,
+.homework-label {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.mode-value,
+.homework-value {
+  font-size: 28rpx;
+  color: #f59e0b;
+  font-weight: bold;
+}
+
+.photo-preview {
+  background: #ffffff;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+
+.photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12rpx;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.photo-item image {
+  width: 100%;
+  height: 100%;
+}
+
+.photo-item.add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  color: #999;
+  border: 2rpx dashed #ddd;
+}
+
+.remove-btn {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  width: 40rpx;
+  height: 40rpx;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 24rpx;
+}
+
+.actions {
+  padding: 24rpx 0;
+}
+
+.selector-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  z-index: 1000;
+}
+
+.selector-content {
+  width: 100%;
+  max-height: 80vh;
+  background: #ffffff;
+  border-radius: 24rpx 24rpx 0 0;
+  padding: 24rpx;
+}
+
+.selector-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  margin-bottom: 24rpx;
+  text-align: center;
+}
+
+.selector-list {
+  max-height: 60vh;
+}
+
+.selector-option {
+  padding: 24rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.option-name {
+  display: block;
+  font-size: 30rpx;
+  margin-bottom: 8rpx;
+}
+
+.option-desc {
+  display: block;
+  font-size: 24rpx;
+  color: #999;
+}

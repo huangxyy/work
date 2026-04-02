@@ -1,0 +1,63 @@
+<view class="capture-page">
+  <view class="mode-selector" bindtap="onModeChange">
+    <text class="mode-label">评分模式：</text>
+    <text class="mode-value">{{mode === 'cheap' ? '快速评分' : '详细评分'}}</text>
+  </view>
+
+  <view class="homework-selector" bindtap="onHomeworkChange">
+    <text class="homework-label">目标作业：</text>
+    <text class="homework-value">{{homeworks.find(h => h.id === selectedHomeworkId)?.title || '请选择'}}</text>
+  </view>
+
+  <view class="photo-preview">
+    <view class="photo-grid">
+      <view wx:for="{{images}}" wx:key="index" class="photo-item">
+        <image src="{{item.path}}" mode="aspectFill" />
+        <view class="remove-btn" data-index="{{index}}" bindtap="onRemoveImage">×</view>
+      </view>
+      <view wx:if="{{images.length < 9}}" class="photo-item add-btn" bindtap="onChooseImage">
+        <text>+</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="actions">
+    <gradient-button bindtap="onPreview" disabled="{{images.length === 0 || uploading}}">
+      识别并上传
+    </gradient-button>
+  </view>
+
+  <view class="selector-modal" wx:if="{{showModeSelector}}" bindtap="onCloseModeSelector">
+    <view class="selector-content" catchtap="">
+      <view class="selector-title">选择评分模式</view>
+      <view class="selector-options">
+        <view class="selector-option" data-mode="cheap" bindtap="onSelectMode">
+          <text class="option-name">快速评分</text>
+          <text class="option-desc">速度快，适合批量处理</text>
+        </view>
+        <view class="selector-option" data-mode="quality" bindtap="onSelectMode">
+          <text class="option-name">详细评分</text>
+          <text class="option-desc">评分详细，包含改写建议</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="selector-modal" wx:if="{{showHomeworkSelector}}" bindtap="onCloseHomeworkSelector">
+    <view class="selector-content" catchtap="">
+      <view class="selector-title">选择作业</view>
+      <scroll-view class="selector-list" scroll-y>
+        <view
+          wx:for="{{homeworks}}"
+          wx:key="id"
+          class="selector-option"
+          data-id="{{item.id}}"
+          bindtap="onSelectHomework"
+        >
+          <text class="option-name">{{item.title}}</text>
+          <text class="option-desc">{{item.dueAt}}</text>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>
