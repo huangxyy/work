@@ -1,0 +1,44 @@
+<view class="homework-detail-page">
+  <view wx:if="{{loading}}" class="loading">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:elif="{{homework}}">
+    <view class="homework-info">
+      <text class="homework-title">{{homework.title}}</text>
+      <text class="homework-desc">{{homework.description || ''}}</text>
+      <view class="homework-meta">
+        <text>截止：{{homework.dueAt ? formatDateTime(homework.dueAt) : '无'}}</text>
+        <text>提交：{{submissions.length}}/{{homework.studentCount || 0}}</text>
+      </view>
+    </view>
+
+    <view class="action-bar">
+      <button class="upload-btn" bindtap="onUploadBatch">拍照上传</button>
+    </view>
+
+    <view class="section">
+      <view class="section-title">提交列表 ({{submissions.length}})</view>
+      <view wx:if="{{submissions.length === 0}}" class="empty-state">
+        <text>暂无提交记录</text>
+      </view>
+      <view wx:else class="submission-list">
+        <view
+          wx:for="{{submissions}}"
+          wx:key="id"
+          class="submission-item"
+          data-id="{{item.id}}"
+          bindtap="onViewSubmission"
+        >
+          <view class="submission-header">
+            <text class="student-name">{{item.studentName}}</text>
+            <text class="status status-{{item.status}}">{{getSubmissionStatusText(item.status)}}</text>
+          </view>
+          <view wx:if="{{item.totalScore !== null}}" class="submission-score">
+            得分：{{item.totalScore}}
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

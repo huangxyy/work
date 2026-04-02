@@ -1,0 +1,132 @@
+.homework-detail-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding: 24rpx;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 100rpx 0;
+  color: #999;
+}
+
+.homework-info {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.homework-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: bold;
+  margin-bottom: 16rpx;
+}
+
+.homework-desc {
+  display: block;
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 16rpx;
+}
+
+.homework-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 24rpx;
+  color: #999;
+}
+
+.action-bar {
+  padding: 16rpx 0;
+}
+
+.upload-btn {
+  width: 100%;
+  padding: 28rpx;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+}
+
+.section {
+  margin-top: 16rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 16rpx;
+  padding-left: 8rpx;
+}
+
+.empty-state {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 80rpx 24rpx;
+  text-align: center;
+  color: #999;
+}
+
+.submission-list {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 16rpx;
+}
+
+.submission-item {
+  padding: 24rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.submission-item:last-child {
+  border-bottom: none;
+}
+
+.submission-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.student-name {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.status {
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+}
+
+.status-DONE {
+  background: #e6f4ea;
+  color: #10b981;
+}
+
+.status-PROCESSING {
+  background: #e8f4fd;
+  color: #3b82f6;
+}
+
+.status-FAILED {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.status-QUEUED {
+  background: #fef3c7;
+  color: #f59e0b;
+}
+
+.submission-score {
+  font-size: 24rpx;
+  color: #666;
+}
