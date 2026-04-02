@@ -1,4 +1,10 @@
 {
-  "usingComponents": {},
-  "navigationBarTitleText": "学习报告"
+  "usingComponents": {
+    "chart-card": "/components/chart-card/index",
+    "loading-skeleton": "/components/loading-skeleton/index",
+    "empty-state": "/components/empty-state/index"
+  },
+  "navigationBarTitleText": "学习报告",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
 }

@@ -1,80 +1,30 @@
-.report-page {
-  min-height: 100vh;
-  background: #f5f5f5;
-  padding: 24rpx;
-}
-
-.filters {
-  display: flex;
-  gap: 16rpx;
-  margin-bottom: 24rpx;
-}
-
-.filter-item {
-  flex: 1;
-  background: #ffffff;
-  border-radius: 12rpx;
-  padding: 24rpx;
-  text-align: center;
-  font-size: 28rpx;
-}
-
-.stats {
-  display: flex;
-  gap: 16rpx;
-  margin-bottom: 24rpx;
-}
-
-.stat-card {
-  flex: 1;
-  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-  border-radius: 16rpx;
-  padding: 32rpx 24rpx;
-  text-align: center;
-  color: #ffffff;
-}
-
-.stat-value {
-  display: block;
-  font-size: 48rpx;
-  font-weight: bold;
-  margin-bottom: 8rpx;
-}
-
-.stat-label {
-  display: block;
-  font-size: 24rpx;
-  opacity: 0.9;
-}
-
-.section-title {
-  font-size: 28rpx;
-  color: #666;
-  margin-bottom: 16rpx;
-  padding-left: 8rpx;
-}
+@import "../../../styles/teacher.wxss";
 
 .trend-list {
-  background: #ffffff;
-  border-radius: 16rpx;
-  padding: 16rpx;
+  background: #f8fafc;
+  border-radius: 12rpx;
+  padding: 8rpx;
 }
 
 .trend-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16rpx;
-  border-bottom: 1rpx solid #f0f0f0;
+  padding: 20rpx 16rpx;
+  background: #ffffff;
+  border-radius: 12rpx;
+  margin-bottom: 12rpx;
+  box-shadow: var(--shadow-sm);
 }
 
 .trend-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .trend-date {
   font-size: 28rpx;
-  color: #333;
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 .trend-values {
@@ -85,5 +35,11 @@
 .trend-count {
   display: block;
   font-size: 24rpx;
-  color: #666;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.trend-avg {
+  color: var(--teacher-primary);
+  font-weight: 500;
 }
