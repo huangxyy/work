@@ -1,43 +1,144 @@
 <wxs module="utils" src="../../../lib/utils.wxs"></wxs>
-<view class="teacher-homeworks-page">
-  <view class="class-selector">
-    <picker mode="selector" range="{{classes}}" range-key="name" value="{{selectedClassId}}" bindchange="onClassChange">
-      <view class="picker-value">
-        {{selectedClassName}}
+<view class="page theme-teacher-homeworks">
+  <view class="hero fade-in">
+    <view class="hero-header">
+      <view class="hero-title">Hi，{{userName}} 👋</view>
+      <view class="hero-help" bindtap="onShowHelp">?</view>
+    </view>
+    <view class="hero-subtitle">当前班级有 {{homeworkCount}} 个作业</view>
+    <view class="hero-stats">
+      <view class="hero-stat">
+        <text class="hero-stat-value">{{classCount}}</text>
+        <text class="hero-stat-label">班级数</text>
       </view>
-    </picker>
+      <view class="hero-stat">
+        <text class="hero-stat-value">{{openCount}}</text>
+        <text class="hero-stat-label">进行中</text>
+      </view>
+      <view class="hero-stat">
+        <text class="hero-stat-value">{{closedCount}}</text>
+        <text class="hero-stat-label">已截止</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 班级选择器 -->
+  <view class="selector-row clickable-item" bindtap="onShowClassSelector">
+    <text class="selector-label">当前班级</text>
+    <view class="selector-value">
+      <text>{{selectedClassName}}</text>
+      <text class="selector-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="teacher-filter-section">
+    <scroll-view class="teacher-filter-chips" scroll-x enable-flex>
+      <view
+        class="teacher-filter-chip {{activeFilter === 'all' ? 'active' : ''}}"
+        bindtap="onFilterChange"
+        data-filter="all"
+      >
+        全部
+      </view>
+      <view
+        class="teacher-filter-chip {{activeFilter === 'open' ? 'active' : ''}}"
+        bindtap="onFilterChange"
+        data-filter="open"
+      >
+        进行中
+      </view>
+      <view
+        class="teacher-filter-chip {{activeFilter === 'closed' ? 'active' : ''}}"
+        bindtap="onFilterChange"
+        data-filter="closed"
+      >
+        已截止
+      </view>
+    </scroll-view>
   </view>
 
   <view class="homework-list">
     <view wx:if="{{loading}}" class="loading">
-      <text>加载中...</text>
+      <loading-skeleton count="5" />
     </view>
 
-    <view wx:elif="{{homeworks.length === 0}}" class="empty">
-      <text>暂无作业</text>
+    <view wx:elif="{{error}}" class="error">
+      <text class="error-icon">😕</text>
+      <text class="error-title">加载失败</text>
+      <text class="error-text">{{error}}</text>
+      <view class="btn btn-primary" bindtap="onRetry">重新加载</view>
+    </view>
+
+    <view wx:elif="{{filteredHomeworks.length === 0}}" class="empty">
+      <empty-state
+        icon="📝"
+        title="暂无作业"
+        description="{{activeFilter === 'all' ? '还没有布置作业，点击右下角按钮创建' : '当前筛选条件下没有作业'}}"
+        buttonText="{{activeFilter === 'all' ? '创建作业' : ''}}"
+        bind:action="onAddHomework"
+      />
     </view>
 
     <view wx:else>
       <view
-        wx:for="{{homeworks}}"
+        wx:for="{{filteredHomeworks}}"
         wx:key="id"
-        class="homework-item"
+        class="homework-card fade-in clickable-item"
+        style="animation-delay: {{index * 0.05}}s"
         data-id="{{item.id}}"
         bindtap="onHomeworkTap"
       >
         <view class="homework-header">
           <text class="homework-title">{{item.title}}</text>
-          <text class="homework-status status-{{item.status}}">{{utils.getHomeworkStatusText(item.status)}}</text>
+          <view class="status-tag {{item.status}}">{{utils.getHomeworkStatusText(item.status)}}</view>
         </view>
-        <view class="homework-info">
-          <text>截止：{{utils.formatDate(item.dueAt)}}</text>
-          <text>提交：{{item.submissionCount || 0}}/{{item.studentCount || 0}}</text>
+
+        <view class="homework-meta">
+          <view class="homework-meta-item">
+            <text class="homework-meta-icon">📅</text>
+            <text>截止：{{utils.formatDate(item.dueAt)}}</text>
+          </view>
+          <view class="homework-meta-item">
+            <text class="homework-meta-icon">👥</text>
+            <text>提交：{{item.submissionCount || 0}}/{{item.studentCount || 0}}</text>
+          </view>
+        </view>
+
+        <view class="homework-progress" wx:if="{{item.studentCount > 0}}">
+          <view class="homework-progress-bar">
+            <view
+              class="homework-progress-fill"
+              style="width: {{item.studentCount > 0 ? (item.submissionCount / item.studentCount * 100) : 0}}%"
+            ></view>
+          </view>
+          <text class="homework-progress-text">
+            {{item.studentCount > 0 ? Math.round(item.submissionCount / item.studentCount * 100) : 0}}%
+          </text>
         </view>
       </view>
     </view>
   </view>
 
-  <view class="add-btn" bindtap="onAddHomework">
-    <text>+</text>
+  <!-- 班级选择器弹窗 -->
+  <view class="selector-modal" wx:if="{{showClassSelector}}" bindtap="onHideClassSelector">
+    <view class="selector-content" catchtap="">
+      <view class="selector-title">选择班级</view>
+      <scroll-view scroll-y class="selector-list">
+        <view
+          wx:for="{{classes}}"
+          wx:key="id"
+          class="selector-option {{item.id === selectedClassId ? 'active' : ''}}"
+          bindtap="onSelectClass"
+          data-id="{{item.id}}"
+        >
+          <view class="selector-option-main">
+            <text class="selector-option-name">{{item.name}}</text>
+            <text class="selector-option-desc">{{item.studentCount || 0}} 名学生</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
   </view>
+
+  <view class="fab" bindtap="onAddHomework">+</view>
 </view>

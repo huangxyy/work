@@ -1,6 +1,10 @@
 {
   "usingComponents": {
-    "gradient-button": "/components/gradient-button/index"
+    "gradient-button": "/components/gradient-button/index",
+    "loading-skeleton": "/components/loading-skeleton/index",
+    "empty-state": "/components/empty-state/index"
   },
-  "navigationBarTitleText": "作业管理"
+  "navigationBarTitleText": "作业管理",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
 }
