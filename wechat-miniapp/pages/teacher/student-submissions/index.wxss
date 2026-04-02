@@ -1,0 +1,152 @@
+@import "../../../styles/teacher.wxss";
+
+.actions {
+  padding: 32rpx;
+}
+
+/* ===== 批量操作栏 ===== */
+.batch-actions-bar {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  margin: 0 16rpx 16rpx;
+  box-shadow: var(--shadow-sm);
+}
+
+.batch-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.batch-count {
+  font-size: 28rpx;
+  color: var(--teacher-primary);
+  font-weight: 600;
+}
+
+.batch-hint {
+  font-size: 24rpx;
+  color: var(--text-muted);
+}
+
+.batch-buttons {
+  display: flex;
+  gap: 12rpx;
+}
+
+.batch-btn {
+  flex: 1;
+  padding: 16rpx 24rpx;
+  border-radius: 24rpx;
+  font-size: 26rpx;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: var(--text-secondary);
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.batch-btn:active {
+  transform: scale(0.95);
+}
+
+.batch-btn.btn-primary {
+  background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  color: #ffffff;
+}
+
+.batch-btn.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+}
+
+/* ===== 提交卡片 ===== */
+.submission-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.submission-card {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.submission-card.select-mode {
+  padding-left: 76rpx;
+  position: relative;
+}
+
+.submission-card.selected {
+  background: #ecfeff;
+  border: 2rpx solid #0891b2;
+}
+
+.checkbox {
+  position: absolute;
+  left: 20rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44rpx;
+  height: 44rpx;
+  border: 4rpx solid #d1d5db;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  transition: all 0.2s;
+}
+
+.checkbox.checked {
+  border-color: #0891b2;
+  background: #0891b2;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.submission-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.submission-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.submission-name {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.submission-arrow {
+  font-size: 32rpx;
+  color: #d1d5db;
+}
+
+.submission-score {
+  display: block;
+  font-size: 26rpx;
+  color: var(--text-muted);
+}
+
+.submission-time {
+  display: block;
+  font-size: 22rpx;
+  color: var(--text-muted);
+  margin-top: 4rpx;
+}

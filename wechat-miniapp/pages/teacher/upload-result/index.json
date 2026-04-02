@@ -1,4 +1,6 @@
 {
   "usingComponents": {},
-  "navigationBarTitleText": "上传结果"
+  "navigationBarTitleText": "上传结果",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
 }

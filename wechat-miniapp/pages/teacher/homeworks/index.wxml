@@ -90,7 +90,7 @@
       >
         <view class="homework-header">
           <text class="homework-title">{{item.title}}</text>
-          <view class="status-tag {{item.status}}">{{utils.getHomeworkStatusText(item.status)}}</view>
+          <view class="status-tag {{utils.getHomeworkStatusClass(item.dueAt)}}">{{utils.getHomeworkStatusLabelText(item.dueAt)}}</view>
         </view>
 
         <view class="homework-meta">

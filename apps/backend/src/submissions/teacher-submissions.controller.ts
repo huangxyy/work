@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RetrySkippedDto } from './dto/retry-skipped.dto';
+import { TeacherStudentSubmissionsQueryDto } from './dto/teacher-student-submissions-query.dto';
 import { Role } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -110,6 +111,15 @@ export class TeacherSubmissionsController {
     @Req() req: { user: AuthUser },
   ) {
     return this.submissionsService.getUnsubmittedStudents(homeworkId, req.user);
+  }
+
+  @Get('students/:studentId/submissions')
+  async getStudentSubmissions(
+    @Param('studentId', ParseCuidPipe) studentId: string,
+    @Query() query: TeacherStudentSubmissionsQueryDto,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.submissionsService.getStudentSubmissionsByClass(studentId, query.classId, req.user);
   }
 
   @Get()

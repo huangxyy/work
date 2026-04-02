@@ -36,7 +36,19 @@ Page({
   },
 
   onShow() {
-    // 非首次加载时刷新数据
+    const globalClassId = getApp().globalData.selectedClassId;
+    if (globalClassId && globalClassId !== this.data.selectedClassId) {
+      const index = this.data.classes.findIndex(c => c.id === globalClassId);
+      if (index >= 0) {
+        this.setData({
+          selectedClassId: globalClassId,
+          selectedIndex: index,
+          selectedClassName: this.data.classes[index].name,
+        });
+        this.loadHomeworks();
+        return;
+      }
+    }
     if (!this.data.isInitialLoad && this.data.selectedClassId) {
       this.loadHomeworks();
     }

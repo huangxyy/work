@@ -1,0 +1,117 @@
+@import "../../../styles/teacher.wxss";
+
+.message-list {
+  padding: 0 16rpx 120rpx;
+}
+
+.message-card {
+  display: flex;
+  align-items: flex-start;
+  background: #ffffff;
+  border-radius: var(--border-radius-medium, 20rpx);
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s;
+}
+
+.message-card:active {
+  transform: scale(0.98);
+  background: #f8fafc;
+}
+
+.message-icon-wrapper {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+
+.message-icon-wrapper.notification {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+}
+
+.message-icon-wrapper.announcement {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+
+.message-icon {
+  font-size: 36rpx;
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+  gap: 12rpx;
+}
+
+.message-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.message-title.unread {
+  color: var(--teacher-primary);
+  font-weight: 700;
+}
+
+.message-desc {
+  display: block;
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
+
+.message-time {
+  font-size: 22rpx;
+  color: var(--text-muted);
+}
+
+.message-source {
+  font-size: 22rpx;
+  color: var(--text-muted);
+}
+
+.message-arrow {
+  font-size: 32rpx;
+  color: #d1d5db;
+  margin-left: 12rpx;
+  flex-shrink: 0;
+}
+
+.batch-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  padding: 16rpx;
+  box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: center;
+  padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
+}

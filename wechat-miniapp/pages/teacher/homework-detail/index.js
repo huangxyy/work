@@ -1,41 +1,52 @@
-const { fetchHomeworks, fetchSubmissions } = require('../../../services/teacher');
+const { fetchHomeworkById, fetchSubmissions } = require('../../../services/teacher');
 const { showToast, showLoading, hideLoading } = require('../../../lib/ui');
-const { getSubmissionStatusText, formatDateTime } = require('../../../lib/teacher');
 
 Page({
   data: {
     homeworkId: '',
+    classId: '',
     homework: null,
     submissions: [],
     loading: false,
   },
 
   onLoad(options) {
-    const { id } = options;
+    const { id, classId } = options;
     if (!id) {
       showToast('参数错误');
       wx.navigateBack();
       return;
     }
-    this.setData({ homeworkId: id });
+    this.setData({ homeworkId: id, classId: classId || '' });
     this.loadData();
+  },
+
+  onShow() {
+    if (this.data.homeworkId && !this.data.loading) {
+      this.loadData();
+    }
   },
 
   async loadData() {
     const { homeworkId } = this.data;
     this.setData({ loading: true });
     try {
-      const [homeworks, submissions] = await Promise.all([
-        fetchHomeworks(),
-        fetchSubmissions(homeworkId),
+      // 使用优化的 API 直接获取作业详情
+      const [homework, submissions] = await Promise.all([
+        fetchHomeworkById(homeworkId),
+        fetchSubmissions({ homeworkId }),
       ]);
-      const homework = homeworks.find(h => h.id === homeworkId);
       this.setData({ homework, submissions });
     } catch (error) {
       showToast('加载失败');
     } finally {
       this.setData({ loading: false });
+      wx.stopPullDownRefresh();
     }
+  },
+
+  onPullDownRefresh() {
+    this.loadData();
   },
 
   onUploadBatch() {

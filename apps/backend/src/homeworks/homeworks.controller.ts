@@ -47,6 +47,12 @@ export class HomeworksController {
     return this.homeworksService.listForStudent(req.user);
   }
 
+  @Get(':id')
+  @Roles(Role.TEACHER, Role.ADMIN, Role.STUDENT)
+  async getHomework(@Param('id', ParseCuidPipe) id: string, @Req() req: { user: AuthUser }) {
+    return this.homeworksService.getHomeworkById(id, req.user);
+  }
+
   @Get(':id/delete-preview')
   @Roles(Role.TEACHER, Role.ADMIN)
   async deletePreview(@Param('id', ParseCuidPipe) id: string, @Req() req: { user: AuthUser }) {

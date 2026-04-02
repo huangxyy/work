@@ -104,9 +104,12 @@ export class MetricsInterceptor implements NestInterceptor {
     }
 
     // 检查路由元数据
-    const excludeMetrics = this.reflector.get<boolean>('excludeMetrics', request.route?.handler as any);
-    if (excludeMetrics) {
-      return true;
+    const handler = request.route?.handler;
+    if (handler && typeof handler === 'function') {
+      const excludeMetrics = this.reflector.get<boolean>('excludeMetrics', handler);
+      if (excludeMetrics) {
+        return true;
+      }
     }
 
     return false;

@@ -8,6 +8,7 @@
   border-top: 1rpx solid #f0f0f0;
   display: flex;
   padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.04);
 }
 
 .tab-item {
@@ -16,18 +17,60 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  transition: all 0.3s ease;
+  position: relative;
 }
 
 .tab-icon {
-  font-size: 40rpx;
+  font-size: 44rpx;
   margin-bottom: 4rpx;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0.7;
 }
 
 .tab-text {
-  font-size: 20rpx;
-  color: #7b88a1;
+  font-size: 22rpx;
+  color: #9ca3af;
+  transition: color 0.3s ease, font-weight 0.3s ease;
+}
+
+.tab-item.selected .tab-icon {
+  transform: scale(1.1);
+  opacity: 1;
 }
 
 .tab-item.selected .tab-text {
-  color: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 600;
+}
+
+.tab-item.selected::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 4rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 0 0 4rpx 4rpx;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.tab-item:active {
+  background: rgba(102, 126, 234, 0.05);
 }

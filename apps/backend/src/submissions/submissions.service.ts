@@ -512,6 +512,7 @@ export class SubmissionsService {
 
     return submissions.map((submission) => ({
       id: submission.id,
+      studentId: submission.student.id,
       studentName: submission.student.name,
       studentAccount: submission.student.account,
       status: submission.status,
@@ -520,6 +521,124 @@ export class SubmissionsService {
       errorMsg: submission.errorMsg,
       updatedAt: submission.updatedAt.toISOString(),
     }));
+  }
+
+  async getStudentSubmissionsByClass(studentId: string, classId: string, user: AuthUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('仅教师或管理员可以访问学生提交记录');
+    }
+
+    const startedAt = Date.now();
+
+    // 验证班级访问权限
+    const classData = await this.prisma.class.findFirst({
+      where:
+        user.role === Role.ADMIN
+          ? { id: classId }
+          : { id: classId, teachers: { some: { id: user.id } } },
+      select: { id: true },
+    });
+
+    if (!classData) {
+      throw new NotFoundException('班级不存在或无权访问');
+    }
+
+    // 验证学生是否在该班级
+    const enrollment = await this.prisma.enrollment.findFirst({
+      where: { classId, studentId },
+      select: { id: true },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException('学生不在该班级中');
+    }
+
+    // 获取班级的所有作业
+    const homeworks = await this.prisma.homework.findMany({
+      where: { classId },
+      select: {
+        id: true,
+        title: true,
+        dueAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    if (!homeworks.length) {
+      this.logger.debug(
+        `Student submissions by class studentId=${studentId} classId=${classId} returned=0 durationMs=${Date.now() - startedAt}`,
+      );
+      return [];
+    }
+
+    const homeworkIds = homeworks.map((h) => h.id);
+
+    // 获取该学生在这些作业中的所有提交
+    const submissions = await this.prisma.submission.findMany({
+      where: {
+        studentId,
+        homeworkId: { in: homeworkIds },
+      },
+      select: {
+        id: true,
+        homeworkId: true,
+        status: true,
+        totalScore: true,
+        errorCode: true,
+        errorMsg: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // 创建提交记录的映射
+    const submissionMap = new Map<string, typeof submissions[0]>();
+    for (const submission of submissions) {
+      // 如果同一个作业有多个提交,只保留最新的
+      if (!submissionMap.has(submission.homeworkId)) {
+        submissionMap.set(submission.homeworkId, submission);
+      }
+    }
+
+    // 组合作业和提交信息
+    const result = homeworks.map((homework) => {
+      const submission = submissionMap.get(homework.id);
+      if (submission) {
+        return {
+          id: submission.id,
+          homeworkId: homework.id,
+          homeworkTitle: homework.title,
+          dueAt: homework.dueAt,
+          status: submission.status,
+          totalScore: submission.totalScore,
+          errorCode: submission.errorCode,
+          errorMsg: submission.errorMsg,
+          updatedAt: submission.updatedAt.toISOString(),
+          submitted: true,
+        };
+      } else {
+        return {
+          id: null,
+          homeworkId: homework.id,
+          homeworkTitle: homework.title,
+          dueAt: homework.dueAt,
+          status: 'NOT_SUBMITTED',
+          totalScore: null,
+          errorCode: null,
+          errorMsg: null,
+          updatedAt: null,
+          submitted: false,
+        };
+      }
+    });
+
+    this.logger.debug(
+      `Student submissions by class studentId=${studentId} classId=${classId} homeworks=${homeworks.length} submissions=${submissions.length} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return result;
   }
 
   async exportHomeworkCsv(homeworkId: string, user: AuthUser, lang?: string) {

@@ -1,0 +1,54 @@
+@import "../../../styles/teacher.wxss";
+
+.mode-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.mode-card {
+  position: relative;
+  background: #f8fafc;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  border: 4rpx solid transparent;
+  transition: all 0.3s;
+}
+
+.mode-card.active {
+  background: #ffffff;
+  border-color: var(--teacher-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.mode-icon {
+  font-size: 48rpx;
+  margin-bottom: 12rpx;
+}
+
+.mode-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8rpx;
+}
+
+.mode-desc {
+  font-size: 26rpx;
+  color: var(--text-muted);
+}
+
+.mode-check {
+  position: absolute;
+  top: 24rpx;
+  right: 24rpx;
+  width: 48rpx;
+  height: 48rpx;
+  background: var(--teacher-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 28rpx;
+}

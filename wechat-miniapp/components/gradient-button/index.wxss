@@ -1,25 +1,24 @@
 /* components/gradient-button/index.wxss */
-@import "../../styles/theme.wxss";
 
 .btn-gradient {
   height: 88rpx;
   line-height: 88rpx;
   padding: 0 48rpx;
-  border-radius: var(--border-radius-pill);
+  border-radius: 999rpx;
   border: none;
-  background: var(--gradient-primary);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #ffffff;
   font-size: 32rpx;
   font-weight: 600;
   text-align: center;
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 4rpx 16rpx rgba(102, 126, 234, 0.3);
   transition: all 0.3s;
   position: relative;
   overflow: hidden;
 }
 
 /* 移除微信小程序按钮默认边框 */
-.btn-gradient.button-after {
+.btn-gradient::after {
   border: none;
 }
 

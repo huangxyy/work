@@ -1,30 +1,58 @@
 const { request } = require('../lib/request');
 
+// 构建带查询参数的 URL
+function buildUrlWithQuery(baseUrl, params) {
+  if (!params || Object.keys(params).length === 0) {
+    return baseUrl;
+  }
+  const query = Object.keys(params)
+    .filter(key => params[key] !== '' && params[key] !== null && params[key] !== undefined)
+    .map(key => `${key}=${encodeURIComponent(params[key])}`)
+    .join('&');
+  return query ? `${baseUrl}?${query}` : baseUrl;
+}
+
 async function fetchClasses() {
   return request({
-    url: '/teacher/classes',
+    url: '/classes',
     method: 'GET',
   });
 }
 
-async function fetchClassDetail(classId) {
+async function fetchClassStudents(classId) {
   return request({
-    url: `/teacher/classes/${classId}`,
+    url: `/classes/${classId}/students`,
     method: 'GET',
   });
 }
 
 async function fetchHomeworks(params) {
+  // 过滤掉空字符串参数
+  const filteredParams = {};
+  if (params) {
+    for (const key in params) {
+      if (params[key] !== '' && params[key] !== null && params[key] !== undefined) {
+        filteredParams[key] = params[key];
+      }
+    }
+  }
+  // 使用 summary API 获取包含统计信息的数据
   return request({
-    url: '/teacher/homeworks',
+    url: buildUrlWithQuery('/homeworks/summary', filteredParams),
     method: 'GET',
-    data: params,
+  });
+}
+
+async function fetchHomeworkById(homeworkId) {
+  return request({
+    url: `/homeworks/${homeworkId}`,
+    method: 'GET',
   });
 }
 
 async function createHomework(data) {
   return request({
-    url: '/teacher/homeworks',
+    url: '/homeworks',
     method: 'POST',
     data,
   });
@@ -32,7 +60,7 @@ async function createHomework(data) {
 
 async function updateHomework(homeworkId, data) {
   return request({
-    url: `/teacher/homeworks/${homeworkId}`,
+    url: `/homeworks/${homeworkId}`,
     method: 'PATCH',
     data,
   });
@@ -40,22 +68,37 @@ async function updateHomework(homeworkId, data) {
 
 async function deleteHomework(homeworkId) {
   return request({
-    url: `/teacher/homeworks/${homeworkId}`,
+    url: `/homeworks/${homeworkId}`,
     method: 'DELETE',
   });
 }
 
-async function fetchSubmissions(homeworkId) {
+async function fetchSubmissions(params) {
+  // 过滤掉空字符串参数
+  const filteredParams = {};
+  if (params) {
+    for (const key in params) {
+      if (params[key] !== '' && params[key] !== null && params[key] !== undefined) {
+        filteredParams[key] = params[key];
+      }
+    }
+  }
   return request({
-    url: '/teacher/submissions',
+    url: buildUrlWithQuery('/teacher/submissions', filteredParams),
     method: 'GET',
-    data: { homeworkId },
   });
 }
 
 async function fetchSubmissionDetail(submissionId) {
   return request({
-    url: `/teacher/submissions/${submissionId}`,
+    url: `/submissions/${submissionId}`,
+    method: 'GET',
+  });
+}
+
+async function fetchStudentSubmissions(studentId, classId) {
+  return request({
+    url: buildUrlWithQuery(`/teacher/students/${studentId}/submissions`, { classId }),
     method: 'GET',
   });
 }
@@ -76,11 +119,10 @@ async function createBatchUpload(formData) {
   });
 }
 
-async function fetchBatchUploads(homeworkId) {
+async function fetchBatchUploads(params) {
   return request({
-    url: '/teacher/submissions/batches',
+    url: buildUrlWithQuery('/teacher/submissions/batches', params),
     method: 'GET',
-    data: { homeworkId },
   });
 }
 
@@ -107,10 +149,10 @@ async function deleteSubmission(submissionId) {
 }
 
 async function fetchClassReport(classId, rangeDays) {
+  const params = rangeDays !== undefined ? { rangeDays } : {};
   return request({
-    url: '/teacher/reports/class',
+    url: buildUrlWithQuery(`/teacher/reports/class/${classId}/overview`, params),
     method: 'GET',
-    data: { classId, rangeDays },
   });
 }
 
@@ -131,13 +173,15 @@ async function updateGradingPreference(mode) {
 
 module.exports = {
   fetchClasses,
-  fetchClassDetail,
+  fetchClassStudents,
   fetchHomeworks,
+  fetchHomeworkById,
   createHomework,
   updateHomework,
   deleteHomework,
   fetchSubmissions,
   fetchSubmissionDetail,
+  fetchStudentSubmissions,
   previewBatchUpload,
   createBatchUpload,
   fetchBatchUploads,

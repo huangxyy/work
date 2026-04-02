@@ -106,7 +106,7 @@ view, text, button, input, picker, switch, textarea {
   font-weight: 600;
 }
 
-.primary-button[disabled] {
+.primary-button-disabled {
   opacity: 0.55;
 }
 

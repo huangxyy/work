@@ -1,0 +1,19 @@
+<view class="chart-card">
+  <view class="chart-title">{{title}}</view>
+  <canvas
+    class="chart-canvas"
+    type="2d"
+    id="{{canvasId}}"
+    style="width: {{width}}rpx; height: {{height}}rpx;"
+  ></canvas>
+  <view wx:if="{{legend && legend.length > 0}}" class="chart-legend">
+    <view
+      wx:for="{{legend}}"
+      wx:key="name"
+      class="legend-item"
+    >
+      <view class="legend-color" style="background: {{item.color}}"></view>
+      <text class="legend-name">{{item.name}}</text>
+    </view>
+  </view>
+</view>

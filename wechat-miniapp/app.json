@@ -11,12 +11,16 @@
     "pages/messages/index",
     "pages/teacher/homeworks/index",
     "pages/teacher/capture/index",
-    "pages/teacher/upload-result/index",
+    "pages/teacher/report/index",
+    "pages/teacher/profile/index",
+    "pages/teacher/classes/index",
     "pages/teacher/homework-detail/index",
     "pages/teacher/submission-detail/index",
-    "pages/teacher/report/index",
-    "pages/teacher/classes/index",
-    "pages/teacher/profile/index"
+    "pages/teacher/homework-edit/index",
+    "pages/teacher/upload-result/index",
+    "pages/teacher/grading-settings/index",
+    "pages/teacher/student-submissions/index",
+    "pages/change-password/index"
   ],
   "window": {
     "backgroundTextStyle": "light",
@@ -44,6 +48,22 @@
       },
       {
         "pagePath": "pages/profile/index",
+        "text": "我的"
+      },
+      {
+        "pagePath": "pages/teacher/homeworks/index",
+        "text": "作业"
+      },
+      {
+        "pagePath": "pages/teacher/capture/index",
+        "text": "拍照"
+      },
+      {
+        "pagePath": "pages/teacher/report/index",
+        "text": "报告"
+      },
+      {
+        "pagePath": "pages/teacher/profile/index",
         "text": "我的"
       }
     ]

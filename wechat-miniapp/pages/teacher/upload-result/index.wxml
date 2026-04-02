@@ -1,57 +1,112 @@
 <wxs module="utils" src="../../../lib/utils.wxs"></wxs>
-<view class="upload-result-page">
-  <view wx:if="{{!batch}}" class="loading">
-    <text>加载中...</text>
+
+<view class="page">
+  <!-- 加载状态 -->
+  <view wx:if="{{loading}}" class="loading">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
   </view>
 
-  <view wx:else>
-    <view class="summary-card">
-      <view class="summary-item">
-        <text class="summary-label">总图片</text>
-        <text class="summary-value">{{batch.totalImages}}</text>
+  <!-- 错误状态 -->
+  <view wx:elif="{{!batch}}" class="error">
+    <text class="error-icon">😕</text>
+    <text class="error-title">加载失败</text>
+    <text class="error-text">批次信息不存在或已被删除</text>
+    <view class="button-group">
+      <button class="btn btn-secondary" bindtap="onBackToList">返回</button>
+      <button class="btn btn-primary" bindtap="onRetry">重试</button>
+    </view>
+  </view>
+
+  <!-- 批次详情 -->
+  <view wx:else class="fade-in">
+    <view class="hero gradient-green">
+      <view class="hero-title">✅ 上传完成</view>
+      <view class="hero-subtitle">批量上传处理结果</view>
+    </view>
+
+    <!-- 统计卡片 -->
+    <view class="stats-row">
+      <view class="stat-card">
+        <text class="stat-value">{{batch.totalImages || 0}}</text>
+        <text class="stat-label">总图片</text>
       </view>
-      <view class="summary-item">
-        <text class="summary-label">已匹配</text>
-        <text class="summary-value success">{{batch.matchedImages}}</text>
+      <view class="stat-card green">
+        <text class="stat-value">{{batch.matchedImages || 0}}</text>
+        <text class="stat-label">已匹配</text>
       </view>
-      <view class="summary-item">
-        <text class="summary-label">未匹配</text>
-        <text class="summary-value warning">{{batch.unmatchedCount}}</text>
-      </view>
-      <view class="summary-item">
-        <text class="summary-label">创建提交</text>
-        <text class="summary-value">{{batch.createdSubmissions}}</text>
+      <view class="stat-card orange">
+        <text class="stat-value">{{batch.unmatchedCount || 0}}</text>
+        <text class="stat-label">未匹配</text>
       </view>
     </view>
 
+    <!-- 汇总信息 -->
     <view class="section">
-      <view class="section-title">提交列表</view>
+      <view class="grading-row">
+        <text class="grading-label">创建提交</text>
+        <text class="grading-value">{{batch.createdSubmissions || 0}}</text>
+      </view>
+      <view class="grading-row" wx:if="{{batch.processed !== undefined}}">
+        <text class="grading-label">已处理</text>
+        <text class="grading-value">{{batch.processed}}</text>
+      </view>
+    </view>
+
+    <!-- 提交列表 -->
+    <view class="section" wx:if="{{batch.submissions && batch.submissions.length > 0}}">
+      <view class="section-title">📝 提交列表 ({{batch.submissions.length}}) 点击查看详情</view>
       <view class="submission-list">
         <view
           wx:for="{{batch.submissions}}"
           wx:key="id"
-          class="submission-item"
+          class="submission-card fade-in clickable-item"
+          style="animation-delay: {{index * 0.05}}s"
           data-id="{{item.id}}"
           bindtap="onViewSubmission"
         >
-          <view class="submission-header">
-            <text class="student-name">{{item.studentName}}</text>
-            <text class="status status-{{item.status}}">{{utils.getSubmissionStatusText(item.status)}}</text>
+          <view class="submission-info">
+            <text class="submission-name">{{item.studentName || '未知学生'}}</text>
+            <text class="submission-score" wx:if="{{item.totalScore !== null && item.totalScore !== undefined}}">
+              得分: {{item.totalScore}}
+            </text>
           </view>
-          <view wx:if="{{item.totalScore}}" class="submission-score">
-            得分：{{item.totalScore}}
-          </view>
+          <view class="status-tag {{item.status}}">{{utils.getSubmissionStatusText(item.status)}}</view>
         </view>
       </view>
     </view>
 
-    <view wx:if="{{batch.skipped && batch.skipped.length > 0}}" class="section">
-      <view class="section-title">跳过列表</view>
-      <view class="skipped-list">
-        <view wx:for="{{batch.skipped}}" wx:key="file" class="skipped-item">
-          <text class="file-name">{{item.file}}</text>
+    <!-- 跳过列表 -->
+    <view class="section" wx:if="{{batch.skipped && batch.skipped.length > 0}}">
+      <view class="section-title">
+        ⚠️ 跳过列表 ({{batch.skipped.length}})
+      </view>
+      <view class="skip-list">
+        <view
+          wx:for="{{batch.skipped}}"
+          wx:key="file"
+          class="skip-item fade-in"
+          style="animation-delay: {{index * 0.05}}s"
+        >
+          <text class="skip-file">{{item.file}}</text>
           <text class="skip-reason">{{utils.getSkipReasonText(item.reason)}}</text>
         </view>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="actions-section">
+      <button
+        wx:if="{{batch.skipped && batch.skipped.length > 0}}"
+        class="btn btn-primary full-width"
+        bindtap="onRetrySkipped"
+      >
+        🔄 重试跳过的项目 ({{batch.skipped.length}})
+      </button>
+
+      <view class="button-group">
+        <button class="btn btn-secondary" bindtap="onBackToList">返回</button>
+        <button class="btn btn-primary" bindtap="onGoToHomeworks">查看作业</button>
       </view>
     </view>
   </view>

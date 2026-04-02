@@ -112,7 +112,7 @@ export const AdminClassesPage = () => {
       message.success(t('admin.classes.deleteSuccess'));
       setDrawerOpen(false);
     },
-    onError: (error: any) => {
+    onError: (error: Error & { response?: { data?: { message?: string } } }) => {
       console.error('删除班级失败:', error);
       const errorMessage = error?.response?.data?.message || error?.message || t('admin.classes.deleteFailed');
       message.error(errorMessage);

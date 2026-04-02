@@ -6,9 +6,9 @@
 
 /* 老师端默认变量 (覆盖 theme.wxss 中相同的变量) */
 page {
-  --teacher-primary: #3b82f6;
-  --teacher-primary-dark: #2563eb;
-  --teacher-secondary: #6366f1;
+  --teacher-primary: #0891b2;
+  --teacher-primary-dark: #0e7490;
+  --teacher-secondary: #06b6d4;
   --teacher-green: #10b981;
   --teacher-orange: #f59e0b;
   --teacher-purple: #7c3aed;
@@ -46,7 +46,7 @@ page {
 .hero {
   margin: -32rpx -32rpx 24rpx -32rpx;
   padding: 64rpx 32rpx 48rpx;
-  background: var(--gradient-primary, linear-gradient(135deg, #3b82f6 0%, #6366f1 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
   border-radius: 0 0 48rpx 48rpx;
   color: #ffffff;
 }
@@ -87,7 +87,7 @@ page {
 
 /* ===== 渐变背景类 ===== */
 .gradient-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
 }
 
 .gradient-green {
@@ -125,7 +125,7 @@ page {
 }
 
 .card-hero {
-  background: var(--gradient-primary, linear-gradient(135deg, #3b82f6 0%, #6366f1 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
   color: #ffffff;
   border-radius: var(--border-radius-medium, 24rpx);
   padding: 32rpx;
@@ -164,7 +164,7 @@ page {
 }
 
 .btn-primary {
-  background: var(--gradient-primary, linear-gradient(135deg, #3b82f6 0%, #6366f1 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
   color: #ffffff;
   box-shadow: var(--shadow-md);
 }
@@ -176,8 +176,8 @@ page {
 
 .btn-secondary {
   background: #ffffff;
-  color: #3b82f6;
-  border: 4rpx solid #3b82f6;
+  color: #0891b2;
+  border: 4rpx solid #0891b2;
 }
 
 .btn-ghost {
@@ -190,7 +190,7 @@ page {
   color: #ffffff;
 }
 
-.btn[disabled] {
+.btn-disabled {
   opacity: 0.5;
   pointer-events: none;
 }
@@ -202,14 +202,14 @@ page {
   bottom: 140rpx;
   width: 100rpx;
   height: 100rpx;
-  background: var(--gradient-primary, linear-gradient(135deg, #3b82f6 0%, #6366f1 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   font-size: 48rpx;
-  box-shadow: 0 8rpx 24rpx rgba(59, 130, 246, 0.4);
+  box-shadow: 0 8rpx 24rpx rgba(8, 145, 178, 0.4);
   z-index: 100;
   transition: transform 0.2s;
 }
@@ -399,10 +399,9 @@ page {
   padding: 0 16rpx;
 }
 
-/* 默认统计卡片 - 纯展示，不可点击（减少阴影，降低"可点击感"） */
 .stat-card {
   flex: 1;
-  background: var(--gradient-primary, linear-gradient(135deg, #3b82f6 0%, #6366f1 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
   border-radius: 20rpx;
   padding: 32rpx 24rpx;
   text-align: center;
@@ -435,7 +434,6 @@ page {
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 }
 
-/* 可点击的统计卡片 - 添加明显提示 */
 .stat-card-clickable {
   position: relative;
   box-shadow: var(--shadow-md);
@@ -528,7 +526,7 @@ page {
 .form-input:focus {
   background: #ffffff;
   border-color: var(--teacher-primary);
-  box-shadow: 0 0 0 4rpx rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4rpx rgba(8, 145, 178, 0.1);
 }
 
 .form-textarea {
@@ -821,7 +819,7 @@ page {
 }
 
 .homework-action-btn.primary {
-  background: var(--gradient-primary, linear-gradient(135deg, #3b82f6 0%, #6366f1 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
   color: #ffffff;
 }
 
@@ -937,7 +935,7 @@ page {
 .grading-value {
   font-size: 28rpx;
   font-weight: 600;
-  color: #3b82f6;
+  color: #0891b2;
   word-break: break-all;
   overflow-wrap: break-word;
   max-width: 100%;
@@ -973,7 +971,6 @@ page {
 }
 
 /* ===== 可点击元素统一样式 ===== */
-/* 用于所有可点击的列表项、卡片等，添加右箭头提示 */
 .clickable-item {
   position: relative;
   transition: all 0.2s;
@@ -983,7 +980,6 @@ page {
   background: #f8fafc;
 }
 
-/* 右箭头 - 自动添加到所有 clickable-item 元素右侧 */
 .clickable-item::after {
   content: '›';
   position: absolute;

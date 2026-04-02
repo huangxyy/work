@@ -59,10 +59,43 @@ var getSkipReasonText = function(reason) {
   return map[reason] || reason;
 };
 
+// 新增 toFixed 函数
+var toFixed = function(num, digits) {
+  if (!num && num !== 0) return '--';
+  digits = digits || 2;
+  return num.toFixed(digits);
+};
+
+var getFirstChar = function(str, fallback) {
+  fallback = fallback || '?';
+  if (!str) return fallback;
+  return str.charAt(0);
+};
+
+var isHomeworkOpen = function(dueAt) {
+  if (!dueAt) return false;
+  var due = getDate(dueAt);
+  var now = getDate();
+  return due > now;
+};
+
+var getHomeworkStatusClass = function(dueAt) {
+  return isHomeworkOpen(dueAt) ? 'open' : 'closed';
+};
+
+var getHomeworkStatusLabelText = function(dueAt) {
+  return isHomeworkOpen(dueAt) ? '进行中' : '已截止';
+};
+
 module.exports = {
   getHomeworkStatusText: getHomeworkStatusText,
   formatDate: formatDate,
   formatDateTime: formatDateTime,
   getSubmissionStatusText: getSubmissionStatusText,
   getSkipReasonText: getSkipReasonText,
+  toFixed: toFixed,
+  getFirstChar: getFirstChar,
+  isHomeworkOpen: isHomeworkOpen,
+  getHomeworkStatusClass: getHomeworkStatusClass,
+  getHomeworkStatusLabelText: getHomeworkStatusLabelText,
 };

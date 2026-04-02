@@ -30,7 +30,7 @@ import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { Dayjs } from 'dayjs';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   createTeacherBatchSubmissions,
@@ -483,7 +483,7 @@ export const TeacherHomeworkDetailPage = () => {
     setTimeout(() => window.URL.revokeObjectURL(url), 200);
   };
 
-  const handleSelectAll = (checked: boolean) => {
+  const handleSelectAll = useCallback((checked: boolean) => {
     const doneIds = filteredSubmissions.filter((s) => s.status === 'DONE').map((s) => s.id);
     if (checked) {
       // Accumulate selections instead of replacing
@@ -500,15 +500,15 @@ export const TeacherHomeworkDetailPage = () => {
       // Deselect only current page items, preserve other selections
       setSelectedRowKeys((prev) => prev.filter((key) => !doneIds.includes(key)));
     }
-  };
+  }, [filteredSubmissions]);
 
-  const handleSelectRow = (id: string, checked: boolean) => {
+  const handleSelectRow = useCallback((id: string, checked: boolean) => {
     if (checked) {
       setSelectedRowKeys([...selectedRowKeys, id]);
     } else {
       setSelectedRowKeys(selectedRowKeys.filter((key) => key !== id));
     }
-  };
+  }, [selectedRowKeys]);
 
   const handleExportCsv = async () => {
     if (!id) {
@@ -791,7 +791,7 @@ export const TeacherHomeworkDetailPage = () => {
         },
       },
     ],
-    [t, selectedRowKeys, filteredSubmissions, navigate, regradeMutation, deleteSubmissionMutation],
+    [t, selectedRowKeys, filteredSubmissions, navigate, regradeMutation, deleteSubmissionMutation, handleSelectAll, handleSelectRow],
   );
 
   const batchStatusMeta = useMemo(

@@ -1,48 +1,142 @@
 <wxs module="utils" src="../../../lib/utils.wxs"></wxs>
-<view class="submission-detail-page">
-  <view wx:if="{{!submission}}" class="loading">
-    <text>加载中...</text>
+
+<view class="page safe-bottom">
+  <view wx:if="{{loading}}" class="loading-container">
+    <view class="spinner"></view>
+    <text class="loading-text">加载中...</text>
   </view>
 
-  <view wx:else>
-    <view class="info-card">
-      <view class="info-row">
-        <text class="label">学生</text>
-        <text class="value">{{submission.studentName}}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">账号</text>
-        <text class="value">{{submission.studentAccount}}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">状态</text>
-        <text class="status status-{{submission.status}}">{{utils.getSubmissionStatusText(submission.status)}}</text>
-      </view>
-      <view wx:if="{{submission.totalScore !== null}}" class="info-row">
-        <text class="label">得分</text>
-        <text class="value score">{{submission.totalScore}}</text>
-      </view>
-    </view>
+  <view wx:elif="{{!submission}}" class="error-container">
+    <text class="error-icon">😕</text>
+    <text class="error-title">加载失败</text>
+    <text class="error-text">提交信息不存在或已被删除</text>
+    <button class="retry-btn" bindtap="onRetry">重新加载</button>
+  </view>
 
-    <view class="section" wx:if="{{submission.images && submission.images.length > 0}}">
-      <view class="section-title">作业图片</view>
-      <view class="image-list">
-        <view
-          wx:for="{{submission.images}}"
-          wx:key="id"
-          class="image-item"
-          data-url="{{item.url}}"
-          bindtap="onViewImage"
-        >
-          <image src="{{item.url}}" mode="aspectFill" />
+  <view wx:else class="content-wrapper fade-in">
+    <view class="hero">
+      <view class="hero-header">
+        <view class="student-avatar">{{utils.getFirstChar(submission.student.name, '未')}}</view>
+        <view class="student-info">
+          <text class="student-name">{{submission.student.name || '未知学生'}}</text>
+          <text class="student-account" wx:if="{{submission.student.account}}">{{submission.student.account}}</text>
         </view>
       </view>
+      <view class="score-display" wx:if="{{submission.totalScore !== null && submission.totalScore !== undefined}}">
+        <text class="score-value">{{submission.totalScore}}</text>
+        <text class="score-label">总分</text>
+      </view>
     </view>
 
-    <view class="section" wx:if="{{submission.gradingJson}}">
-      <view class="section-title">评分详情</view>
-      <view class="grading-content">
-        <text>{{submission.gradingJson}}</text>
+    <view class="content-area scale-in">
+      <view class="info-card">
+        <view class="info-row">
+          <text class="info-label">状态</text>
+          <view class="status-tag {{submission.status}}">{{utils.getSubmissionStatusText(submission.status)}}</view>
+        </view>
+        <view class="info-row">
+          <text class="info-label">提交时间</text>
+          <text class="info-value">{{utils.formatDateTime(submission.createdAt)}}</text>
+        </view>
+        <view class="info-row" wx:if="{{submission.updatedAt !== submission.createdAt}}">
+          <text class="info-label">更新时间</text>
+          <text class="info-value">{{utils.formatDateTime(submission.updatedAt)}}</text>
+        </view>
+        <view class="info-row" wx:if="{{submission.homework}}">
+          <text class="info-label">作业</text>
+          <text class="info-value">{{submission.homework.title}}</text>
+        </view>
+      </view>
+
+      <view class="section-card" wx:if="{{submission.images && submission.images.length > 0}}">
+        <view class="section-title">📷 作业图片 ({{submission.images.length}}) 点击查看大图</view>
+        <scroll-view class="image-scroll" scroll-x enable-flex>
+          <view
+            wx:for="{{submission.images}}"
+            wx:key="id"
+            class="image-item"
+            data-url="{{item.url}}"
+            bindtap="onViewImage"
+          >
+            <image src="{{item.url}}" mode="aspectFill" lazy-load />
+            <view class="image-hint">🔍</view>
+          </view>
+        </scroll-view>
+      </view>
+
+      <view class="section-card" wx:if="{{submission.ocrText}}">
+        <view class="section-title">📄 识别文字</view>
+        <scroll-view class="ocr-scroll" scroll-y>
+          <text class="ocr-text">{{submission.ocrText}}</text>
+        </scroll-view>
+      </view>
+
+      <view class="grading-section" wx:if="{{gradingData && !gradingError}}">
+        <view class="grading-header">
+          <text class="grading-title">📊 评分详情</text>
+        </view>
+
+        <view wx:if="{{gradingData.scores && gradingData.scores.length > 0}}" class="scores-list">
+          <view
+            wx:for="{{gradingData.scores}}"
+            wx:key="category"
+            class="score-item"
+          >
+            <text class="score-label">{{item.category}}</text>
+            <view class="score-bar-wrapper">
+              <view class="score-bar-bg"></view>
+              <view class="score-bar-fill" style="width: {{item.score / 100 * 100}}%;"></view>
+              <text class="score-num">{{item.score}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view wx:if="{{gradingData.comment}}" class="comment-block">
+          <view class="comment-header">💬 总评</view>
+          <text class="comment-text">{{gradingData.comment}}</text>
+        </view>
+
+        <view wx:if="{{gradingData.rewrite}}" class="comment-block rewrite-block">
+          <view class="comment-header">✏️ 改写建议</view>
+          <text class="comment-text rewrite-text">{{gradingData.rewrite}}</text>
+        </view>
+
+        <view wx:if="{{gradingData.errorTypes && gradingData.errorTypes.length > 0}}" class="error-types-section">
+          <view class="error-types-title">🔍 错误类型统计</view>
+          <view class="error-tags">
+            <view wx:for="{{gradingData.errorTypes}}" wx:key="*this" wx:for-item="error" class="error-tag">
+              <text>{{error.type}} ({{error.count}}处)</text>
+            </view>
+          </view>
+        </view>
+
+        <view wx:if="{{!gradingData.totalScore && !gradingData.scores && !gradingData.comment}}" class="empty-notice">
+          <text>暂无详细评分数据</text>
+        </view>
+      </view>
+
+      <view class="grading-section" wx:elif="{{gradingError}}">
+        <view class="grading-header">
+          <text class="grading-title">⚠️ 评分详情</text>
+        </view>
+        <view class="error-tip">
+          <text class="error-tip-icon">⚠️</text>
+          <text class="error-tip-text">评分数据解析失败，请联系技术支持</text>
+        </view>
+        <view class="raw-data-block" wx:if="{{submission.gradingJson}}">
+          <view class="raw-data-title">原始数据</view>
+          <text class="raw-data-text">{{submission.gradingJson}}</text>
+        </view>
+      </view>
+
+      <view class="section-card pending-tip" wx:elif="{{submission.status === 'QUEUED' || submission.status === 'PROCESSING'}}">
+        <text class="pending-icon">⏳</text>
+        <text class="pending-text">作业正在批改中，请稍后查看</text>
+      </view>
+
+      <view class="section-card failed-tip" wx:elif="{{submission.status === 'FAILED'}}">
+        <text class="failed-icon">❌</text>
+        <text class="failed-text">批改失败，请重新提交或联系老师</text>
       </view>
     </view>
   </view>

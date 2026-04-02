@@ -1,28 +1,33 @@
 <wxs module="utils" src="../../../lib/utils.wxs"></wxs>
-<scroll-view class="page" scroll-y enhanced show-scrollbar="{{false}}" style="height: 100vh;">
-  <view class="hero gradient-cyan">
+<view class="page theme-report safe-bottom">
+  <view class="hero fade-in">
     <view class="hero-title">📊 班级报告</view>
     <view class="hero-subtitle">查看班级学习数据统计</view>
   </view>
 
-  <view class="teacher-filter-section">
-    <scroll-view class="teacher-filter-chips" scroll-x enable-flex>
-      <view class="teacher-filter-chip {{selectedClassId === item.id ? 'active' : ''}}"
-            wx:for="{{classes}}" wx:key="id" data-id="{{item.id}}" bindtap="onSelectClass">{{item.name}}</view>
+  <view class="filter-section scale-in">
+    <scroll-view class="filter-chips" scroll-x enable-flex>
+      <view
+        class="filter-chip {{selectedClassId === item.id ? 'active' : ''}}"
+        wx:for="{{classes}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="onSelectClass"
+      >{{item.name}}</view>
     </scroll-view>
-    <scroll-view class="teacher-filter-chips" scroll-x enable-flex style="margin-top: 12rpx;">
-      <view class="teacher-filter-chip {{rangeDays === 7 ? 'active' : ''}}" bindtap="onRangeChange" data-days="7">近7天</view>
-      <view class="teacher-filter-chip {{rangeDays === 14 ? 'active' : ''}}" bindtap="onRangeChange" data-days="14">近14天</view>
-      <view class="teacher-filter-chip {{rangeDays === 30 ? 'active' : ''}}" bindtap="onRangeChange" data-days="30">近30天</view>
+    <scroll-view class="filter-chips" scroll-x enable-flex style="margin-top: 12rpx;">
+      <view class="filter-chip {{rangeDays === 7 ? 'active' : ''}}" bindtap="onRangeChange" data-days="7">近7天</view>
+      <view class="filter-chip {{rangeDays === 14 ? 'active' : ''}}" bindtap="onRangeChange" data-days="14">近14天</view>
+      <view class="filter-chip {{rangeDays === 30 ? 'active' : ''}}" bindtap="onRangeChange" data-days="30">近30天</view>
     </scroll-view>
   </view>
 
-  <view wx:if="{{loading}}" class="loading">
-    <view class="loading-spinner"></view>
+  <view wx:if="{{loading}}" class="loading-container">
+    <view class="spinner"></view>
     <text class="loading-text">加载中...</text>
   </view>
 
-  <view wx:elif="{{report}}" class="fade-in">
+  <view wx:elif="{{report}}" class="content-area fade-in">
     <view class="stats-row">
       <view class="stat-card">
         <text class="stat-value">{{report.totalStudents || 0}}</text>
@@ -38,25 +43,24 @@
       </view>
     </view>
 
-    <view wx:if="{{report.summary}}" class="section">
-      <view class="section-title">📈 分数统计</view>
-      <view class="grading-row">
-        <text class="grading-label">平均分</text>
-        <text class="grading-value">{{utils.toFixed(report.summary.avg, 1)}}</text>
+    <view wx:if="{{report.summary}}" class="info-card">
+      <view class="info-title">📈 分数统计</view>
+      <view class="info-row">
+        <text class="info-label">平均分</text>
+        <text class="info-value">{{utils.toFixed(report.summary.avg, 1)}}</text>
       </view>
-      <view class="grading-row">
-        <text class="grading-label">最高分</text>
-        <text class="grading-value">{{report.summary.max || 0}}</text>
+      <view class="info-row">
+        <text class="info-label">最高分</text>
+        <text class="info-value">{{report.summary.max || 0}}</text>
       </view>
-      <view class="grading-row">
-        <text class="grading-label">最低分</text>
-        <text class="grading-value">{{report.summary.min || 0}}</text>
+      <view class="info-row">
+        <text class="info-label">最低分</text>
+        <text class="info-value">{{report.summary.min || 0}}</text>
       </view>
     </view>
 
-    <!-- 提交趋势图表 -->
-    <view wx:if="{{trendChartData && trendChartData.length > 0}}" class="section">
-      <view class="section-title">📅 提交趋势</view>
+    <view wx:if="{{trendChartData && trendChartData.length > 0}}" class="info-card">
+      <view class="info-title">📅 提交趋势</view>
       <chart-card
         canvas-id="trendChart"
         width="650"
@@ -68,9 +72,8 @@
       ></chart-card>
     </view>
 
-    <!-- 分数分布图表 -->
-    <view wx:if="{{scoreDistribution && scoreDistribution.length > 0}}" class="section">
-      <view class="section-title">📊 分数分布</view>
+    <view wx:if="{{scoreDistribution && scoreDistribution.length > 0}}" class="info-card">
+      <view class="info-title">📊 分数分布</view>
       <chart-card
         canvas-id="scoreChart"
         width="650"
@@ -83,9 +86,8 @@
       ></chart-card>
     </view>
 
-    <!-- 提交趋势列表（作为图表的补充） -->
-    <view wx:if="{{report.trend && report.trend.length > 0}}" class="section">
-      <view class="section-title">📋 详细数据</view>
+    <view wx:if="{{report.trend && report.trend.length > 0}}" class="info-card">
+      <view class="info-title">📋 详细数据</view>
       <view class="trend-list">
         <view wx:for="{{report.trend}}" wx:key="date" class="trend-item">
           <text class="trend-date">{{utils.formatDate(item.date)}}</text>
@@ -98,9 +100,9 @@
     </view>
   </view>
 
-  <view wx:else class="empty">
+  <view wx:else class="empty-container">
     <text class="empty-icon">📭</text>
     <text class="empty-title">暂无数据</text>
     <text class="empty-text">请选择班级查看报告</text>
   </view>
-</scroll-view>
+</view>

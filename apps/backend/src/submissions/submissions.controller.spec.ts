@@ -86,7 +86,7 @@ describe('SubmissionsController', () => {
     mockIsValidImageBuffer.mockReturnValue(false);
 
     await expect(controller.create(body, files, { user: mockStudent })).rejects.toThrow(
-      'File "essay.jpg" is not a valid image (magic bytes check failed)',
+      '文件 "essay.jpg" 不是有效的图片格式',
     );
 
     expect(submissionsService.createSubmission).not.toHaveBeenCalled();

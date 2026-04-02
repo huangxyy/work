@@ -8,16 +8,7 @@ import { useI18n } from '../../i18n';
 import { formatDate } from '../../utils/dateFormat';
 import { SoftEmpty } from '../../components/SoftEmpty';
 
-const { Text, Paragraph } = Typography;
-
-type HomeworkItem = {
-  id: string;
-  title: string;
-  desc?: string | null;
-  dueAt?: string | null;
-  allowLateSubmission?: boolean;
-  class: { id: string; name: string };
-};
+const { Text } = Typography;
 
 type FilterType = 'all' | 'ongoing' | 'late' | 'expired';
 

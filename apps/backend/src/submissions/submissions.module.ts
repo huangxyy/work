@@ -7,11 +7,12 @@ import { StorageModule } from '../storage/storage.module';
 import { SystemConfigModule } from '../system-config/system-config.module';
 import { SubmissionsController } from './submissions.controller';
 import { TeacherSubmissionsController } from './teacher-submissions.controller';
+import { TeacherStudentsController } from './teacher-students.controller';
 import { SubmissionsService } from './submissions.service';
 
 @Module({
   imports: [PrismaModule, StorageModule, QueueModule, GradingPolicyModule, SystemConfigModule, LlmModule],
-  controllers: [SubmissionsController, TeacherSubmissionsController],
+  controllers: [SubmissionsController, TeacherSubmissionsController, TeacherStudentsController],
   providers: [SubmissionsService],
 })
 export class SubmissionsModule {}

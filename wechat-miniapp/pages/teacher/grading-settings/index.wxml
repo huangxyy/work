@@ -1,0 +1,35 @@
+<view class="page theme-teacher-grading">
+  <view class="hero gradient-primary">
+    <view class="hero-title">⚙️ 评分设置</view>
+    <view class="hero-subtitle">配置默认评分模式</view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">当前评分模式</view>
+    <view class="mode-cards">
+      <view class="mode-card {{mode === 'cheap' ? 'active' : ''}}" bindtap="onSelectMode" data-mode="cheap">
+        <view class="mode-icon">⚡</view>
+        <view class="mode-name">快速评分</view>
+        <view class="mode-desc">速度快，适合批量处理</view>
+        <view class="mode-check" wx:if="{{mode === 'cheap'}}">✓</view>
+      </view>
+      <view class="mode-card {{mode === 'quality' ? 'active' : ''}}" bindtap="onSelectMode" data-mode="quality">
+        <view class="mode-icon">🎯</view>
+        <view class="mode-name">详细评分</view>
+        <view class="mode-desc">评分详细，包含改写建议</view>
+        <view class="mode-check" wx:if="{{mode === 'quality'}}">✓</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">说明</view>
+    <view class="grading-comment">
+      <text class="grading-comment-text">
+        • 快速评分：使用轻量模型，处理速度快，适合日常批量批改
+        • 详细评分：使用完整模型，提供更详细的反馈和改写建议
+        • 此设置为默认值，上传时仍可临时调整
+      </text>
+    </view>
+  </view>
+</view>

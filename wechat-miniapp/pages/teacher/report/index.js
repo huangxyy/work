@@ -15,10 +15,10 @@ Page({
     submissionRateText: '0%',
     trendChartData: [],
     scoreDistribution: [],
-    chartColors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+    chartColors: ['#0891b2', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
     scoreLegend: [
       { name: '优秀(90+)', color: '#10b981' },
-      { name: '良好(80-89)', color: '#3b82f6' },
+      { name: '良好(80-89)', color: '#0891b2' },
       { name: '及格(60-79)', color: '#f59e0b' },
       { name: '不及格(<60)', color: '#ef4444' }
     ]
@@ -29,6 +29,15 @@ Page({
   },
 
   onShow() {
+    const globalClassId = getApp().globalData.selectedClassId;
+    if (globalClassId && globalClassId !== this.data.selectedClassId) {
+      const index = this.data.classes.findIndex(c => c.id === globalClassId);
+      if (index >= 0) {
+        this.setData({ selectedClassId: globalClassId });
+        this.loadReport();
+        return;
+      }
+    }
     if (this.data.selectedClassId) {
       this.loadReport();
     }
@@ -63,20 +72,14 @@ Page({
     this.setData({ loading: true });
     try {
       const report = await fetchClassReport(selectedClassId, rangeDays);
-      // submittedStudents 是已提交的学生人数
       const submissionCount = report.submittedStudents || 0;
-      // totalStudents 是班级总学生数
       const totalStudents = report.totalStudents || 0;
-      // submissionRate 是提交率
       const submissionRateText = report.submissionRate 
         ? (report.submissionRate * 100).toFixed(1) + '%' 
         : '0%';
 
-      // 处理趋势图表数据
       const trendChartData = this.processTrendData(report.trend || []);
-
-      // 处理分数分布数据
-      const scoreDistribution = this.processScoreData(report.scores || report.distribution || []);
+      const scoreDistribution = this.processDistributionData(report.distribution || []);
 
       this.setData({
         report,
@@ -107,26 +110,30 @@ Page({
     });
   },
 
-  processScoreData(scores) {
-    if (!scores || scores.length === 0) return [];
+  processDistributionData(distribution) {
+    if (!distribution || distribution.length === 0) return [];
 
-    // 分数分段统计
-    const distribution = [
-      { label: '优秀', value: 0 },
-      { label: '良好', value: 0 },
-      { label: '及格', value: 0 },
-      { label: '不及格', value: 0 }
-    ];
+    const bucketMap = {
+      '90-100': { label: '优秀', value: 0 },
+      '80-89': { label: '良好', value: 0 },
+      '60-79': { label: '及格', value: 0 },
+      '0-59': { label: '不及格', value: 0 },
+    };
 
-    scores.forEach(score => {
-      if (score >= 90) distribution[0].value++;
-      else if (score >= 80) distribution[1].value++;
-      else if (score >= 60) distribution[2].value++;
-      else distribution[3].value++;
+    distribution.forEach(item => {
+      const bucket = item.bucket;
+      if (bucket === '90-100' || bucket === '90+') {
+        bucketMap['90-100'].value += item.count || 0;
+      } else if (bucket === '80-89' || bucket === '80-89') {
+        bucketMap['80-89'].value += item.count || 0;
+      } else if (bucket === '60-79' || bucket === '60-69' || bucket === '70-79') {
+        bucketMap['60-79'].value += item.count || 0;
+      } else if (bucket === '0-59' || bucket === '0-59') {
+        bucketMap['0-59'].value += item.count || 0;
+      }
     });
 
-    // 过滤掉数量为0的项
-    return distribution.filter(item => item.value > 0);
+    return Object.values(bucketMap).filter(item => item.value > 0);
   },
 
   onSelectClass(e) {

@@ -1,0 +1,129 @@
+<wxs module="utils" src="../../../lib/utils.wxs"></wxs>
+
+<view class="page theme-teacher-classes">
+  <view class="hero gradient-purple">
+    <view class="hero-title">{{studentName}}</view>
+    <view class="hero-subtitle">{{studentAccount}}</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <view wx:else class="fade-in">
+    <!-- 统计卡片 -->
+    <view class="stats-row">
+      <view class="stat-card">
+        <text class="stat-value">{{stats.totalHomeworks}}</text>
+        <text class="stat-label">作业总数</text>
+      </view>
+      <view class="stat-card green">
+        <text class="stat-value">{{stats.submittedCount}}</text>
+        <text class="stat-label">已提交</text>
+      </view>
+      <view class="stat-card orange">
+        <text class="stat-value">{{stats.completionRate}}%</text>
+        <text class="stat-label">完成率</text>
+      </view>
+    </view>
+
+    <!-- 详细统计 -->
+    <view class="section">
+      <view class="section-title">📊 学习统计</view>
+      <view class="grading-row">
+        <text class="grading-label">未提交</text>
+        <text class="grading-value">{{stats.unsubmittedCount}} 个</text>
+      </view>
+      <view class="grading-row">
+        <text class="grading-label">平均分</text>
+        <text class="grading-value">{{stats.averageScore || '--'}}</text>
+      </view>
+    </view>
+
+    <!-- 批量操作栏 -->
+    <view class="batch-actions-bar">
+      <view class="batch-info">
+        <text wx:if="{{selectedCount > 0}}" class="batch-count">已选择 {{selectedCount}} 项</text>
+        <text wx:else class="batch-hint">点击右侧「选择」进入批量操作模式</text>
+      </view>
+      <view class="batch-buttons">
+        <view
+          wx:if="{{selectedCount > 0}}"
+          class="batch-btn btn-danger"
+          catchtap="onBatchDelete"
+        >
+          删除
+        </view>
+        <view
+          wx:if="{{selectedCount > 0}}"
+          class="batch-btn btn-primary"
+          catchtap="onBatchExport"
+        >
+          导出
+        </view>
+        <view
+          wx:if="{{!selectMode}}"
+          class="batch-btn"
+          catchtap="onSelectMode"
+        >
+          选择
+        </view>
+        <view
+          wx:if="{{selectMode}}"
+          class="batch-btn"
+          catchtap="exitSelectMode"
+        >
+          取消
+        </view>
+      </view>
+    </view>
+
+    <!-- 最近提交 -->
+    <view class="section" wx:if="{{submissions.length > 0}}">
+      <view class="section-title">
+        📝 最近提交 ({{submissions.length}})
+      </view>
+
+      <view class="submission-list">
+        <view
+          wx:for="{{submissions}}"
+          wx:key="id"
+          class="submission-card {{selectMode ? 'select-mode' : ''}} {{item.selected ? 'selected' : ''}} fade-in"
+          style="animation-delay: {{index * 0.05}}s"
+          data-id="{{item.id}}"
+          bindtap="onSelectModeTap"
+        >
+          <view wx:if="{{selectMode}}" class="checkbox {{item.selected ? 'checked' : ''}}">
+            <text wx:if="{{item.selected}}">✓</text>
+          </view>
+          <view class="submission-content" catchtap="onViewSubmission" data-id="{{item.id}}">
+            <view class="submission-header">
+              <text class="submission-name">{{item.homeworkTitle || '作业'}}</text>
+              <text class="submission-arrow" wx:if="{{!selectMode}}">›</text>
+            </view>
+            <text class="submission-score" wx:if="{{item.totalScore !== null}}">得分: {{item.totalScore}}</text>
+            <text class="submission-time" wx:if="{{item.submittedAt}}">{{utils.formatDateTime(item.submittedAt)}}</text>
+          </view>
+          <view class="status-tag {{item.status}}" catchtap="onViewSubmission" data-id="{{item.id}}">
+            {{utils.getSubmissionStatusText(item.status)}}
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view wx:if="{{submissions.length === 0}}" class="empty">
+      <text class="empty-icon">📝</text>
+      <text class="empty-title">暂无提交记录</text>
+      <text class="empty-text">该学生还没有提交任何作业</text>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="actions">
+      <button class="btn btn-primary" bindtap="onViewHomeworks">查看班级作业</button>
+    </view>
+  </view>
+
+  <!-- 确认删除弹窗（优化版 - 使用wx.showModal替代自定义弹窗） -->
+</view>

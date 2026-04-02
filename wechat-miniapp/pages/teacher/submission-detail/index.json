@@ -1,4 +1,1 @@
-{
-  "usingComponents": {},
-  "navigationBarTitleText": "提交详情"
-}
+{"usingComponents": {}, "navigationBarTitleText": "提交详情", "navigationBarBackgroundColor": "#0891b2", "navigationBarTextStyle": "white", "enablePullDownRefresh": true, "backgroundTextStyle": "dark"}

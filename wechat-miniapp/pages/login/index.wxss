@@ -126,7 +126,7 @@
   margin-top: 16rpx;
 }
 
-.btn-login[disabled] {
+.btn-login-disabled {
   opacity: 0.6;
 }
 

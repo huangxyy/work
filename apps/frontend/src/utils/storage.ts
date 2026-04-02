@@ -4,7 +4,7 @@
  * 封装 localStorage 和 sessionStorage 操作，提供类型安全的存储 API。
  */
 
-import type { UserRole, AuthUser } from '../api/client';
+import type { AuthUser } from '../api/client';
 
 /**
  * 存储类型

@@ -353,8 +353,8 @@ describe('HomeworksService', () => {
       expect(result).toHaveLength(2);
 
       const hw1 = result.find((r: any) => r.id === 'hw-1')!;
-      expect(hw1.totalStudents).toBe(30);
-      expect(hw1.submittedStudents).toBe(2);
+      expect(hw1.studentCount).toBe(30);
+      expect(hw1.submissionCount).toBe(2);
       expect(hw1.pendingStudents).toBe(28);
       expect(hw1.doneCount).toBe(10);
       expect(hw1.failedCount).toBe(2);
@@ -364,7 +364,7 @@ describe('HomeworksService', () => {
       expect(hw1.allowLateSubmission).toBe(false);
 
       const hw2 = result.find((r: any) => r.id === 'hw-2')!;
-      expect(hw2.submittedStudents).toBe(1);
+      expect(hw2.submissionCount).toBe(1);
       expect(hw2.pendingStudents).toBe(29);
       expect(hw2.doneCount).toBe(5);
     });

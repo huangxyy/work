@@ -12,7 +12,7 @@ describe('ClassesService', () => {
   const mockAdmin = { id: 'admin-1', role: Role.ADMIN, account: 'admin1', name: 'Admin' };
   const mockStudent = { id: 'student-1', role: Role.STUDENT, account: 'student1', name: 'Student' };
 
-  const mockClass = { id: 'class-1', name: 'Test Class', grade: '5' };
+  const mockClass = { id: 'class-1', name: 'Test Class', grade: '5', createdAt: new Date(), teachers: [], _count: { enrolls: 0 } };
 
   beforeEach(async () => {
     prisma = {
@@ -330,7 +330,7 @@ describe('ClassesService', () => {
       );
 
       expect(result.failed).toHaveLength(1);
-      expect(result.failed[0].error).toContain('not a student');
+      expect(result.failed[0].error).toContain('不是学生账号');
     });
 
     it('should fail accounts with invalid characters', async () => {
@@ -357,7 +357,7 @@ describe('ClassesService', () => {
       );
 
       expect(result.failed).toHaveLength(1);
-      expect(result.failed[0].error).toContain('name is required');
+      expect(result.failed[0].error).toContain('需要提供学生姓名');
     });
 
     it('should handle database errors during user creation gracefully', async () => {

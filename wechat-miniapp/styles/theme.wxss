@@ -4,8 +4,8 @@ page {
   --secondary-purple: #764ba2;
   --primary-pink: #f093fb;
   --secondary-pink: #f5576c;
-  --primary-blue: #4facfe;
-  --secondary-blue: #00f2fe;
+  --primary-blue: #0891b2;
+  --secondary-blue: #06b6d4;
   --primary-green: #43e97b;
   --secondary-green: #38f9d7;
   --primary-orange: #fa709a;
@@ -68,4 +68,42 @@ page {
 .theme-login {
   --gradient-primary: linear-gradient(135deg, var(--primary-purple) 0%, var(--secondary-purple) 100%);
   --color-primary: var(--primary-purple);
+}
+
+/* ===== Teacher Page Themes ===== */
+
+/* 页面主题色 - 老师仪表盘 (青色渐变) */
+.theme-dashboard {
+  --gradient-primary: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  --color-primary: #0891b2;
+}
+
+/* 页面主题色 - 老师作业 (青色) */
+.theme-teacher-homeworks {
+  --gradient-primary: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  --color-primary: #0891b2;
+}
+
+/* 页面主题色 - 老师班级 (深紫渐变) */
+.theme-teacher-classes {
+  --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  --color-primary: #7c3aed;
+}
+
+/* 页面主题色 - 老师提交详情 (青色) */
+.theme-teacher-submission {
+  --gradient-primary: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  --color-primary: #0891b2;
+}
+
+/* 页面主题色 - 老师公告 (橙粉渐变) */
+.theme-teacher-announcements {
+  --gradient-primary: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  --color-primary: #fa709a;
+}
+
+/* 页面主题色 - 老师评分设置 (绿色) */
+.theme-teacher-grading {
+  --gradient-primary: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  --color-primary: #43e97b;
 }

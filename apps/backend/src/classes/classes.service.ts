@@ -47,11 +47,22 @@ export class ClassesService {
   async listClasses(user: AuthUser) {
     const startedAt = Date.now();
     if (user.role === Role.ADMIN) {
-      const items = await this.prisma.class.findMany({
-        include: { teachers: { select: { id: true, name: true, account: true } } },
+      const classes = await this.prisma.class.findMany({
+        include: { 
+          teachers: { select: { id: true, name: true, account: true } },
+          _count: { select: { enrolls: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 500,
       });
+      const items = classes.map(c => ({
+        id: c.id,
+        name: c.name,
+        grade: c.grade,
+        createdAt: c.createdAt,
+        teachers: c.teachers,
+        studentCount: c._count.enrolls,
+      }));
       this.logger.debug(
         `Classes listed role=${user.role} returned=${items.length} durationMs=${Date.now() - startedAt}`,
       );
@@ -59,12 +70,23 @@ export class ClassesService {
     }
 
     if (user.role === Role.TEACHER) {
-      const items = await this.prisma.class.findMany({
+      const classes = await this.prisma.class.findMany({
         where: { teachers: { some: { id: user.id } } },
-        include: { teachers: { select: { id: true, name: true, account: true } } },
+        include: { 
+          teachers: { select: { id: true, name: true, account: true } },
+          _count: { select: { enrolls: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 500,
       });
+      const items = classes.map(c => ({
+        id: c.id,
+        name: c.name,
+        grade: c.grade,
+        createdAt: c.createdAt,
+        teachers: c.teachers,
+        studentCount: c._count.enrolls,
+      }));
       this.logger.debug(
         `Classes listed role=${user.role} userId=${user.id} returned=${items.length} durationMs=${Date.now() - startedAt}`,
       );

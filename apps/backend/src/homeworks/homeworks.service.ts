@@ -145,6 +145,79 @@ export class HomeworksService {
     };
   }
 
+  async getHomeworkById(homeworkId: string, user: AuthUser) {
+    const startedAt = Date.now();
+    await this.ensureHomeworkAccess(homeworkId, user);
+    
+    const homeworkDetail = await this.prisma.homework.findUnique({
+      where: { id: homeworkId },
+      include: {
+        class: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!homeworkDetail) {
+      throw new NotFoundException('作业不存在');
+    }
+
+    const [totalStudents, statusGroups, studentGroups, lateSubmissionMap] = await Promise.all([
+      this.prisma.enrollment.count({ where: { classId: homeworkDetail.classId } }),
+      this.prisma.submission.groupBy({
+        by: ['homeworkId', 'status'],
+        where: { homeworkId },
+        _count: { _all: true },
+      }),
+      this.prisma.submission.groupBy({
+        by: ['homeworkId', 'studentId'],
+        where: { homeworkId },
+        _count: { _all: true },
+      }),
+      this.getLateSubmissionMap([homeworkId]),
+    ]);
+
+    const counts = { total: 0, queued: 0, processing: 0, done: 0, failed: 0 };
+    for (const group of statusGroups) {
+      const count = group._count._all;
+      counts.total += count;
+      if (group.status === 'QUEUED') {
+        counts.queued += count;
+      } else if (group.status === 'PROCESSING') {
+        counts.processing += count;
+      } else if (group.status === 'DONE') {
+        counts.done += count;
+      } else if (group.status === 'FAILED') {
+        counts.failed += count;
+      }
+    }
+
+    const submittedStudents = studentGroups.length;
+    const pendingStudents = Math.max(0, totalStudents - submittedStudents);
+
+    const result = {
+      ...homeworkDetail,
+      allowLateSubmission: lateSubmissionMap.get(homeworkId) === true,
+      studentCount: totalStudents,
+      submissionCount: submittedStudents,
+      pendingStudents,
+      submissionsTotal: counts.total,
+      queuedCount: counts.queued,
+      processingCount: counts.processing,
+      doneCount: counts.done,
+      failedCount: counts.failed,
+    };
+
+    this.logger.debug(
+      `Homework fetched by id homeworkId=${homeworkId} userId=${user.id} durationMs=${Date.now() - startedAt}`,
+    );
+
+    return result;
+  }
+
   async listByClass(classId: string, user: AuthUser) {
     const startedAt = Date.now();
     await this.ensureClassAccess(classId, user);
@@ -249,8 +322,8 @@ export class HomeworksService {
         desc: homework.desc,
         dueAt: homework.dueAt,
         createdAt: homework.createdAt,
-        totalStudents,
-        submittedStudents,
+        studentCount: totalStudents,
+        submissionCount: submittedStudents,
         pendingStudents,
         submissionsTotal: counts.total,
         queuedCount: counts.queued,
