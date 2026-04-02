@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "gradient-button": "/components/gradient-button/index"
+  },
+  "navigationBarTitleText": "我的"
+}
