@@ -1,0 +1,57 @@
+<view class="upload-result-page">
+  <view wx:if="{{!batch}}" class="loading">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:else>
+    <view class="summary-card">
+      <view class="summary-item">
+        <text class="summary-label">总图片</text>
+        <text class="summary-value">{{batch.totalImages}}</text>
+      </view>
+      <view class="summary-item">
+        <text class="summary-label">已匹配</text>
+        <text class="summary-value success">{{batch.matchedImages}}</text>
+      </view>
+      <view class="summary-item">
+        <text class="summary-label">未匹配</text>
+        <text class="summary-value warning">{{batch.unmatchedCount}}</text>
+      </view>
+      <view class="summary-item">
+        <text class="summary-label">创建提交</text>
+        <text class="summary-value">{{batch.createdSubmissions}}</text>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-title">提交列表</view>
+      <view class="submission-list">
+        <view
+          wx:for="{{batch.submissions}}"
+          wx:key="id"
+          class="submission-item"
+          data-id="{{item.id}}"
+          bindtap="onViewSubmission"
+        >
+          <view class="submission-header">
+            <text class="student-name">{{item.studentName}}</text>
+            <text class="status status-{{item.status}}">{{getSubmissionStatusText(item.status)}}</text>
+          </view>
+          <view wx:if="{{item.totalScore}}" class="submission-score">
+            得分：{{item.totalScore}}
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{batch.skipped && batch.skipped.length > 0}}" class="section">
+      <view class="section-title">跳过列表</view>
+      <view class="skipped-list">
+        <view wx:for="{{batch.skipped}}" wx:key="file" class="skipped-item">
+          <text class="file-name">{{item.file}}</text>
+          <text class="skip-reason">{{getSkipReasonText(item.reason)}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
