@@ -108,18 +108,19 @@ pnpm --filter frontend test -- path/to/file.test.ts
 
 ## WeChat Mini-Program
 
-Located in `wechat-miniapp/` - Independent WeChat mini-program for students with **Rainbow World** theme design.
+Located in `wechat-miniapp/` - Independent WeChat mini-program with **Rainbow World** theme design. Supports both **Student** and **Teacher** roles.
 
 ### Design System
 
 - **Theme**: Rainbow World (活泼有趣风格) - colorful gradients, rounded corners, playful animations
-- **Page Themes**: Each page has a unique gradient color scheme (purple, pink, blue, green, orange, teal-pink)
+- **Page Themes**: Each page has a unique gradient color scheme
 - **Style Files**:
   - `styles/theme.wxss` - CSS variables and theme definitions
   - `styles/components.wxss` - Reusable components (buttons, cards, tags)
+  - `styles/teacher.wxss` - Teacher-specific styles
   - `styles/animations.wxss` - Animation effects (fadeIn, scaleIn, spin, pulse)
 
-### Pages
+### Student Pages
 
 - `pages/login/` - Student login (purple welcome theme)
 - `pages/homeworks/` - Homework list (purple gradient)
@@ -131,9 +132,35 @@ Located in `wechat-miniapp/` - Independent WeChat mini-program for students with
 - `pages/messages/` - Notifications (orange-pink gradient)
 - `pages/report/` - Learning reports (teal-pink gradient)
 
+### Teacher Pages
+
+- `pages/teacher/homeworks/` - Homework management (cyan gradient)
+- `pages/teacher/homework-detail/` - Homework detail with submissions (cyan gradient)
+- `pages/teacher/homework-edit/` - Create/edit homework (cyan gradient)
+- `pages/teacher/classes/` - Class management (purple gradient)
+- `pages/teacher/submission-detail/` - Submission grading details (purple gradient)
+- `pages/teacher/report/` - Class learning reports (orange-yellow gradient)
+- `pages/teacher/student-submissions/` - Student submission overview
+- `pages/teacher/upload-result/` - Batch upload results
+- `pages/teacher/messages/` - Announcements
+- `pages/teacher/grading-settings/` - Grading policy settings
+
 ### Components
 
 - `components/gradient-button/` - Gradient button component
+- `components/chart-card/` - Chart component for reports (ECharts)
+- `components/loading-skeleton/` - Skeleton loading component
+- `components/empty-state/` - Empty state with action guidance
+
+### Utility Libraries
+
+- `lib/request.js` - HTTP request wrapper with auth handling
+- `lib/auth.js` - Authentication state management
+- `lib/config.js` - Configuration management
+- `lib/cache.js` - Data caching with expiration
+- `lib/error-handler.js` - Unified error handling
+- `lib/performance.js` - Performance monitoring
+- `lib/utils.wxs` - WXS helper functions (formatting, status text)
 
 ### Documentation
 

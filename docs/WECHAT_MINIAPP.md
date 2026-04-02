@@ -1,6 +1,6 @@
 # 微信小程序说明
 
-本文档面向仓库维护者和后续接手同学，说明 Homework AI 中独立微信小程序学生端的定位、目录、导入方式与联调注意事项。
+本文档面向仓库维护者和后续接手同学，说明 Homework AI 中独立微信小程序的定位、目录、导入方式与联调注意事项。
 
 ## 目录位置
 
@@ -17,6 +17,15 @@ work/wechat-miniapp
 
 这个小程序目录是**独立实现**，不会混入 `apps/*`，便于使用微信开发者工具直接导入、调试和后续迭代。
 
+## 角色支持
+
+小程序支持两种用户角色：
+
+| 角色 | 登录入口 | 功能范围 |
+|------|----------|----------|
+| 学生 | `pages/login/` | 作业查看、提交、查看批改结果、学习报告 |
+| 教师 | 同一登录页，根据角色自动跳转 | 班级管理、作业管理、批改查看、学习报告 |
+
 ## 设计系统：Rainbow World 主题
 
 小程序采用 **Rainbow World** 彩虹世界设计系统，提供活泼有趣的视觉体验：
@@ -25,29 +34,57 @@ work/wechat-miniapp
 
 每个页面拥有独特的渐变色主题：
 
+#### 学生端页面
+
 | 页面 | 主题色 | CSS 类 |
 |------|--------|--------|
+| 登录页 | 紫色欢迎主题 | `.theme-login` |
 | 作业列表 | 紫色系 `#667eea → #764ba2` | `.theme-homeworks` |
 | 提交作业 | 粉红系 `#f093fb → #f5576c` | `.theme-submit` |
 | 批改结果 | 蓝色系 `#4facfe → #00f2fe` | `.theme-result` |
+| 提交记录 | 蓝色系 | `.theme-result` |
+| 作业详情 | 紫色系 | `.theme-homeworks` |
 | 个人中心 | 绿色系 `#43e97b → #38f9d7` | `.theme-profile` |
 | 消息通知 | 橙粉系 `#fa709a → #fee140` | `.theme-messages` |
-| 学习报告 | 青粉系 `#a8edea → #fed6e3` | `.theme-report` |
-| 作业详情 | 紫色系 | `.theme-homeworks` |
-| 提交记录 | 蓝色系 | `.theme-result` |
-| 登录页 | 紫色欢迎主题 | `.theme-login` |
+| 学习报告 | 青粉系 | `.theme-report` |
+
+#### 教师端页面
+
+| 页面 | 主题色 | CSS 类 |
+|------|--------|--------|
+| 作业管理 | 青色系 `#0891b2 → #06b6d4` | `.theme-teacher-homeworks` |
+| 作业详情 | 青色系 | `.theme-teacher-homeworks` |
+| 作业编辑 | 青色系 | `.theme-teacher-homeworks` |
+| 班级管理 | 紫色系 `#7c3aed → #a855f7` | `.theme-teacher-classes` |
+| 提交详情 | 紫色系 | `.theme-teacher-submission` |
+| 学习报告 | 橙黄系 `#fa709a → #fee140` | `.theme-report` |
 
 ### 样式文件
 
 - `styles/theme.wxss` - CSS 变量定义和主题色
 - `styles/components.wxss` - 可复用组件样式（按钮、卡片、标签等）
+- `styles/teacher.wxss` - 教师端专用样式
 - `styles/animations.wxss` - 动画效果（fadeIn, scaleIn, spin, pulse）
 
 ### 组件
 
 - `components/gradient-button` - 渐变按钮组件
+- `components/chart-card` - 图表组件（用于学习报告，基于 ECharts）
+- `components/loading-skeleton` - 骨架屏加载组件
+- `components/empty-state` - 空状态引导组件
 
-## 当前覆盖的学生端能力
+### 工具库
+
+- `lib/request.js` - HTTP 请求封装，含认证处理
+- `lib/auth.js` - 认证状态管理
+- `lib/config.js` - 配置管理
+- `lib/cache.js` - 数据缓存（支持过期检测）
+- `lib/error-handler.js` - 统一错误处理
+- `lib/performance.js` - 性能监控
+- `lib/utils.wxs` - WXS 辅助函数（格式化、状态文本等）
+- `lib/help.js` - 页面帮助提示系统
+
+## 学生端功能
 
 - 学生账号登录
 - 作业列表与作业详情
@@ -60,23 +97,53 @@ work/wechat-miniapp
 - 学习报告 PDF 导出与小程序内打开
 - 个人中心 API 地址切换、登录状态同步与本地草稿清理
 
+## 教师端功能
+
+- 教师账号登录（与学生共用登录页，自动识别角色）
+- 班级管理：查看班级列表、学生列表
+- 作业管理：创建、编辑、查看作业
+- 作业详情：查看提交统计、学生提交列表
+- 提交详情：查看 OCR 识别文字、评分详情、错误类型统计
+- 学习报告：班级整体数据、分数分布、提交趋势图表
+- 批量上传：拍照上传学生作业
+
 ## 页面结构
 
-当前已注册页面如下：
+### 学生端页面
 
-- `pages/login/index`
-- `pages/homeworks/index`
-- `pages/submissions/index`
-- `pages/report/index`
-- `pages/homework-detail/index`
-- `pages/submit/index`
-- `pages/submission-result/index`
-- `pages/profile/index`
+- `pages/login/index` - 登录页
+- `pages/homeworks/index` - 作业列表
+- `pages/homework-detail/index` - 作业详情
+- `pages/submit/index` - 提交作业
+- `pages/submission-result/index` - 批改结果
+- `pages/submissions/index` - 提交记录
+- `pages/report/index` - 学习报告
+- `pages/profile/index` - 个人中心
+- `pages/change-password/index` - 修改密码
 
-TabBar 页面：
+### 教师端页面
 
+- `pages/teacher/homeworks/index` - 作业管理
+- `pages/teacher/homework-detail/index` - 作业详情
+- `pages/teacher/homework-edit/index` - 作业编辑
+- `pages/teacher/classes/index` - 班级管理
+- `pages/teacher/submission-detail/index` - 提交详情
+- `pages/teacher/report/index` - 学习报告
+- `pages/teacher/student-submissions/index` - 学生提交概览
+- `pages/teacher/upload-result/index` - 批量上传结果
+- `pages/teacher/messages/index` - 公告管理
+- `pages/teacher/grading-settings/index` - 批改设置
+
+### TabBar 配置
+
+学生端 TabBar：
 - 作业
 - 提交
+- 我的
+
+教师端 TabBar：
+- 作业
+- 班级
 - 我的
 
 ## 导入微信开发者工具
@@ -96,7 +163,7 @@ TabBar 页面：
 导入步骤：
 
 1. 打开微信开发者工具
-2. 选择“导入项目”
+2. 选择"导入项目"
 3. 项目目录选择 `d:\work\wechat-miniapp`
 4. AppID 保持游客模式或替换成真实小程序 AppID
 5. 完成导入并编译
@@ -173,7 +240,7 @@ http://192.168.1.10:3000/api
 | 教师 | teacher01 | 123456 |
 | 学生 | student01 | 123456 |
 
-**注意**：小程序只允许学生账号登录。教师和管理员请使用 Web 端。
+**注意**：小程序支持学生和教师账号登录。管理员请使用 Web 端。
 
 ## 关键实现约定
 
@@ -183,6 +250,13 @@ http://192.168.1.10:3000/api
 - 用户：`auth_user`
 
 定义文件：`wechat-miniapp/lib/auth.js`
+
+### 角色识别
+
+登录成功后，根据 `user.role` 自动跳转：
+
+- `STUDENT` → 学生端 TabBar 首页
+- `TEACHER` → 教师端 TabBar 首页
 
 ### 通用设置存储
 
@@ -209,7 +283,7 @@ http://192.168.1.10:3000/api
 
 提交页会把 1-3 张图片拼成**单个 multipart/form-data 请求**发给后端，而不是逐张上传。
 
-这样可以与后端 `FilesInterceptor` 保持一致，避免出现“一张图变成一条提交记录”的问题。
+这样可以与后端 `FilesInterceptor` 保持一致，避免出现"一张图变成一条提交记录"的问题。
 
 相关文件：
 
@@ -239,7 +313,7 @@ http://192.168.1.10:3000/api
 - `pages/homeworks/index`
 - `pages/submissions/index`
 
-当筛选条件导致列表为空时，页面空态里也会直接提供“重置筛选”入口。
+当筛选条件导致列表为空时，页面空态里也会直接提供"重置筛选"入口。
 
 ### 学习报告空态策略
 
@@ -247,6 +321,17 @@ http://192.168.1.10:3000/api
 
 - 直接回到作业页继续提交
 - 一键扩大统计时间范围
+
+## 数据一致性
+
+小程序端与 Web 端共享同一套后端 API，数据结构保持一致。关键字段映射：
+
+| 后端返回 | 小程序使用 | 说明 |
+|----------|-----------|------|
+| `submission.student.name` | `submission.student.name` | 学生姓名 |
+| `submission.student.account` | `submission.student.account` | 学生账号 |
+| `submission.createdAt` | `submission.createdAt` | 提交时间 |
+| `submission.totalScore` | `submission.totalScore` | 总分 |
 
 ## 常见联调问题
 
@@ -282,6 +367,14 @@ pnpm dev:worker
 - 当前登录 Token 是否有效
 - 当前调试环境是否支持 `wx.openDocument`
 
+### 页面内容显示不全
+
+检查页面布局是否正确使用了 `view` 而非 `scroll-view` 作为根容器。小程序页面应使用自然滚动，而非固定高度的 scroll-view。
+
+### 图表不显示
+
+检查 `components/chart-card` 组件是否正确引入 ECharts，以及数据格式是否符合要求。
+
 ## 推荐阅读顺序
 
 如果你是第一次接手这个小程序，建议按下面顺序阅读：
@@ -290,7 +383,8 @@ pnpm dev:worker
 2. `docs/API.md`
 3. `docs/DEVELOPMENT.md`
 4. `wechat-miniapp/lib/request.js`
-5. `wechat-miniapp/pages/submit/index.js`
+5. `wechat-miniapp/lib/auth.js`
+6. `wechat-miniapp/pages/submit/index.js`
 
 ## 相关文档
 
