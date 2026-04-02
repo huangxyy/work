@@ -1,9 +1,17 @@
 @import "../../../styles/teacher.wxss";
 
+.page {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 32rpx;
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
+
 .trend-list {
   background: #f8fafc;
   border-radius: 12rpx;
   padding: 8rpx;
+  margin-bottom: 32rpx;
 }
 
 .trend-item {

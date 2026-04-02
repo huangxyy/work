@@ -6,5 +6,6 @@
   },
   "navigationBarTitleText": "学习报告",
   "enablePullDownRefresh": true,
-  "backgroundTextStyle": "dark"
+  "backgroundTextStyle": "dark",
+  "disableScroll": false
 }
