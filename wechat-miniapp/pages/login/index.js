@@ -4,17 +4,20 @@ const { getApiBaseUrl, setApiBaseUrl } = require('../../lib/config');
 const { showToast, showLoading, hideLoading } = require('../../lib/ui');
 const { pickErrorMessage } = require('../../lib/utils');
 
-function navigateAfterLogin(path) {
-  if (!path || path === '/pages/homeworks/index') {
-    wx.switchTab({ url: '/pages/homeworks/index' });
+function navigateAfterLogin(user, path) {
+  const defaultPath = user.role === 'TEACHER'
+    ? '/pages/teacher/homeworks/index'
+    : '/pages/homeworks/index';
+  if (!path || path === '/pages/homeworks/index' || path === '/pages/teacher/homeworks/index') {
+    wx.switchTab({ url: defaultPath });
     return;
   }
   if (path === '/pages/submissions/index') {
     wx.switchTab({ url: '/pages/submissions/index' });
     return;
   }
-  if (path === '/pages/profile/index') {
-    wx.switchTab({ url: '/pages/profile/index' });
+  if (path === '/pages/profile/index' || path === '/pages/teacher/profile/index') {
+    wx.switchTab({ url: user.role === 'TEACHER' ? '/pages/teacher/profile/index' : '/pages/profile/index' });
     return;
   }
   wx.reLaunch({ url: path });
@@ -36,8 +39,8 @@ Page({
     });
     const token = getToken();
     const user = getUser();
-    if (token && user && user.role === 'STUDENT') {
-      navigateAfterLogin(from || '/pages/homeworks/index');
+    if (token && user) {
+      navigateAfterLogin(user, from || (user.role === 'TEACHER' ? '/pages/teacher/homeworks/index' : '/pages/homeworks/index'));
     }
   },
   handleApiBaseUrlInput(event) {
@@ -85,18 +88,14 @@ Page({
     showLoading('登录中');
     try {
       const response = await login(account, password);
-      if (!response || !response.user || response.user.role !== 'STUDENT') {
-        clearSession();
-        const app = getApp();
-        if (app && typeof app.refreshSession === 'function') {
-          app.refreshSession();
-        }
-        showToast('当前首版仅支持学生账号');
+      if (!response || !response.user) {
+        showToast('登录失败，请稍后重试');
         return;
       }
+      const { user } = response;
       showToast('登录成功', 'success');
       setTimeout(() => {
-        navigateAfterLogin(this.data.from || '/pages/homeworks/index');
+        navigateAfterLogin(user, this.data.from || '/pages/homeworks/index');
       }, 280);
     } catch (error) {
       showToast(pickErrorMessage(error, '登录失败，请稍后重试'));

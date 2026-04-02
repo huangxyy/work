@@ -10,7 +10,7 @@
 
   <!-- Login Card -->
   <view class="login-card">
-    <view class="card-title">学生登录</view>
+    <view class="card-title">登录</view>
 
     <!-- API Configuration -->
     <view class="form-section">
@@ -37,7 +37,11 @@
     <view class="login-tips">
       <view class="tip-item">
         <text class="tip-icon">💡</text>
-        <text class="tip-text">测试账号: student01</text>
+        <text class="tip-text">学生账号: student01</text>
+      </view>
+      <view class="tip-item">
+        <text class="tip-icon">👨‍🏫</text>
+        <text class="tip-text">老师账号: teacher01</text>
       </view>
       <view class="tip-item">
         <text class="tip-icon">🔑</text>
