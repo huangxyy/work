@@ -1,5 +1,12 @@
 @import "../../../styles/teacher.wxss";
 
+.page {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding: 32rpx;
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
+
 .hero {
   margin: -32rpx -32rpx 24rpx -32rpx;
 }
