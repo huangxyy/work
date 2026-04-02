@@ -1,0 +1,48 @@
+<view class="submission-detail-page">
+  <view wx:if="{{!submission}}" class="loading">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:else>
+    <view class="info-card">
+      <view class="info-row">
+        <text class="label">学生</text>
+        <text class="value">{{submission.studentName}}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">账号</text>
+        <text class="value">{{submission.studentAccount}}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">状态</text>
+        <text class="status status-{{submission.status}}">{{getSubmissionStatusText(submission.status)}}</text>
+      </view>
+      <view wx:if="{{submission.totalScore !== null}}" class="info-row">
+        <text class="label">得分</text>
+        <text class="value score">{{submission.totalScore}}</text>
+      </view>
+    </view>
+
+    <view class="section" wx:if="{{submission.images && submission.images.length > 0}}">
+      <view class="section-title">作业图片</view>
+      <view class="image-list">
+        <view
+          wx:for="{{submission.images}}"
+          wx:key="id"
+          class="image-item"
+          data-url="{{item.url}}"
+          bindtap="onViewImage"
+        >
+          <image src="{{item.url}}" mode="aspectFill" />
+        </view>
+      </view>
+    </view>
+
+    <view class="section" wx:if="{{submission.gradingJson}}">
+      <view class="section-title">评分详情</view>
+      <view class="grading-content">
+        <text>{{submission.gradingJson}}</text>
+      </view>
+    </view>
+  </view>
+</view>
