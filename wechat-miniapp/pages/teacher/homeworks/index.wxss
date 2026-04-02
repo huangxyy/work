@@ -61,3 +61,41 @@
   background: rgba(255, 255, 255, 0.4);
 }
 
+.loading-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32rpx;
+}
+
+.loading-more .loading-spinner {
+  width: 40rpx;
+  height: 40rpx;
+  border: 4rpx solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-more .loading-text {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
+.no-more {
+  text-align: center;
+  padding: 32rpx;
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+

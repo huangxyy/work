@@ -24,6 +24,10 @@ Page({
     closedCount: 0,
     filteredHomeworks: [],
     isInitialLoad: true,
+    page: 1,
+    pageSize: 20,
+    hasMore: true,
+    loadingMore: false,
   },
 
   onLoad() {
@@ -99,8 +103,9 @@ Page({
     }
   },
 
-  async loadHomeworks() {
-    const { selectedClassId } = this.data;
+  async loadHomeworks(refresh = false) {
+    const { selectedClassId, page, pageSize, loadingMore, hasMore } = this.data;
+    
     if (!selectedClassId) {
       this.setData({
         homeworks: [],
@@ -112,16 +117,37 @@ Page({
       return;
     }
 
-    this.setData({ loading: true, error: '' });
+    if (loadingMore || (!refresh && !hasMore)) return;
+
+    if (refresh) {
+      this.setData({ 
+        page: 1, 
+        hasMore: true, 
+        homeworks: [],
+        loading: true 
+      });
+    } else {
+      this.setData({ loadingMore: true });
+    }
+
+    this.setData({ error: '' });
     
     const startTime = Date.now();
     
     try {
-      const homeworks = await fetchHomeworks({ classId: selectedClassId });
+      const homeworks = await fetchHomeworks({ 
+        classId: selectedClassId,
+        page: refresh ? 1 : page,
+        pageSize 
+      });
 
       const validHomeworks = Array.isArray(homeworks) ? homeworks : [];
 
-      this.setData({ homeworks: validHomeworks }, () => {
+      this.setData({ 
+        homeworks: refresh ? validHomeworks : [...this.data.homeworks, ...validHomeworks],
+        page: (refresh ? 1 : page) + 1,
+        hasMore: validHomeworks.length === pageSize
+      }, () => {
         this.calculateStats();
         this.applyFilter();
       });
@@ -129,13 +155,24 @@ Page({
       const duration = Date.now() - startTime;
       performance.recordPageLoad('homeworks', duration);
       
-      cache.set(`homeworks_${selectedClassId}`, validHomeworks, 5 * 60 * 1000);
+      if (refresh) {
+        cache.set(`homeworks_${selectedClassId}`, validHomeworks, 5 * 60 * 1000);
+      }
     } catch (error) {
       errorHandler.handle(error, {
-        onRetry: () => this.loadHomeworks()
+        onRetry: () => this.loadHomeworks(refresh)
       });
     } finally {
-      this.setData({ loading: false });
+      this.setData({ 
+        loading: false,
+        loadingMore: false
+      });
+    }
+  },
+
+  onReachBottom() {
+    if (this.data.hasMore && !this.data.loadingMore) {
+      this.loadHomeworks();
     }
   },
 

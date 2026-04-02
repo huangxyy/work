@@ -116,6 +116,15 @@
           </text>
         </view>
       </view>
+
+      <view wx:if="{{loadingMore}}" class="loading-more">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">加载中...</text>
+      </view>
+
+      <view wx:elif="{{!hasMore && filteredHomeworks.length > 0}}" class="no-more">
+        <text>没有更多了</text>
+      </view>
     </view>
   </view>
 
