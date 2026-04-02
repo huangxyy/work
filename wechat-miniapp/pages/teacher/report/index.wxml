@@ -1,0 +1,42 @@
+<view class="report-page">
+  <view class="filters">
+    <picker mode="selector" range="{{classes}}" range-key="name" value="{{selectedClassId}}" bindchange="onClassChange">
+      <view class="filter-item">
+        <text>班级：{{classes.find(c => c.id === selectedClassId)?.name || '选择'}}</text>
+      </view>
+    </picker>
+    <picker mode="selector" range="{{[7, 14, 30]}}" bindchange="onRangeChange">
+      <view class="filter-item">
+        <text>范围：{{rangeDays}} 天</text>
+      </view>
+    </picker>
+  </view>
+
+  <view wx:if="{{report}}" class="stats">
+    <view class="stat-card">
+      <text class="stat-value">{{report.totalStudents || 0}}</text>
+      <text class="stat-label">学生总数</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value">{{report.summary?.count || 0}}</text>
+      <text class="stat-label">提交数</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value">{{report.submissionRate ? (report.submissionRate * 100).toFixed(1) : 0}}%</text>
+      <text class="stat-label">提交率</text>
+    </view>
+  </view>
+
+  <view wx:if="{{report && report.trend}}" class="section">
+    <view class="section-title">提交趋势</view>
+    <view class="trend-list">
+      <view wx:for="{{report.trend}}" wx:key="date" class="trend-item">
+        <text class="trend-date">{{item.date}}</text>
+        <view class="trend-values">
+          <text class="trend-avg">平均分: {{item.avg}}</text>
+          <text class="trend-count">数量: {{item.count}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
