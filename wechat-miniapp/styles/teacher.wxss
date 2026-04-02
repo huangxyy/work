@@ -1,0 +1,132 @@
+/* styles/teacher.wxss */
+
+:root {
+  --teacher-primary: #10b981;
+  --teacher-primary-dark: #059669;
+  --teacher-blue: #3b82f6;
+  --teacher-blue-dark: #2563eb;
+  --teacher-orange: #f59e0b;
+  --teacher-orange-dark: #d97706;
+  --teacher-cyan: #06b6d4;
+  --teacher-cyan-dark: #0891b2;
+}
+
+.teacher-login-bg {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.teacher-homeworks-bg {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.teacher-capture-bg {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.teacher-report-bg {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+}
+
+.teacher-profile-bg {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.teacher-card {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+}
+
+.teacher-list-item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.teacher-list-item:last-child {
+  border-bottom: none;
+}
+
+.status-tag {
+  display: inline-block;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+}
+
+.status-tag.done {
+  background: #e6f4ea;
+  color: #10b981;
+}
+
+.status-tag.processing {
+  background: #e8f4fd;
+  color: #3b82f6;
+}
+
+.status-tag.failed {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.status-tag.queued {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+  padding: 16rpx;
+}
+
+.photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12rpx;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.photo-item image {
+  width: 100%;
+  height: 100%;
+}
+
+.photo-item .remove-btn {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  width: 40rpx;
+  height: 40rpx;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 24rpx;
+}
+
+.match-result-card {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin: 16rpx;
+}
+
+.match-result-card.matched {
+  border-left: 4rpx solid #10b981;
+}
+
+.match-result-card.unmatched {
+  border-left: 4rpx solid #f59e0b;
+}
+
+.match-result-card.skipped {
+  border-left: 4rpx solid #ef4444;
+}
