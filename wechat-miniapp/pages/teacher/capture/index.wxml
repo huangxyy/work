@@ -1,15 +1,32 @@
-<view class="capture-page">
-  <view class="mode-selector" bindtap="onModeChange">
-    <text class="mode-label">评分模式：</text>
-    <text class="mode-value">{{mode === 'cheap' ? '快速评分' : '详细评分'}}</text>
+<view class="page theme-teacher-homeworks">
+  <view class="hero gradient-orange">
+    <view class="hero-header">
+      <view class="hero-title">📸 批量上传</view>
+      <view class="hero-help" bindtap="onShowHelp">?</view>
+    </view>
+    <view class="hero-subtitle">拍照识别学生作业，快速批量提交</view>
   </view>
 
-  <view class="homework-selector" bindtap="onHomeworkChange">
-    <text class="homework-label">目标作业：</text>
-    <text class="homework-value">{{selectedHomeworkTitle}}</text>
+  <view class="selector-section">
+    <view class="selector-row" bindtap="onClassChange">
+      <text class="selector-label">选择班级</text>
+      <text class="selector-value">{{selectedClassName}} ▾</text>
+    </view>
+    <view class="selector-row" bindtap="onHomeworkChange">
+      <text class="selector-label">目标作业</text>
+      <text class="selector-value">{{selectedHomeworkTitle}} ▾</text>
+    </view>
+    <view class="selector-row" bindtap="onModeChange">
+      <text class="selector-label">评分模式</text>
+      <text class="selector-value mode-{{mode}}">{{mode === 'cheap' ? '快速评分' : '详细评分'}} ▾</text>
+    </view>
   </view>
 
-  <view class="photo-preview">
+  <view class="photo-section">
+    <view class="section-header">
+      <text class="section-title">作业图片</text>
+      <text class="section-count">{{images.length}}/9</text>
+    </view>
     <view class="photo-grid">
       <view wx:for="{{images}}" wx:key="index" class="photo-item">
         <image src="{{item.path}}" mode="aspectFill" />
@@ -22,24 +39,45 @@
   </view>
 
   <view class="actions">
-    <gradient-button bindtap="onPreview" disabled="{{images.length === 0 || uploading}}">
-      识别并上传
-    </gradient-button>
+    <button class="btn btn-primary" bindtap="onPreview" disabled="{{images.length === 0 || uploading}}">
+      {{uploading ? '上传中...' : '识别并上传'}}
+    </button>
   </view>
 
   <view class="selector-modal" wx:if="{{showModeSelector}}" bindtap="onCloseModeSelector">
     <view class="selector-content" catchtap="">
       <view class="selector-title">选择评分模式</view>
-      <view class="selector-options">
+      <view class="selector-list">
         <view class="selector-option" data-mode="cheap" bindtap="onSelectMode">
-          <text class="option-name">快速评分</text>
-          <text class="option-desc">速度快，适合批量处理</text>
+          <text class="selector-option-name">快速评分</text>
+          <text class="selector-option-desc">速度快，适合批量处理</text>
         </view>
         <view class="selector-option" data-mode="quality" bindtap="onSelectMode">
-          <text class="option-name">详细评分</text>
-          <text class="option-desc">评分详细，包含改写建议</text>
+          <text class="selector-option-name">详细评分</text>
+          <text class="selector-option-desc">评分详细，包含改写建议</text>
         </view>
       </view>
+    </view>
+  </view>
+
+  <view class="selector-modal" wx:if="{{showClassSelector}}" bindtap="onCloseClassSelector">
+    <view class="selector-content" catchtap="">
+      <view class="selector-title">选择班级</view>
+      <scroll-view class="selector-list" scroll-y>
+        <view
+          wx:for="{{classes}}"
+          wx:key="id"
+          wx:for-index="idx"
+          wx:for-item="cls"
+          class="selector-option"
+          data-id="{{cls.id}}"
+          data-index="{{idx}}"
+          bindtap="onSelectClass"
+        >
+          <text class="selector-option-name">{{cls.name}}</text>
+          <text class="selector-option-desc">{{cls.studentCount || 0}} 人</text>
+        </view>
+      </scroll-view>
     </view>
   </view>
 
@@ -54,8 +92,8 @@
           data-id="{{item.id}}"
           bindtap="onSelectHomework"
         >
-          <text class="option-name">{{item.title}}</text>
-          <text class="option-desc">{{item.dueAt}}</text>
+          <text class="selector-option-name">{{item.title}}</text>
+          <text class="selector-option-desc">截止: {{item.dueAt || '无'}}</text>
         </view>
       </scroll-view>
     </view>

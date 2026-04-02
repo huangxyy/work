@@ -1,6 +1,7 @@
 {
   "usingComponents": {
-    "gradient-button": "/components/gradient-button/index"
+    "gradient-button": "/components/gradient-button/index",
+    "empty-state": "/components/empty-state/index"
   },
   "navigationBarTitleText": "拍照上传"
 }
