@@ -1,7 +1,7 @@
-<view class="profile-page">
-  <view class="user-card">
+<view class="page theme-profile">
+  <view class="user-card fade-in">
     <view class="user-avatar">
-      <text class="avatar-text">{{avatarText}}</text>
+      <text class="user-avatar-text">{{avatarText}}</text>
     </view>
     <view class="user-info">
       <text class="user-name">{{userName}}</text>
@@ -9,7 +9,17 @@
     </view>
   </view>
 
-  <view class="menu-list">
+  <view class="menu-list fade-in">
+    <view class="menu-item" bindtap="onGradingSettings">
+      <text class="menu-icon">⚙️</text>
+      <text class="menu-label">评分设置</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="onClassManage">
+      <text class="menu-icon">🏫</text>
+      <text class="menu-label">班级管理</text>
+      <text class="menu-arrow">›</text>
+    </view>
     <view class="menu-item" bindtap="onChangePassword">
       <text class="menu-icon">🔒</text>
       <text class="menu-label">修改密码</text>
@@ -18,6 +28,6 @@
   </view>
 
   <view class="logout-section">
-    <gradient-button bindtap="onLogout">退出登录</gradient-button>
+    <button class="btn btn-danger" bindtap="onLogout">退出登录</button>
   </view>
 </view>

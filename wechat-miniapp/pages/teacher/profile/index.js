@@ -1,6 +1,9 @@
 const { getUser } = require('../../../lib/auth');
 const { logout } = require('../../../services/auth');
 const { showToast } = require('../../../lib/ui');
+const errorHandler = require('../../../lib/error-handler');
+const cache = require('../../../lib/cache');
+const { showHelp } = require('../../../lib/help');
 
 Page({
   data: {
@@ -53,4 +56,29 @@ Page({
   onChangePassword() {
     wx.navigateTo({ url: '/pages/change-password/index' });
   },
+
+  onGradingSettings() {
+    wx.navigateTo({ url: '/pages/teacher/grading-settings/index' });
+  },
+
+  onClassManage() {
+    wx.navigateTo({ url: '/pages/teacher/classes/index' });
+  },
+
+  onClearCache() {
+    const confirmed = wx.showModal({
+      title: '确认清理',
+      content: '确定要清理所有缓存数据吗？',
+      success: (res) => {
+        if (res.confirm) {
+          cache.clear();
+          showToast('缓存已清理', 'success');
+        }
+      }
+    });
+  },
+
+  onShowHelp() {
+    showHelp('profile');
+  }
 });
