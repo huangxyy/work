@@ -1,101 +1,81 @@
-<wxs module="utils">
-var getFirstChar = function(name) {
-  if (!name) return '?';
-  return name.charAt(0);
-};
-</wxs>
-<view class="page theme-homeworks safe-bottom">
-  <!-- 班级选择器 -->
-  <view class="class-selector-section fade-in">
-    <view class="section-label">选择班级</view>
-    <picker
-      wx:if="{{classes.length > 0}}"
-      mode="selector"
-      range="{{classes}}"
-      range-key="name"
-      value="{{selectedIndex}}"
-      bindchange="onClassChange"
-    >
-      <view class="class-picker">
-        <view class="picker-text">{{selectedClassName}}</view>
-        <view class="picker-arrow">▼</view>
-      </view>
-    </picker>
-    <view wx:else class="class-picker empty">
-      <view class="picker-text">暂无班级</view>
-    </view>
+<wxs module="utils" src="../../../lib/utils.wxs"></wxs>
+<scroll-view class="page theme-teacher-classes" scroll-y enhanced show-scrollbar="{{false}}" style="height: 100vh;">
+  <view class="hero gradient-purple">
+    <view class="hero-title">🏫 班级管理</view>
+    <view class="hero-subtitle">管理班级信息和学生</view>
   </view>
 
-  <!-- 加载状态 -->
-  <view wx:if="{{loading}}" class="loading-container">
-    <view class="spinner"></view>
+  <view class="teacher-filter-section">
+    <scroll-view class="teacher-filter-chips" scroll-x enable-flex>
+      <view
+        class="teacher-filter-chip {{selectedClassId === item.id ? 'active' : ''}}"
+        wx:for="{{classes}}"
+        wx:key="id"
+        bindtap="onClassSelect"
+        data-id="{{item.id}}"
+      >
+        {{item.name}}
+      </view>
+    </scroll-view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">
+    <view class="loading-spinner"></view>
     <view class="loading-text">加载中...</view>
   </view>
 
-  <!-- 班级详情 -->
-  <view wx:elif="{{classDetail}}" class="detail-section scale-in">
-    <!-- 班级信息卡片 -->
-    <view class="rainbow-card">
-      <view class="card-title">班级信息</view>
-      <view class="detail-row">
-        <text class="label">班级名称</text>
-        <text class="value">{{classDetail.name}}</text>
+  <view wx:elif="{{classDetail}}">
+    <view class="section">
+      <view class="section-title">班级信息</view>
+      <view class="grading-row">
+        <text class="grading-label">班级名称</text>
+        <text class="grading-value">{{classDetail.name}}</text>
       </view>
-      <view class="detail-row">
-        <text class="label">学生人数</text>
-        <text class="value highlight">{{classDetail.studentCount || 0}} 人</text>
+      <view class="grading-row">
+        <text class="grading-label">学生人数</text>
+        <text class="grading-value">{{studentCount}} 人</text>
       </view>
-      <view wx:if="{{classDetail.description}}" class="detail-row">
-        <text class="label">班级描述</text>
-        <text class="value">{{classDetail.description}}</text>
+      <view wx:if="{{classDetail.description}}" class="grading-row">
+        <text class="grading-label">班级描述</text>
+        <text class="grading-value">{{classDetail.description}}</text>
       </view>
     </view>
 
-    <!-- 快捷操作 -->
-    <view class="action-grid">
-      <view class="action-item" bindtap="goToClassHomeworks">
-        <view class="action-icon">📝</view>
-        <view class="action-label">班级作业</view>
+    <view class="stats-row">
+      <view class="stat-card stat-card-clickable" bindtap="goToClassHomeworks">
+        <text class="stat-value">📝</text>
+        <text class="stat-label">班级作业</text>
       </view>
-      <view class="action-item" bindtap="goToClassReport">
-        <view class="action-icon">📊</view>
-        <view class="action-label">学习报告</view>
+      <view class="stat-card green stat-card-clickable" bindtap="goToClassReport">
+        <text class="stat-value">📊</text>
+        <text class="stat-label">学习报告</text>
       </view>
     </view>
 
-    <!-- 学生列表 -->
-    <view class="student-section">
-      <view class="section-header">
-        <view class="section-title">学生列表</view>
-        <view class="section-count">{{studentCount}} 人</view>
+    <view class="section">
+      <view class="section-title">学生列表 ({{studentCount}})</view>
+
+      <view wx:if="{{loadingDetail}}" class="loading">
+        <view class="loading-spinner"></view>
       </view>
 
-      <!-- 加载详情 -->
-      <view wx:if="{{loadingDetail}}" class="loading-mini">
-        <view class="spinner-small"></view>
-      </view>
-
-      <!-- 学生列表 -->
-      <view wx:else class="student-list">
+      <view wx:else>
         <view
           wx:for="{{classDetail.students}}"
           wx:key="id"
-          class="student-item"
+          class="submission-card clickable-item"
           bindtap="onStudentTap"
-          data-student-id="{{item.id}}"
+          data-id="{{item.id}}"
+          data-name="{{item.name}}"
+          data-account="{{item.account}}"
         >
-          <view class="student-avatar">
-            <text class="avatar-text">{{utils.getFirstChar(item.name)}}</text>
+          <view class="submission-info">
+            <text class="submission-name">{{item.name}}</text>
+            <text class="submission-score">{{item.account}}</text>
           </view>
-          <view class="student-info">
-            <view class="student-name">{{item.name}}</view>
-            <view class="student-account">{{item.account}}</view>
-          </view>
-          <view class="student-arrow">›</view>
         </view>
 
-        <!-- 空状态 -->
-        <view wx:if="{{!classDetail.students || classDetail.students.length === 0}}" class="empty-students">
+        <view wx:if="{{!classDetail.students || classDetail.students.length === 0}}" class="empty">
           <view class="empty-icon">👥</view>
           <view class="empty-text">暂无学生</view>
         </view>
@@ -103,10 +83,9 @@ var getFirstChar = function(name) {
     </view>
   </view>
 
-  <!-- 空状态 -->
-  <view wx:elif="{{!loading && classes.length === 0}}" class="empty-container">
+  <view wx:elif="{{!loading && classes.length === 0}}" class="empty">
     <view class="empty-icon">🏫</view>
     <view class="empty-title">暂无班级</view>
     <view class="empty-text">请联系管理员分配班级</view>
   </view>
-</view>
+</scroll-view>

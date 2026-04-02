@@ -2,11 +2,14 @@
 @import "styles/components.wxss";
 @import "styles/animations.wxss";
 
+/* 全局 page 样式 - 基础设置 */
 page {
-  min-height: 100%;
+  min-height: 100vh;
+  height: auto;
   background: var(--bg-page);
   color: var(--text-primary);
   font-size: 28rpx;
+  overflow-x: hidden;
 }
 
 view, text, button, input, picker, switch, textarea {

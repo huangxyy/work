@@ -1,0 +1,51 @@
+<scroll-view class="change-password-page" scroll-y enhanced show-scrollbar="{{false}}" style="height: 100vh;">
+  <view class="form-card">
+    <view class="card-title">修改密码</view>
+
+    <view class="form-item">
+      <view class="form-label">当前密码</view>
+      <input
+        class="form-input"
+        password
+        placeholder="请输入当前密码"
+        value="{{oldPassword}}"
+        bindinput="onOldPasswordInput"
+      />
+    </view>
+
+    <view class="form-item">
+      <view class="form-label">新密码</view>
+      <input
+        class="form-input"
+        password
+        placeholder="至少8位，包含字母和数字"
+        value="{{newPassword}}"
+        bindinput="onNewPasswordInput"
+      />
+    </view>
+
+    <view class="form-item">
+      <view class="form-label">确认新密码</view>
+      <input
+        class="form-input"
+        password
+        placeholder="请再次输入新密码"
+        value="{{confirmPassword}}"
+        bindinput="onConfirmPasswordInput"
+      />
+    </view>
+
+    <view class="tips">
+      <text class="tip-title">密码要求：</text>
+      <text class="tip-item">• 至少8个字符</text>
+      <text class="tip-item">• 包含字母和数字</text>
+      <text class="tip-item">• 新旧密码不能相同</text>
+    </view>
+  </view>
+
+  <view class="button-group">
+    <button class="submit-btn" bindtap="onChangePassword" disabled="{{loading}}">
+      {{loading ? '修改中...' : '确认修改'}}
+    </button>
+  </view>
+</scroll-view>
