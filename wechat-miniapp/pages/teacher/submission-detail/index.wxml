@@ -1,3 +1,4 @@
+<wxs module="utils" src="../../../lib/utils.wxs"></wxs>
 <view class="submission-detail-page">
   <view wx:if="{{!submission}}" class="loading">
     <text>加载中...</text>
@@ -15,7 +16,7 @@
       </view>
       <view class="info-row">
         <text class="label">状态</text>
-        <text class="status status-{{submission.status}}">{{getSubmissionStatusText(submission.status)}}</text>
+        <text class="status status-{{submission.status}}">{{utils.getSubmissionStatusText(submission.status)}}</text>
       </view>
       <view wx:if="{{submission.totalScore !== null}}" class="info-row">
         <text class="label">得分</text>

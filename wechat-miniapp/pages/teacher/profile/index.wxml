@@ -1,11 +1,11 @@
 <view class="profile-page">
   <view class="user-card">
     <view class="user-avatar">
-      <text class="avatar-text">{{user?.name?.charAt(0) || '老'}}</text>
+      <text class="avatar-text">{{avatarText}}</text>
     </view>
     <view class="user-info">
-      <text class="user-name">{{user?.name || '老师'}}</text>
-      <text class="user-account">{{user?.account || ''}}</text>
+      <text class="user-name">{{userName}}</text>
+      <text class="user-account">{{userAccount}}</text>
     </view>
   </view>
 

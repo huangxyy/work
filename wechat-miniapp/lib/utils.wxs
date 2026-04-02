@@ -1,0 +1,68 @@
+var getHomeworkStatusText = function(status) {
+  var map = {
+    'DRAFT': '草稿',
+    'PUBLISHED': '已发布',
+    'CLOSED': '已关闭',
+  };
+  return map[status] || status;
+};
+
+var formatDate = function(dateStr) {
+  if (!dateStr) return '--';
+  var date = getDate(dateStr);
+  var year = date.getFullYear();
+  var month = date.getMonth() + 1;
+  var day = date.getDate();
+  if (month < 10) month = '0' + month;
+  if (day < 10) day = '0' + day;
+  return year + '-' + month + '-' + day;
+};
+
+var formatDateTime = function(dateStr) {
+  if (!dateStr) return '--';
+  var date = getDate(dateStr);
+  var year = date.getFullYear();
+  var month = date.getMonth() + 1;
+  var day = date.getDate();
+  var hour = date.getHours();
+  var minute = date.getMinutes();
+  if (month < 10) month = '0' + month;
+  if (day < 10) day = '0' + day;
+  if (hour < 10) hour = '0' + hour;
+  if (minute < 10) minute = '0' + minute;
+  return year + '-' + month + '-' + day + ' ' + hour + ':' + minute;
+};
+
+var getSubmissionStatusText = function(status) {
+  var map = {
+    'QUEUED': '排队中',
+    'PROCESSING': '处理中',
+    'DONE': '已完成',
+    'FAILED': '失败',
+  };
+  return map[status] || status;
+};
+
+var getSkipReasonText = function(reason) {
+  var map = {
+    'NON_IMAGE': '非图片文件',
+    'ACCOUNT_NOT_FOUND': '账号不存在',
+    'STUDENT_NOT_FOUND': '学生不存在',
+    'OCR_EMPTY': '无法识别文字',
+    'OCR_FAILED': 'OCR识别失败',
+    'AI_NO_MATCH': '无法匹配学生',
+    'AI_AMBIGUOUS': '匹配结果不明确',
+    'AI_PARSE_FAILED': 'AI解析失败',
+    'AI_NOT_CONFIGURED': 'AI未配置',
+    'AI_FAILED': 'AI处理失败',
+  };
+  return map[reason] || reason;
+};
+
+module.exports = {
+  getHomeworkStatusText: getHomeworkStatusText,
+  formatDate: formatDate,
+  formatDateTime: formatDateTime,
+  getSubmissionStatusText: getSubmissionStatusText,
+  getSkipReasonText: getSkipReasonText,
+};

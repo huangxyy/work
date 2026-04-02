@@ -2,7 +2,7 @@
   <view class="filters">
     <picker mode="selector" range="{{classes}}" range-key="name" value="{{selectedClassId}}" bindchange="onClassChange">
       <view class="filter-item">
-        <text>班级：{{classes.find(c => c.id === selectedClassId)?.name || '选择'}}</text>
+        <text>班级：{{selectedClassName}}</text>
       </view>
     </picker>
     <picker mode="selector" range="{{[7, 14, 30]}}" bindchange="onRangeChange">
@@ -18,11 +18,11 @@
       <text class="stat-label">学生总数</text>
     </view>
     <view class="stat-card">
-      <text class="stat-value">{{report.summary?.count || 0}}</text>
+      <text class="stat-value">{{submissionCount}}</text>
       <text class="stat-label">提交数</text>
     </view>
     <view class="stat-card">
-      <text class="stat-value">{{report.submissionRate ? (report.submissionRate * 100).toFixed(1) : 0}}%</text>
+      <text class="stat-value">{{submissionRateText}}</text>
       <text class="stat-label">提交率</text>
     </view>
   </view>

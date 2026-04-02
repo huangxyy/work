@@ -1,3 +1,9 @@
+<wxs module="utils">
+var getFirstChar = function(name) {
+  if (!name) return '?';
+  return name.charAt(0);
+};
+</wxs>
 <view class="page theme-homeworks safe-bottom">
   <!-- 班级选择器 -->
   <view class="class-selector-section fade-in">
@@ -11,7 +17,7 @@
       bindchange="onClassChange"
     >
       <view class="class-picker">
-        <view class="picker-text">{{classes[selectedIndex]?.name || '请选择班级'}}</view>
+        <view class="picker-text">{{selectedClassName}}</view>
         <view class="picker-arrow">▼</view>
       </view>
     </picker>
@@ -61,7 +67,7 @@
     <view class="student-section">
       <view class="section-header">
         <view class="section-title">学生列表</view>
-        <view class="section-count">{{classDetail.students?.length || 0}} 人</view>
+        <view class="section-count">{{studentCount}} 人</view>
       </view>
 
       <!-- 加载详情 -->
@@ -79,7 +85,7 @@
           data-student-id="{{item.id}}"
         >
           <view class="student-avatar">
-            <text class="avatar-text">{{item.name?.charAt(0) || '?'}}</text>
+            <text class="avatar-text">{{utils.getFirstChar(item.name)}}</text>
           </view>
           <view class="student-info">
             <view class="student-name">{{item.name}}</view>

@@ -5,14 +5,29 @@ const { showToast } = require('../../../lib/ui');
 Page({
   data: {
     user: null,
+    avatarText: '老',
+    userName: '老师',
+    userAccount: '',
   },
 
   onLoad() {
-    this.setData({ user: getUser() });
+    const user = getUser();
+    this.setData({
+      user,
+      avatarText: user && user.name ? user.name.charAt(0) : '老',
+      userName: user && user.name ? user.name : '老师',
+      userAccount: user && user.account ? user.account : '',
+    });
   },
 
   onShow() {
-    this.setData({ user: getUser() });
+    const user = getUser();
+    this.setData({
+      user,
+      avatarText: user && user.name ? user.name.charAt(0) : '老',
+      userName: user && user.name ? user.name : '老师',
+      userAccount: user && user.account ? user.account : '',
+    });
   },
 
   async onLogout() {

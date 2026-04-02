@@ -5,9 +5,13 @@ Page({
   data: {
     classes: [],
     selectedClassId: '',
+    selectedClassName: '选择班级',
     rangeDays: 7,
     report: null,
     loading: false,
+    // 计算属性用于 WXML 显示
+    submissionCount: 0,
+    submissionRateText: '0%',
   },
 
   onLoad() {
@@ -17,7 +21,9 @@ Page({
   async loadClasses() {
     try {
       const classes = await fetchClasses();
-      this.setData({ classes, selectedClassId: classes[0]?.id || '' });
+      const selectedClassId = classes[0]?.id || '';
+      const selectedClassName = classes[0]?.name || '选择班级';
+      this.setData({ classes, selectedClassId, selectedClassName });
       if (classes.length > 0) {
         this.loadReport();
       }
@@ -33,7 +39,10 @@ Page({
     this.setData({ loading: true });
     try {
       const report = await fetchClassReport(selectedClassId, rangeDays);
-      this.setData({ report });
+      const submissionCount = report.summary && report.summary.count ? report.summary.count : 0;
+      const submissionRate = report.submissionRate ? (report.submissionRate * 100).toFixed(1) : '0';
+      const submissionRateText = submissionRate + '%';
+      this.setData({ report, submissionCount, submissionRateText });
     } catch (error) {
       showToast('加载报告失败');
     } finally {
@@ -42,7 +51,10 @@ Page({
   },
 
   onClassChange(e) {
-    this.setData({ selectedClassId: e.detail.value });
+    const classId = e.detail.value;
+    const selectedClass = this.data.classes.find(c => c.id === classId);
+    const selectedClassName = selectedClass ? selectedClass.name : '选择班级';
+    this.setData({ selectedClassId: classId, selectedClassName });
     this.loadReport();
   },
 

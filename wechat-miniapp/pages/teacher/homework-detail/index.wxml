@@ -1,3 +1,4 @@
+<wxs module="utils" src="../../../lib/utils.wxs"></wxs>
 <view class="homework-detail-page">
   <view wx:if="{{loading}}" class="loading">
     <text>加载中...</text>
@@ -8,7 +9,7 @@
       <text class="homework-title">{{homework.title}}</text>
       <text class="homework-desc">{{homework.description || ''}}</text>
       <view class="homework-meta">
-        <text>截止：{{homework.dueAt ? formatDateTime(homework.dueAt) : '无'}}</text>
+        <text>截止：{{homework.dueAt ? utils.formatDateTime(homework.dueAt) : '无'}}</text>
         <text>提交：{{submissions.length}}/{{homework.studentCount || 0}}</text>
       </view>
     </view>
@@ -32,7 +33,7 @@
         >
           <view class="submission-header">
             <text class="student-name">{{item.studentName}}</text>
-            <text class="status status-{{item.status}}">{{getSubmissionStatusText(item.status)}}</text>
+            <text class="status status-{{item.status}}">{{utils.getSubmissionStatusText(item.status)}}</text>
           </view>
           <view wx:if="{{item.totalScore !== null}}" class="submission-score">
             得分：{{item.totalScore}}

@@ -1,8 +1,9 @@
+<wxs module="utils" src="../../../lib/utils.wxs"></wxs>
 <view class="teacher-homeworks-page">
   <view class="class-selector">
     <picker mode="selector" range="{{classes}}" range-key="name" value="{{selectedClassId}}" bindchange="onClassChange">
       <view class="picker-value">
-        {{classes.find(c => c.id === selectedClassId)?.name || '选择班级'}}
+        {{selectedClassName}}
       </view>
     </picker>
   </view>
@@ -26,10 +27,10 @@
       >
         <view class="homework-header">
           <text class="homework-title">{{item.title}}</text>
-          <text class="homework-status status-{{item.status}}">{{getHomeworkStatusText(item.status)}}</text>
+          <text class="homework-status status-{{item.status}}">{{utils.getHomeworkStatusText(item.status)}}</text>
         </view>
         <view class="homework-info">
-          <text>截止：{{formatDate(item.dueAt)}}</text>
+          <text>截止：{{utils.formatDate(item.dueAt)}}</text>
           <text>提交：{{item.submissionCount || 0}}/{{item.studentCount || 0}}</text>
         </view>
       </view>

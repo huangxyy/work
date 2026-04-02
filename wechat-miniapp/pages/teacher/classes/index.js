@@ -7,9 +7,11 @@ Page({
     classes: [],
     selectedClassId: '',
     selectedIndex: 0,
+    selectedClassName: '请选择班级',
     classDetail: null,
     loading: false,
     loadingDetail: false,
+    studentCount: 0,
   },
 
   onLoad() {
@@ -29,10 +31,13 @@ Page({
       const classes = await fetchClasses();
       const selectedClassId = this.data.selectedClassId || (classes.length > 0 ? classes[0].id : '');
       const selectedIndex = classes.findIndex(c => c.id === selectedClassId);
+      const selectedClass = classes[selectedIndex >= 0 ? selectedIndex : 0];
+      const selectedClassName = selectedClass ? selectedClass.name : '请选择班级';
       this.setData({
         classes,
-        selectedClassId: classes.length > 0 ? classes[selectedIndex >= 0 ? selectedIndex : 0].id : '',
+        selectedClassId: selectedClass ? selectedClass.id : '',
         selectedIndex: selectedIndex >= 0 ? selectedIndex : 0,
+        selectedClassName,
       });
       if (classes.length > 0) {
         this.loadClassDetail();
@@ -54,7 +59,9 @@ Page({
     this.setData({ loadingDetail: true });
     try {
       const classDetail = await fetchClassDetail(selectedClassId);
-      this.setData({ classDetail });
+      const students = classDetail.students || [];
+      const studentCount = students.length;
+      this.setData({ classDetail, studentCount });
     } catch (error) {
       showToast('加载班级详情失败');
     } finally {
@@ -69,6 +76,7 @@ Page({
       this.setData({
         selectedClassId: selectedClass.id,
         selectedIndex: index,
+        selectedClassName: selectedClass.name,
       });
       this.loadClassDetail();
     }

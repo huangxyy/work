@@ -8,6 +8,7 @@ Page({
     homeworks: [],
     classes: [],
     selectedClassId: '',
+    selectedClassName: '选择班级',
     loading: false,
   },
 
@@ -25,7 +26,9 @@ Page({
   async loadClasses() {
     try {
       const classes = await fetchClasses();
-      this.setData({ classes, selectedClassId: classes[0]?.id || '' });
+      const selectedClassId = classes[0]?.id || '';
+      const selectedClassName = classes[0]?.name || '选择班级';
+      this.setData({ classes, selectedClassId, selectedClassName });
     } catch (error) {
       console.error('加载班级失败:', error);
     }
@@ -45,7 +48,10 @@ Page({
   },
 
   onClassChange(e) {
-    this.setData({ selectedClassId: e.detail.value });
+    const classId = e.detail.value;
+    const selectedClass = this.data.classes.find(c => c.id === classId);
+    const selectedClassName = selectedClass ? selectedClass.name : '选择班级';
+    this.setData({ selectedClassId: classId, selectedClassName });
     this.loadHomeworks();
   },
 

@@ -8,6 +8,7 @@ Page({
     mode: 'cheap',
     images: [],
     selectedHomeworkId: '',
+    selectedHomeworkTitle: '请选择',
     homeworks: [],
     previewResult: null,
     showModeSelector: false,
@@ -22,7 +23,9 @@ Page({
   async loadHomeworks() {
     try {
       const homeworks = await fetchHomeworks();
-      this.setData({ homeworks, selectedHomeworkId: homeworks[0]?.id || '' });
+      const selectedHomeworkId = homeworks[0]?.id || '';
+      const selectedHomeworkTitle = homeworks[0]?.title || '请选择';
+      this.setData({ homeworks, selectedHomeworkId, selectedHomeworkTitle });
     } catch (error) {
       console.error('加载作业失败:', error);
     }
@@ -157,7 +160,9 @@ Page({
 
   onSelectHomework(e) {
     const { id } = e.currentTarget.dataset;
-    this.setData({ selectedHomeworkId: id, showHomeworkSelector: false });
+    const homework = this.data.homeworks.find(h => h.id === id);
+    const title = homework ? homework.title : '请选择';
+    this.setData({ selectedHomeworkId: id, selectedHomeworkTitle: title, showHomeworkSelector: false });
   },
 
   onCloseHomeworkSelector() {

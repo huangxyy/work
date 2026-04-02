@@ -1,3 +1,4 @@
+<wxs module="utils" src="../../../lib/utils.wxs"></wxs>
 <view class="upload-result-page">
   <view wx:if="{{!batch}}" class="loading">
     <text>加载中...</text>
@@ -35,7 +36,7 @@
         >
           <view class="submission-header">
             <text class="student-name">{{item.studentName}}</text>
-            <text class="status status-{{item.status}}">{{getSubmissionStatusText(item.status)}}</text>
+            <text class="status status-{{item.status}}">{{utils.getSubmissionStatusText(item.status)}}</text>
           </view>
           <view wx:if="{{item.totalScore}}" class="submission-score">
             得分：{{item.totalScore}}
@@ -49,7 +50,7 @@
       <view class="skipped-list">
         <view wx:for="{{batch.skipped}}" wx:key="file" class="skipped-item">
           <text class="file-name">{{item.file}}</text>
-          <text class="skip-reason">{{getSkipReasonText(item.reason)}}</text>
+          <text class="skip-reason">{{utils.getSkipReasonText(item.reason)}}</text>
         </view>
       </view>
     </view>
