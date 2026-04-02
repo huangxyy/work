@@ -1,0 +1,42 @@
+<view class="teacher-homeworks-page">
+  <view class="class-selector">
+    <picker mode="selector" range="{{classes}}" range-key="name" value="{{selectedClassId}}" bindchange="onClassChange">
+      <view class="picker-value">
+        {{classes.find(c => c.id === selectedClassId)?.name || '选择班级'}}
+      </view>
+    </picker>
+  </view>
+
+  <view class="homework-list">
+    <view wx:if="{{loading}}" class="loading">
+      <text>加载中...</text>
+    </view>
+
+    <view wx:elif="{{homeworks.length === 0}}" class="empty">
+      <text>暂无作业</text>
+    </view>
+
+    <view wx:else>
+      <view
+        wx:for="{{homeworks}}"
+        wx:key="id"
+        class="homework-item"
+        data-id="{{item.id}}"
+        bindtap="onHomeworkTap"
+      >
+        <view class="homework-header">
+          <text class="homework-title">{{item.title}}</text>
+          <text class="homework-status status-{{item.status}}">{{getHomeworkStatusText(item.status)}}</text>
+        </view>
+        <view class="homework-info">
+          <text>截止：{{formatDate(item.dueAt)}}</text>
+          <text>提交：{{item.submissionCount || 0}}/{{item.studentCount || 0}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="add-btn" bindtap="onAddHomework">
+    <text>+</text>
+  </view>
+</view>
