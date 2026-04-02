@@ -8,7 +8,15 @@
     "pages/submit/index",
     "pages/submission-result/index",
     "pages/profile/index",
-    "pages/messages/index"
+    "pages/messages/index",
+    "pages/teacher/homeworks/index",
+    "pages/teacher/capture/index",
+    "pages/teacher/upload-result/index",
+    "pages/teacher/homework-detail/index",
+    "pages/teacher/submission-detail/index",
+    "pages/teacher/report/index",
+    "pages/teacher/classes/index",
+    "pages/teacher/profile/index"
   ],
   "window": {
     "backgroundTextStyle": "light",
