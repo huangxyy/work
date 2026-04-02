@@ -1,0 +1,46 @@
+<view class="page">
+  <view class="page-header">
+    <text class="page-title">{{isEditMode ? '编辑作业' : '创建作业'}}</text>
+  </view>
+
+  <view class="form-section">
+    <view class="form-item">
+      <view class="form-label">选择班级 <text class="required">*</text></view>
+      <picker mode="selector" range="{{classes}}" range-key="name" value="{{selectedClassIndex}}" bindchange="onClassChange">
+        <view class="form-picker">
+          <text class="form-picker-text">{{selectedClassName}}</text>
+          <text class="form-picker-arrow">▾</text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <view class="form-label">作业标题 <text class="required">*</text></view>
+      <input class="form-input" placeholder="请输入作业标题" value="{{title}}" bindinput="onTitleInput" maxlength="255" />
+      <view class="form-hint">{{title.length}}/255</view>
+    </view>
+
+    <view class="form-item">
+      <view class="form-label">作业描述</view>
+      <textarea class="form-textarea" placeholder="请输入作业描述（选填）" value="{{description}}" bindinput="onDescriptionInput" maxlength="5000" />
+      <view class="form-hint">{{description.length}}/5000</view>
+    </view>
+
+    <view class="form-item">
+      <view class="form-label">截止时间</view>
+      <picker mode="date" value="{{dueAt}}" start="2024-01-01" end="2026-12-31" bindchange="onDateChange">
+        <view class="form-picker">
+          <text class="form-picker-text">{{dueAtText}}</text>
+          <text class="form-picker-arrow">📅</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="button-group">
+    <button class="btn btn-secondary" bindtap="onCancel" disabled="{{loading}}">取消</button>
+    <button class="btn btn-primary" bindtap="onSave" disabled="{{loading}}">
+      {{loading ? '保存中...' : '保存'}}
+    </button>
+  </view>
+</view>
