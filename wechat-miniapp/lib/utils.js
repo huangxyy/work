@@ -71,10 +71,33 @@ function pickErrorMessage(error, fallback) {
   return fallback;
 }
 
+function debounce(fn, delay = 300) {
+  let timer = null;
+  return function(...args) {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  };
+}
+
+function throttle(fn, delay = 300) {
+  let lastTime = 0;
+  return function(...args) {
+    const now = Date.now();
+    if (now - lastTime >= delay) {
+      fn.apply(this, args);
+      lastTime = now;
+    }
+  };
+}
+
 module.exports = {
   formatDateTime,
   getHomeworkStatus,
   getSubmissionStatus,
   safeJsonParse,
   pickErrorMessage,
+  debounce,
+  throttle,
 };
