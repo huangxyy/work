@@ -65,13 +65,25 @@
   box-shadow: var(--shadow-card);
 }
 
+.info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+  padding-bottom: 12rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
 .info-title {
   font-size: 28rpx;
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 16rpx;
-  padding-bottom: 12rpx;
-  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.info-action {
+  font-size: 26rpx;
+  color: #f59e0b;
+  font-weight: 500;
 }
 
 .info-row {
@@ -266,4 +278,84 @@
 .empty-text {
   font-size: 26rpx;
   color: var(--text-muted);
+}
+
+.empty-hint {
+  font-size: 26rpx;
+  color: #f59e0b;
+  margin-top: 16rpx;
+}
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  width: 80%;
+  max-width: 600rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 32rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.modal-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.modal-close {
+  font-size: 40rpx;
+  color: var(--text-muted);
+  padding: 8rpx;
+}
+.modal-body {
+  padding: 24rpx 32rpx;
+}
+.modal-hint {
+  font-size: 24rpx;
+  color: var(--text-muted);
+  margin-bottom: 16rpx;
+}
+.modal-textarea {
+  width: 100%;
+  height: 300rpx;
+  padding: 16rpx;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+.modal-footer {
+  display: flex;
+  border-top: 1rpx solid #f0f0f0;
+}
+.modal-btn {
+  flex: 1;
+  padding: 24rpx;
+  text-align: center;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+.modal-btn.cancel {
+  color: var(--text-secondary);
+  border-right: 1rpx solid #f0f0f0;
+}
+.modal-btn.confirm {
+  color: #f59e0b;
 }

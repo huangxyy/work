@@ -543,15 +543,22 @@ export class SubmissionsService {
       throw new NotFoundException('班级不存在或无权访问');
     }
 
-    // 验证学生是否在该班级
+    // 验证学生是否在该班级并获取学生信息
     const enrollment = await this.prisma.enrollment.findFirst({
       where: { classId, studentId },
-      select: { id: true },
+      select: { 
+        id: true,
+        student: {
+          select: { id: true, name: true, account: true },
+        },
+      },
     });
 
     if (!enrollment) {
       throw new NotFoundException('学生不在该班级中');
     }
+
+    const student = enrollment.student;
 
     // 获取班级的所有作业
     const homeworks = await this.prisma.homework.findMany({
@@ -570,7 +577,10 @@ export class SubmissionsService {
       this.logger.debug(
         `Student submissions by class studentId=${studentId} classId=${classId} returned=0 durationMs=${Date.now() - startedAt}`,
       );
-      return [];
+      return {
+        student: { id: student.id, name: student.name, account: student.account },
+        submissions: [],
+      };
     }
 
     const homeworkIds = homeworks.map((h) => h.id);
@@ -638,7 +648,10 @@ export class SubmissionsService {
       `Student submissions by class studentId=${studentId} classId=${classId} homeworks=${homeworks.length} submissions=${submissions.length} durationMs=${Date.now() - startedAt}`,
     );
 
-    return result;
+    return {
+      student: { id: student.id, name: student.name, account: student.account },
+      submissions: result,
+    };
   }
 
   async exportHomeworkCsv(homeworkId: string, user: AuthUser, lang?: string) {

@@ -50,17 +50,32 @@
 
     <!-- 图片上传区 -->
     <view class="upload-section fade-in">
-      <view wx:if="{{files.length === 0}}" class="upload-area" bindtap="chooseImages">
+      <view wx:if="{{files.length === 0}}" class="upload-area-empty">
         <view class="upload-icon">📷</view>
-        <view class="upload-hint">点击上传作业照片</view>
+        <view class="upload-hint">上传作业照片</view>
         <view class="upload-subhint">最多3张，单张不超过10MB</view>
+        <view class="upload-buttons">
+          <button class="btn-upload btn-camera" bindtap="takePhoto">
+            <view class="btn-icon">📸</view>
+            <view class="btn-text">拍照</view>
+          </button>
+          <button class="btn-upload btn-album" bindtap="chooseFromAlbum">
+            <view class="btn-icon">🖼️</view>
+            <view class="btn-text">相册</view>
+          </button>
+        </view>
       </view>
 
       <view wx:else class="image-preview-grid">
         <view wx:for="{{files}}" wx:key="path" class="image-preview-item" style="background-image: url({{item.path}}); background-size: cover; background-position: center;" data-path="{{item.path}}" bindtap="previewImage">
           <view class="image-remove" catchtap="removeImage" data-index="{{index}}">×</view>
         </view>
-        <view wx:if="{{files.length < 3}}" class="image-preview-item image-preview-add" bindtap="chooseImages">+</view>
+        <view wx:if="{{files.length < 3}}" class="image-preview-item image-preview-add">
+          <view class="add-buttons">
+            <view class="add-btn" bindtap="takePhoto">📸</view>
+            <view class="add-btn" bindtap="chooseFromAlbum">🖼️</view>
+          </view>
+        </view>
       </view>
       <view class="upload-tip">建议上传清晰、平整、光线充足的作文照片</view>
     </view>

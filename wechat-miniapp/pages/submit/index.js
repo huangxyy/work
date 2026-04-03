@@ -267,7 +267,115 @@ Page({
     showToast('已清空草稿', 'success');
   },
 
-  // 选择图片（带压缩）
+  // 从相册选择图片
+  async chooseFromAlbum() {
+    const remain = 3 - this.data.files.length;
+    if (remain <= 0) {
+      showToast('最多上传 3 张图片');
+      return;
+    }
+
+    wx.chooseImage({
+      count: remain,
+      sizeType: ['original'],
+      sourceType: ['album'],
+      success: async (res) => {
+        wx.showLoading({ title: '处理中...' });
+
+        try {
+          const tempFiles = res.tempFiles || res.tempFilePaths.map((path) => ({ path, size: 0 }));
+          const nextFiles = tempFiles.map(mapTempFile);
+
+          const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
+          if (invalid) {
+            wx.hideLoading();
+            showToast('单张图片不能超过 10MB');
+            return;
+          }
+
+          const compressedPaths = await imageCompressor.compressImages(
+            nextFiles.map((f) => f.path),
+            80,
+            1200
+          );
+
+          const compressedFiles = nextFiles.map((file, index) => ({
+            ...file,
+            path: compressedPaths[index] || file.path,
+          }));
+
+          const persistedFiles = await Promise.all(compressedFiles.map((item) => persistFile(item)));
+          this.setData({
+            files: this.data.files.concat(persistedFiles).slice(0, 3),
+          }, () => {
+            this.persistDraft(`已保存图片草稿（${this.data.files.length} 张）`);
+          });
+        } catch (err) {
+          console.error('图片处理失败:', err);
+          wx.hideLoading();
+          showToast('图片处理失败，请重试');
+        }
+
+        wx.hideLoading();
+      },
+    });
+  },
+
+  // 拍照
+  async takePhoto() {
+    const remain = 3 - this.data.files.length;
+    if (remain <= 0) {
+      showToast('最多上传 3 张图片');
+      return;
+    }
+
+    wx.chooseImage({
+      count: remain,
+      sizeType: ['original'],
+      sourceType: ['camera'],
+      success: async (res) => {
+        wx.showLoading({ title: '处理中...' });
+
+        try {
+          const tempFiles = res.tempFiles || res.tempFilePaths.map((path) => ({ path, size: 0 }));
+          const nextFiles = tempFiles.map(mapTempFile);
+
+          const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
+          if (invalid) {
+            wx.hideLoading();
+            showToast('单张图片不能超过 10MB');
+            return;
+          }
+
+          const compressedPaths = await imageCompressor.compressImages(
+            nextFiles.map((f) => f.path),
+            80,
+            1200
+          );
+
+          const compressedFiles = nextFiles.map((file, index) => ({
+            ...file,
+            path: compressedPaths[index] || file.path,
+          }));
+
+          const persistedFiles = await Promise.all(compressedFiles.map((item) => persistFile(item)));
+          this.setData({
+            files: this.data.files.concat(persistedFiles).slice(0, 3),
+          }, () => {
+            this.persistDraft(`已保存图片草稿（${this.data.files.length} 张）`);
+          });
+        } catch (err) {
+          console.error('图片处理失败:', err);
+          wx.hideLoading();
+          showToast('图片处理失败，请重试');
+        }
+
+        wx.hideLoading();
+      },
+    });
+  },
+
+  // 选择图片（兼容旧调用，同时支持相册和相机）
   async chooseImages() {
     const remain = 3 - this.data.files.length;
     if (remain <= 0) {
@@ -286,7 +394,6 @@ Page({
           const tempFiles = res.tempFiles || res.tempFilePaths.map((path) => ({ path, size: 0 }));
           const nextFiles = tempFiles.map(mapTempFile);
 
-          // 检查文件大小
           const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
           if (invalid) {
             wx.hideLoading();
@@ -294,14 +401,12 @@ Page({
             return;
           }
 
-          // 压缩图片
           const compressedPaths = await imageCompressor.compressImages(
             nextFiles.map((f) => f.path),
             80,
             1200
           );
 
-          // 更新文件路径为压缩后的路径
           const compressedFiles = nextFiles.map((file, index) => ({
             ...file,
             path: compressedPaths[index] || file.path,

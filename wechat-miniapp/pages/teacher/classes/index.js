@@ -1,5 +1,5 @@
-const { fetchClasses, fetchClassStudents } = require('../../../services/teacher');
-const { showToast, showLoading, hideLoading } = require('../../../lib/ui');
+const { fetchClasses, fetchClassStudents, deleteClass, importStudents, removeStudent } = require('../../../services/teacher');
+const { showToast, showLoading, hideLoading, showConfirm } = require('../../../lib/ui');
 const { ensureLogin } = require('../../../lib/page');
 
 Page({
@@ -12,7 +12,10 @@ Page({
     loading: false,
     loadingDetail: false,
     studentCount: 0,
-    isLoadingDetail: false, // 防止重复加载
+    isLoadingDetail: false,
+    showStudentModal: false,
+    studentInputText: '',
+    showClassActions: false,
   },
 
   onLoad() {
@@ -70,13 +73,11 @@ Page({
 
     this.setData({ isLoadingDetail: true, loadingDetail: true });
     try {
-      // 获取班级基本信息（从已加载的列表中）
       const classInfo = classes.find(c => c.id === selectedClassId);
       if (!classInfo) {
         showToast('班级信息错误');
         return;
       }
-      // 获取学生列表
       const students = await fetchClassStudents(selectedClassId);
       const studentCount = students ? students.length : 0;
       this.setData({
@@ -121,7 +122,6 @@ Page({
     }
   },
 
-  // 查看学生详情
   onStudentTap(e) {
     const { id, name, account } = e.currentTarget.dataset;
     const { selectedClassId } = this.data;
@@ -138,7 +138,6 @@ Page({
     }
   },
 
-  // 跳转到班级作业
   goToClassHomeworks() {
     const { selectedClassId, selectedClassName } = this.data;
     
@@ -164,6 +163,127 @@ Page({
     getApp().globalData.selectedClassId = selectedClassId;
     wx.switchTab({
       url: '/pages/teacher/report/index',
+    });
+  },
+
+  showClassActionSheet() {
+    const { selectedClassId } = this.data;
+    if (!selectedClassId) {
+      showToast('请先选择班级');
+      return;
+    }
+    wx.showActionSheet({
+      itemList: ['导入学生', '删除班级'],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          this.openStudentModal();
+        } else if (res.tapIndex === 1) {
+          this.confirmDeleteClass();
+        }
+      },
+    });
+  },
+
+  openStudentModal() {
+    this.setData({ showStudentModal: true, studentInputText: '' });
+  },
+
+  closeStudentModal() {
+    this.setData({ showStudentModal: false, studentInputText: '' });
+  },
+
+  onStudentInputChange(e) {
+    this.setData({ studentInputText: e.detail.value });
+  },
+
+  async confirmImportStudents() {
+    const { selectedClassId, studentInputText } = this.data;
+    if (!studentInputText.trim()) {
+      showToast('请输入学生信息');
+      return;
+    }
+
+    const lines = studentInputText.trim().split('\n');
+    const students = lines
+      .map(line => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          return { name: parts[0], account: parts[1] };
+        } else if (parts.length === 1 && parts[0]) {
+          return { name: parts[0], account: parts[0] };
+        }
+        return null;
+      })
+      .filter(s => s !== null);
+
+    if (students.length === 0) {
+      showToast('请输入有效的学生信息');
+      return;
+    }
+
+    showLoading('导入中...');
+    try {
+      await importStudents(selectedClassId, students);
+      showToast('导入成功');
+      this.closeStudentModal();
+      this.loadClassDetail();
+    } catch (error) {
+      console.error('导入学生失败:', error);
+      showToast('导入失败');
+    } finally {
+      hideLoading();
+    }
+  },
+
+  async confirmDeleteClass() {
+    const { selectedClassId, selectedClassName } = this.data;
+    
+    wx.showModal({
+      title: '删除班级',
+      content: `确定要删除班级"${selectedClassName}"吗？此操作不可恢复。`,
+      confirmColor: '#ef4444',
+      success: async (res) => {
+        if (res.confirm) {
+          showLoading('删除中...');
+          try {
+            await deleteClass(selectedClassId);
+            showToast('删除成功');
+            this.setData({ selectedClassId: '', classDetail: null });
+            this.loadClasses();
+          } catch (error) {
+            console.error('删除班级失败:', error);
+            showToast('删除失败');
+          } finally {
+            hideLoading();
+          }
+        }
+      },
+    });
+  },
+
+  async onRemoveStudent(e) {
+    const { id, name } = e.currentTarget.dataset;
+    const { selectedClassId } = this.data;
+    
+    wx.showModal({
+      title: '移除学生',
+      content: `确定要将"${name}"从班级中移除吗？`,
+      confirmColor: '#ef4444',
+      success: async (res) => {
+        if (res.confirm) {
+          showLoading('移除中...');
+          try {
+            await removeStudent(selectedClassId, id);
+            showToast('移除成功');
+            this.loadClassDetail();
+          } catch (error) {
+            console.error('移除学生失败:', error);
+            showToast('移除失败');
+          } finally {
+            hideLoading();
+          }
+        }
+      },
     });
   },
 });

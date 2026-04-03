@@ -1,6 +1,5 @@
 const { request } = require('../lib/request');
 
-// 构建带查询参数的 URL
 function buildUrlWithQuery(baseUrl, params) {
   if (!params || Object.keys(params).length === 0) {
     return baseUrl;
@@ -19,10 +18,40 @@ async function fetchClasses() {
   });
 }
 
+async function createClass(data) {
+  return request({
+    url: '/classes',
+    method: 'POST',
+    data,
+  });
+}
+
+async function deleteClass(classId) {
+  return request({
+    url: `/classes/${classId}`,
+    method: 'DELETE',
+  });
+}
+
 async function fetchClassStudents(classId) {
   return request({
     url: `/classes/${classId}/students`,
     method: 'GET',
+  });
+}
+
+async function importStudents(classId, students) {
+  return request({
+    url: `/classes/${classId}/students`,
+    method: 'POST',
+    data: { students },
+  });
+}
+
+async function removeStudent(classId, studentId) {
+  return request({
+    url: `/classes/${classId}/students/${studentId}`,
+    method: 'DELETE',
   });
 }
 
@@ -189,7 +218,11 @@ async function regradeSubmission(submissionId, data) {
 
 module.exports = {
   fetchClasses,
+  createClass,
+  deleteClass,
   fetchClassStudents,
+  importStudents,
+  removeStudent,
   fetchHomeworks,
   fetchHomeworkById,
   createHomework,
