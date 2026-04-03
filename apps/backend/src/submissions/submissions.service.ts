@@ -13,11 +13,10 @@ import pinyin from 'pinyin';
 import sharp from 'sharp';
 import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
-import { createReadStream, promises as fs } from 'fs';
+import { promises as fs } from 'fs';
 import type { Express } from 'express';
 import { basename, extname, isAbsolute, resolve } from 'path';
-import { Readable } from 'stream';
-import * as unzipper from 'unzipper';
+import * as yauzl from 'yauzl';
 import * as bcrypt from 'bcryptjs';
 import { AuthUser } from '../auth/auth.types';
 import { GradingPolicyService } from '../grading-policy/grading-policy.service';
@@ -120,6 +119,12 @@ type PrintPacketOptions = {
   lang?: string;
   submissionIds?: string[];
 };
+
+interface ZipEntry {
+  filename: string;
+  buffer: Buffer;
+  size: number;
+}
 
 type PrintPacketExport = {
   filename: string;
@@ -2917,139 +2922,178 @@ export class SubmissionsService {
       excludedKeys?: Set<string>;
     },
   ) {
-    const source = file.buffer
-      ? Readable.from([file.buffer])
-      : file.path
-        ? createReadStream(file.path)
-        : null;
-    if (!source) {
+    // For files with path, read into buffer first for yauzl processing
+    let buffer: Buffer;
+    if (file.buffer) {
+      buffer = file.buffer;
+    } else if (file.path) {
+      buffer = await fs.readFile(file.path);
+    } else {
       return;
     }
 
-    const parser = source.pipe(unzipper.Parse({ forceStream: true }));
-    for await (const entry of parser) {
-      if (entry.type === 'Directory') {
-        entry.autodrain();
-        continue;
-      }
+    return new Promise<void>((resolve, reject) => {
+      let totalUncompressedSize = 0;
+      let entryCount = 0;
+      const entriesProcessed: ZipEntry[] = [];
 
-      const entryName = entry.path.replace(/\\/g, '/');
-      if (this.isHiddenZipEntry(entryName)) {
-        entry.autodrain();
-        continue;
-      }
-
-      const fileKey = `zip:${entryName}`;
-      // 跳过被排除的 ZIP 条目
-      if (options.excludedKeys?.has(fileKey)) {
-        options.skipped.push({
-          file: entryName,
-          reason: 'USER_EXCLUDED',
-          fileKey,
-          ...this.buildMatchAnalysis(
-            '用户已排除此图片，不上传',
-            'User excluded this image from upload',
-          ),
-        });
-        entry.autodrain();
-        continue;
-      }
-      const extension = extname(entryName).toLowerCase();
-      if (!ALLOWED_IMAGE_EXTS.has(extension)) {
-        options.skipped.push({
-          file: entryName,
-          reason: 'NON_IMAGE',
-          fileKey,
-          ...this.buildMatchAnalysis(
-            `压缩包内文件格式 ${extension || 'unknown'} 不支持，仅支持 JPG/PNG/WebP/TIFF。`,
-            `Unsupported zip entry format ${extension || 'unknown'}. Supported: JPG/PNG/WebP/TIFF.`,
-          ),
-        });
-        entry.autodrain();
-        continue;
-      }
-
-      if (options.images.length >= MAX_BATCH_IMAGES) {
-        entry.autodrain();
-        throw new BadRequestException(`Up to ${MAX_BATCH_IMAGES} images are allowed`);
-      }
-
-      const declaredSize = this.getZipEntrySize(entry);
-      if (declaredSize !== null && declaredSize > MAX_ZIP_ENTRY_BYTES) {
-        entry.autodrain();
-        throw new BadRequestException(`Zip entry too large (max ${MAX_ZIP_ENTRY_BYTES} bytes)`);
-      }
-      if (
-        declaredSize !== null &&
-        options.totalUncompressed.value + declaredSize > MAX_ZIP_UNCOMPRESSED_BYTES
-      ) {
-        entry.autodrain();
-        throw new BadRequestException('ZIP 文件解压后超过大小限制');
-      }
-
-      if (options.dryRun) {
-        const buffer = await this.readEntryBuffer(entry, MAX_ZIP_ENTRY_BYTES);
-        options.totalUncompressed.value += buffer.length;
-        if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
-          throw new BadRequestException('ZIP 文件解压后超过大小限制');
+      yauzl.fromBuffer(buffer, {
+        lazyEntries: true,
+        strictFileNames: false, // Allow non-strict filenames for better compatibility
+        validateEntrySizes: true,
+      }, (err, zipfile) => {
+        if (err) {
+          this.logger.warn(`ZIP parse error: ${err.message}`);
+          return reject(new BadRequestException('Invalid ZIP file format'));
         }
-        options.images.push({
-          fileKey,
-          filename: entryName,
-          mimeType: this.mapImageMimeType(extension),
-          buffer,
+
+        if (!zipfile) {
+          return reject(new BadRequestException('Failed to open ZIP file'));
+        }
+
+        zipfile.on('entry', (entry: yauzl.Entry) => {
+          // Normalize path (handle Windows paths)
+          const entryName = entry.fileName.replace(/\\/g, '/');
+
+          // Skip directories
+          if (/\/$/.test(entryName)) {
+            zipfile.readEntry();
+            return;
+          }
+
+          // Skip hidden entries and macOS metadata
+          if (this.isHiddenZipEntry(entryName)) {
+            zipfile.readEntry();
+            return;
+          }
+
+          const fileKey = `zip:${entryName}`;
+
+          // Skip excluded entries
+          if (options.excludedKeys?.has(fileKey)) {
+            options.skipped.push({
+              file: entryName,
+              reason: 'USER_EXCLUDED',
+              fileKey,
+              ...this.buildMatchAnalysis(
+                '用户已排除此图片，不上传',
+                'User excluded this image from upload',
+              ),
+            });
+            zipfile.readEntry();
+            return;
+          }
+
+          const extension = extname(entryName).toLowerCase();
+          if (!ALLOWED_IMAGE_EXTS.has(extension)) {
+            options.skipped.push({
+              file: entryName,
+              reason: 'NON_IMAGE',
+              fileKey,
+              ...this.buildMatchAnalysis(
+                `压缩包内文件格式 ${extension || 'unknown'} 不支持，仅支持 JPG/PNG/WebP/TIFF。`,
+                `Unsupported zip entry format ${extension || 'unknown'}. Supported: JPG/PNG/WebP/TIFF.`,
+              ),
+            });
+            zipfile.readEntry();
+            return;
+          }
+
+          // Check image count limit
+          if (options.images.length >= MAX_BATCH_IMAGES) {
+            zipfile.close();
+            return reject(new BadRequestException(`Up to ${MAX_BATCH_IMAGES} images are allowed`));
+          }
+
+          // Check individual file size
+          if (entry.uncompressedSize > MAX_ZIP_ENTRY_BYTES) {
+            zipfile.close();
+            return reject(new BadRequestException(
+              `Zip entry ${entryName} too large (max ${MAX_ZIP_ENTRY_BYTES} bytes)`
+            ));
+          }
+
+          // Check total uncompressed size
+          totalUncompressedSize += entry.uncompressedSize;
+          if (totalUncompressedSize > MAX_ZIP_UNCOMPRESSED_BYTES) {
+            zipfile.close();
+            return reject(new BadRequestException('ZIP 文件解压后超过大小限制'));
+          }
+
+          // Check entry count (zip bomb protection)
+          entryCount++;
+          if (entryCount > 500) {
+            zipfile.close();
+            return reject(new BadRequestException('ZIP contains too many files (max 500)'));
+          }
+
+          // Open read stream for this entry
+          zipfile.openReadStream(entry, (err, readStream) => {
+            if (err) {
+              this.logger.error(`Error opening entry ${entryName}: ${err.message}`);
+              zipfile.readEntry();
+              return;
+            }
+
+            const chunks: Buffer[] = [];
+            let entrySize = 0;
+
+            readStream.on('data', (chunk: Buffer) => {
+              chunks.push(chunk);
+              entrySize += chunk.length;
+            });
+
+            readStream.on('end', () => {
+              const entryBuffer = Buffer.concat(chunks);
+              options.totalUncompressed.value += entryBuffer.length;
+
+              if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
+                zipfile.close();
+                return reject(new BadRequestException('ZIP 文件解压后超过大小限制'));
+              }
+
+              entriesProcessed.push({
+                filename: entryName,
+                buffer: entryBuffer,
+                size: entrySize,
+              });
+
+              zipfile.readEntry();
+            });
+
+            readStream.on('error', (err) => {
+              this.logger.error(`Error reading entry ${entryName}: ${err.message}`);
+              zipfile.readEntry();
+            });
+          });
         });
-        continue;
-      }
 
-      const buffer = await this.readEntryBuffer(entry, MAX_ZIP_ENTRY_BYTES);
-      options.totalUncompressed.value += buffer.length;
-      if (options.totalUncompressed.value > MAX_ZIP_UNCOMPRESSED_BYTES) {
-        throw new BadRequestException('ZIP 文件解压后超过大小限制');
-      }
-      options.images.push({
-        fileKey,
-        filename: entryName,
-        mimeType: this.mapImageMimeType(extension),
-        buffer,
+        zipfile.on('end', () => {
+          this.logger.debug(`ZIP extraction complete: ${entriesProcessed.length} files, ${totalUncompressedSize} bytes`);
+
+          // Process all entries in order
+          for (const entry of entriesProcessed) {
+            const extension = extname(entry.filename).toLowerCase();
+            options.images.push({
+              fileKey: `zip:${entry.filename}`,
+              filename: entry.filename,
+              mimeType: this.mapImageMimeType(extension),
+              buffer: entry.buffer,
+            });
+          }
+
+          resolve();
+        });
+
+        zipfile.on('error', (err) => {
+          this.logger.error(`ZIP processing error: ${err.message}`);
+          reject(new BadRequestException('Failed to process ZIP file'));
+        });
+
+        // Start reading entries
+        zipfile.readEntry();
       });
-    }
-  }
-
-  private async readEntryBuffer(entry: unzipper.Entry, limitBytes: number): Promise<Buffer> {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    for await (const chunk of entry) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      total += buffer.length;
-      if (total > limitBytes) {
-        entry.autodrain();
-        throw new BadRequestException(`ZIP 文件中的条目过大（最大 ${limitBytes} 字节）`);
-      }
-      chunks.push(buffer);
-    }
-    return Buffer.concat(chunks, total);
-  }
-
-  private async drainEntry(entry: unzipper.Entry, limitBytes: number): Promise<number> {
-    let total = 0;
-    for await (const chunk of entry) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      total += buffer.length;
-      if (total > limitBytes) {
-        entry.autodrain();
-        throw new BadRequestException(`Zip entry too large (max ${limitBytes} bytes)`);
-      }
-    }
-    return total;
-  }
-
-  private getZipEntrySize(entry: unzipper.Entry): number | null {
-    const size = (entry as { vars?: { uncompressedSize?: number } }).vars?.uncompressedSize;
-    if (typeof size === 'number' && Number.isFinite(size)) {
-      return size;
-    }
-    return null;
+    });
   }
 
   private async cleanupTempFiles(paths: Set<string>) {
