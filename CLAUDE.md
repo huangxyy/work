@@ -113,7 +113,7 @@ Located in `wechat-miniapp/` - Independent WeChat mini-program with **Rainbow Wo
 ### Design System
 
 - **Theme**: Rainbow World (活泼有趣风格) - colorful gradients, rounded corners, playful animations
-- **Page Themes**: Each page has a unique gradient color scheme
+- **Page Themes**: Each page has a unique gradient color scheme (orange, green, teal - NO purple/pink/blue)
 - **Style Files**:
   - `styles/theme.wxss` - CSS variables and theme definitions
   - `styles/components.wxss` - Reusable components (buttons, cards, tags)
@@ -122,27 +122,29 @@ Located in `wechat-miniapp/` - Independent WeChat mini-program with **Rainbow Wo
 
 ### Student Pages
 
-- `pages/login/` - Student login (purple welcome theme)
-- `pages/homeworks/` - Homework list (purple gradient)
-- `pages/submit/` - Submit homework (pink gradient)
-- `pages/submission-result/` - Grading results (blue gradient)
-- `pages/submissions/` - Submission history (blue gradient)
-- `pages/homework-detail/` - Homework details (purple gradient)
+- `pages/login/` - Student login (orange welcome theme)
+- `pages/homeworks/` - Homework list (orange gradient)
+- `pages/submit/` - Submit homework (orange gradient)
+- `pages/submission-result/` - Grading results (green gradient)
+- `pages/submissions/` - Submission history (green gradient)
+- `pages/homework-detail/` - Homework details (orange gradient)
 - `pages/profile/` - Personal center (green gradient)
-- `pages/messages/` - Notifications (orange-pink gradient)
-- `pages/report/` - Learning reports (teal-pink gradient)
+- `pages/messages/` - Notifications (orange gradient)
+- `pages/report/` - Learning reports (teal gradient)
 
 ### Teacher Pages
 
-- `pages/teacher/homeworks/` - Homework management (cyan gradient)
-- `pages/teacher/homework-detail/` - Homework detail with submissions (cyan gradient)
-- `pages/teacher/homework-edit/` - Create/edit homework (cyan gradient)
-- `pages/teacher/classes/` - Class management (purple gradient)
-- `pages/teacher/submission-detail/` - Submission grading details (purple gradient)
-- `pages/teacher/report/` - Class learning reports (orange-yellow gradient)
+- `pages/teacher/homeworks/` - Homework management (teal gradient)
+- `pages/teacher/homework-detail/` - Homework detail with submissions (teal gradient)
+- `pages/teacher/homework-edit/` - Create/edit homework (teal gradient)
+- `pages/teacher/classes/` - Class management (orange gradient)
+- `pages/teacher/submission-detail/` - Submission grading details with score animation and teacher feedback (orange gradient)
+- `pages/teacher/report/` - Class learning reports (orange gradient)
+- `pages/teacher/student-report/` - Individual student reports
 - `pages/teacher/student-submissions/` - Student submission overview
 - `pages/teacher/upload-result/` - Batch upload results
-- `pages/teacher/messages/` - Announcements
+- `pages/teacher/capture/` - Batch upload with draft saving
+- `pages/teacher/messages/` - Announcements (real API integration)
 - `pages/teacher/grading-settings/` - Grading policy settings
 
 ### Components

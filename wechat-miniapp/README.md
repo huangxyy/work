@@ -10,19 +10,19 @@
 
 ### 主题配色
 
-每个页面拥有独特的渐变色主题：
+每个页面拥有独特的渐变色主题（统一使用橙色、绿色、青色等暖色调，禁止使用紫色/粉色/蓝色）：
 
 | 页面 | 主题色 | CSS 类 |
 |------|--------|--------|
-| 登录页 | 紫色欢迎主题 | `.theme-login` |
-| 作业列表 | 紫色系 `#667eea → #764ba2` | `.theme-homeworks` |
-| 作业详情 | 紫色系 | `.theme-homeworks` |
-| 提交作业 | 粉红系 `#f093fb → #f5576c` | `.theme-submit` |
-| 批改结果 | 蓝色系 `#4facfe → #00f2fe` | `.theme-result` |
-| 提交记录 | 蓝色系 | `.theme-result` |
-| 个人中心 | 绿色系 `#43e97b → #38f9d7` | `.theme-profile` |
-| 消息通知 | 橙粉系 `#fa709a → #fee140` | `.theme-messages` |
-| 学习报告 | 青粉系 `#a8edea → #fed6e3` | `.theme-report` |
+| 登录页 | 橙色欢迎主题 | `.theme-login` |
+| 作业列表 | 橙色系 `#f59e0b → #d97706` | `.theme-homeworks` |
+| 作业详情 | 橙色系 | `.theme-homeworks` |
+| 提交作业 | 橙色系 `#f97316 → #ea580c` | `.theme-submit` |
+| 批改结果 | 绿色系 `#10b981 → #059669` | `.theme-result` |
+| 提交记录 | 绿色系 | `.theme-result` |
+| 个人中心 | 绿色系 `#10b981 → #34d399` | `.theme-profile` |
+| 消息通知 | 橙色系 `#f59e0b → #fbbf24` | `.theme-messages` |
+| 学习报告 | 青色系 `#14b8a6 → #2dd4bf` | `.theme-report` |
 
 ### 样式文件
 
