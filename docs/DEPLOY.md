@@ -1,5 +1,8 @@
 # 部署指南（Debian 12 + 宝塔，API/Worker 使用 systemd）
 
+> **New to deployment?** See [DEPLOY-LANDING.md](./DEPLOY-LANDING.md) to choose between Docker and systemd deployment.
+> **Prefer Docker?** See [DEPLOY-Docker.md](./DEPLOY-Docker.md) for containerized deployment.
+
 本文档是当前项目在生产环境的推荐部署方式，专门适配以下场景：
 
 - 系统：Debian 12
