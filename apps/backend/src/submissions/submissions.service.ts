@@ -2922,26 +2922,13 @@ export class SubmissionsService {
       excludedKeys?: Set<string>;
     },
   ) {
-    // For files with path, read into buffer first for yauzl processing
-    let buffer: Buffer;
-    if (file.buffer) {
-      buffer = file.buffer;
-    } else if (file.path) {
-      buffer = await fs.readFile(file.path);
-    } else {
-      return;
-    }
-
     return new Promise<void>((resolve, reject) => {
       let totalUncompressedSize = 0;
       let entryCount = 0;
       const entriesProcessed: ZipEntry[] = [];
 
-      yauzl.fromBuffer(buffer, {
-        lazyEntries: true,
-        strictFileNames: false, // Allow non-strict filenames for better compatibility
-        validateEntrySizes: true,
-      }, (err, zipfile) => {
+      // Function to process a single zipfile
+      const processZipfile = (err: Error | null, zipfile: yauzl.ZipFile | null) => {
         if (err) {
           this.logger.warn(`ZIP parse error: ${err.message}`);
           return reject(new BadRequestException('Invalid ZIP file format'));
@@ -3039,8 +3026,16 @@ export class SubmissionsService {
             let entrySize = 0;
 
             readStream.on('data', (chunk: Buffer) => {
-              chunks.push(chunk);
               entrySize += chunk.length;
+              // Enforce size limit during streaming to prevent memory overflow
+              if (entrySize > MAX_ZIP_ENTRY_BYTES) {
+                readStream.destroy();
+                zipfile.close();
+                return reject(new BadRequestException(
+                  `Zip entry ${entryName} exceeded maximum size of ${MAX_ZIP_ENTRY_BYTES} bytes`
+                ));
+              }
+              chunks.push(chunk);
             });
 
             readStream.on('end', () => {
@@ -3092,7 +3087,26 @@ export class SubmissionsService {
 
         // Start reading entries
         zipfile.readEntry();
-      });
+      };
+
+      // Open based on input type - for files with path, use yauzl.open() for true streaming
+      if (file.buffer) {
+        // Buffer - use fromBuffer()
+        yauzl.fromBuffer(file.buffer, {
+          lazyEntries: true,
+          strictFileNames: false, // Allow non-strict filenames for better compatibility
+          validateEntrySizes: true,
+        }, processZipfile);
+      } else if (file.path) {
+        // File path - use yauzl.open() for true streaming (avoids loading entire ZIP)
+        yauzl.open(file.path, {
+          lazyEntries: true,
+          strictFileNames: false, // Allow non-strict filenames for better compatibility
+          validateEntrySizes: true,
+        }, processZipfile);
+      } else {
+        reject(new BadRequestException('Invalid file: no buffer or path'));
+      }
     });
   }
 
