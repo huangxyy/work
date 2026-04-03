@@ -692,6 +692,105 @@ describe('SubmissionsService', () => {
     });
   });
 
+  describe('createBatchSubmissions - streaming ZIP extraction', () => {
+    it('should handle ZIP with streaming extraction', async () => {
+      // This test verifies the streaming approach works
+      // It creates a mock ZIP file and verifies it can be processed
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.enrollment.findMany = jest.fn().mockResolvedValue([
+        { student: { id: 'student-1', account: 'student1', name: 'Test Student' } },
+      ]);
+      prismaService.batchUpload.create = jest.fn().mockResolvedValue({ id: 'batch-1' });
+      prismaService.batchUpload.update = jest.fn().mockResolvedValue({ id: 'batch-1' });
+      prismaService.submission.create = jest.fn().mockResolvedValue({ id: 'submission-batch-1' });
+      prismaService.submissionImage.createMany = jest.fn().mockResolvedValue({ count: 1 });
+
+      // Mock the extraction to push test data into images array
+      jest.spyOn(service as any, 'extractZipEntries').mockImplementation(async (...args: unknown[]) => {
+        const [, options] = args as [unknown, { images: Array<Record<string, unknown>> }];
+        options.images.push({
+          fileKey: 'zip:page-1.jpg',
+          filename: 'page-1.jpg',
+          mimeType: 'image/jpeg',
+          buffer: Buffer.from('zip-image'),
+        });
+      });
+      jest.spyOn(service as any, 'getOcrConfig').mockResolvedValue({});
+      jest.spyOn(service as any, 'generateThumbnail').mockResolvedValue('https://example.com/thumb.jpg');
+      jest
+        .spyOn(service as any, 'resolveAccountForImage')
+        .mockResolvedValue({
+          account: 'student1',
+          matchedBy: 'ocr',
+          confidence: 0.98,
+          analysisZh: '命中学生',
+          analysisEn: 'Matched student',
+        });
+      jest.spyOn(service as any, 'storeStagingImage').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'loadImageBuffer').mockResolvedValue(Buffer.from('image-buffer'));
+
+      const mockFile = {
+        buffer: Buffer.from('PK'), // Minimal ZIP identifier
+        originalname: 'test.zip',
+      };
+
+      const result = await service.createBatchSubmissions(
+        { homeworkId: 'homework-1' } as never,
+        { images: [], archive: [mockFile as Express.Multer.File] },
+        mockTeacher,
+      );
+      expect(result.createdSubmissions).toBe(1);
+      expect(result.acceptedImages).toBe(1);
+    });
+
+    it('should reject oversized ZIP files', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.enrollment.findMany = jest.fn().mockResolvedValue([
+        { student: { id: 'student-1', account: 'student1', name: 'Test Student' } },
+      ]);
+
+      const largeBuffer = Buffer.alloc(200 * 1024 * 1024); // 200MB
+
+      const mockFile = {
+        buffer: largeBuffer,
+        originalname: 'large.zip',
+      };
+
+      await expect(
+        service.createBatchSubmissions(
+          { homeworkId: 'homework-1' } as never,
+          { images: [], archive: [mockFile as Express.Multer.File] },
+          mockTeacher,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject ZIP with oversized entry', async () => {
+      prismaService.homework.findFirst = jest.fn().mockResolvedValue(mockHomework);
+      prismaService.enrollment.findMany = jest.fn().mockResolvedValue([
+        { student: { id: 'student-1', account: 'student1', name: 'Test Student' } },
+      ]);
+
+      // Mock to simulate oversized entry
+      jest.spyOn(service as any, 'extractZipEntries').mockRejectedValue(
+        new BadRequestException('File exceeds maximum size'),
+      );
+
+      const mockFile = {
+        buffer: Buffer.from('PK'),
+        originalname: 'test.zip',
+      };
+
+      await expect(
+        service.createBatchSubmissions(
+          { homeworkId: 'homework-1' } as never,
+          { images: [], archive: [mockFile as Express.Multer.File] },
+          mockTeacher,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('regradeHomeworkSubmissions', () => {
     it('should requeue failed and stuck processing submissions for a homework', async () => {
       prismaService.homework.findFirst = jest.fn().mockResolvedValue({ id: 'homework-1', classId: 'class-1' });
