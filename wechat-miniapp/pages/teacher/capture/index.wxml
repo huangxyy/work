@@ -2,7 +2,6 @@
   <view class="hero gradient-orange">
     <view class="hero-header">
       <view class="hero-title">📸 批量上传</view>
-      <view class="hero-help" bindtap="onShowHelp">?</view>
     </view>
     <view class="hero-subtitle">拍照识别学生作业，快速批量提交</view>
   </view>
@@ -20,6 +19,15 @@
       <text class="selector-label">评分模式</text>
       <text class="selector-value mode-{{mode}}">{{mode === 'cheap' ? '快速评分' : '详细评分'}} ▾</text>
     </view>
+  </view>
+
+  <view wx:if="{{hasDraft}}" class="draft-card fade-in">
+    <view class="draft-header">
+      <view class="draft-title">📝 本地草稿</view>
+      <button class="draft-clear" bindtap="clearDraftManually">清空</button>
+    </view>
+    <view class="draft-notice">{{draftNotice}}</view>
+    <view class="draft-hint">离开页面后再次进入，会优先恢复这份未上传草稿。</view>
   </view>
 
   <view class="photo-section">

@@ -22,9 +22,13 @@
           <text class="student-account" wx:if="{{submission.student.account}}">{{submission.student.account}}</text>
         </view>
       </view>
-      <view class="score-display" wx:if="{{submission.totalScore !== null && submission.totalScore !== undefined}}">
-        <text class="score-value">{{submission.totalScore}}</text>
+      <view class="score-display {{animated ? 'animated' : ''}}" wx:if="{{displayScore !== '--'}}">
+        <text class="score-value">{{displayScore}}</text>
         <text class="score-label">总分</text>
+      </view>
+      <view class="score-display" wx:elif="{{manualScore !== null}}">
+        <text class="score-value">{{manualScore}}</text>
+        <text class="score-label">调整分</text>
       </view>
     </view>
 
@@ -85,7 +89,7 @@
             <text class="score-label">{{item.category}}</text>
             <view class="score-bar-wrapper">
               <view class="score-bar-bg"></view>
-              <view class="score-bar-fill" style="width: {{item.score / 100 * 100}}%;"></view>
+              <view class="score-bar-fill" style="width: {{item.score / 20 * 100}}%;"></view>
               <text class="score-num">{{item.score}}</text>
             </view>
           </view>
@@ -136,7 +140,57 @@
 
       <view class="section-card failed-tip" wx:elif="{{submission.status === 'FAILED'}}">
         <text class="failed-icon">❌</text>
-        <text class="failed-text">批改失败，请重新提交或联系老师</text>
+        <text class="failed-text">批改失败，可尝试重新批改</text>
+      </view>
+
+      <view class="section-card regrade-section">
+        <view class="section-title">🔄 重新批改</view>
+        <view class="regrade-options">
+          <view class="regrade-option">
+            <text class="option-label">包含改写建议</text>
+            <switch checked="{{needRewrite}}" bindchange="onNeedRewriteChange" color="#0891b2" />
+          </view>
+          <view class="regrade-btns">
+            <button class="regrade-btn cheap" data-mode="cheap" bindtap="onRegrade" loading="{{regrading}}">快速批改</button>
+            <button class="regrade-btn quality" data-mode="quality" bindtap="onRegrade" loading="{{regrading}}">高质量批改</button>
+          </view>
+        </view>
+      </view>
+
+      <view class="section-card feedback-section">
+        <view class="section-title">📝 教师评语</view>
+        <view class="feedback-form">
+          <view class="form-row">
+            <text class="form-label">调整分数</text>
+            <input 
+              class="score-input" 
+              type="number" 
+              placeholder="0-100" 
+              value="{{manualScore !== null ? manualScore : ''}}" 
+              bindinput="onManualScoreInput"
+              min="0"
+              max="100"
+            />
+            <text class="form-hint">留空则使用AI评分</text>
+          </view>
+          <view class="form-row">
+            <text class="form-label">评语内容</text>
+            <textarea 
+              class="feedback-textarea" 
+              placeholder="输入对学生作业的评语和建议..." 
+              value="{{feedback}}" 
+              bindinput="onFeedbackInput"
+              maxlength="500"
+            />
+          </view>
+          <button class="submit-btn" bindtap="onSubmitFeedback" loading="{{saving}}">
+            保存评语
+          </button>
+        </view>
+        <view wx:if="{{submission.teacherComment}}" class="saved-feedback">
+          <view class="saved-label">已保存评语：</view>
+          <text class="saved-text">{{submission.teacherComment}}</text>
+        </view>
       </view>
     </view>
   </view>

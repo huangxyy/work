@@ -1,16 +1,39 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Button, Form, Input, Space } from 'antd';
-import { useMutation } from '@tanstack/react-query';
+import { Button, Form, Input, Radio, Space, Typography } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { api, authStore } from '../api/client';
 import { useI18n } from '../i18n';
 import { useMessage } from '../hooks/useMessage';
 
+type GradingMode = 'cheap' | 'quality';
+
 export const ProfilePage = () => {
   const { t } = useI18n();
   const message = useMessage();
+  const queryClient = useQueryClient();
   const user = authStore.getUser();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
+  const [gradingMode, setGradingMode] = useState<GradingMode>('cheap');
+
+  const isTeacher = user?.role === 'TEACHER';
+
+  const gradingPrefQuery = useQuery({
+    queryKey: ['teacher-grading-preference'],
+    queryFn: async () => {
+      const res = await api.get('/teacher/settings/grading/preference');
+      return res.data;
+    },
+    enabled: isTeacher,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (gradingPrefQuery.data?.mode) {
+      setGradingMode(gradingPrefQuery.data.mode);
+    }
+  }, [gradingPrefQuery.data]);
 
   const profileMutation = useMutation({
     mutationFn: async (values: { name?: string; email?: string; phone?: string }) => {
@@ -36,6 +59,18 @@ export const ProfilePage = () => {
       passwordForm.resetFields();
     },
     onError: () => message.error(t('profile.passwordChangeFailed')),
+  });
+
+  const gradingMutation = useMutation({
+    mutationFn: async (payload: { mode: GradingMode }) => {
+      const res = await api.post('/teacher/settings/grading/preference', payload);
+      return res.data;
+    },
+    onSuccess: async () => {
+      message.success(t('teacher.settings.preferenceSaved'));
+      await queryClient.invalidateQueries({ queryKey: ['teacher-grading-preference'] });
+    },
+    onError: () => message.error(t('common.saveFailed')),
   });
 
   if (!user) return null;
@@ -67,6 +102,47 @@ export const ProfilePage = () => {
             </Button>
           </Form>
         </ProCard>
+
+        {isTeacher && (
+          <ProCard bordered title={t('teacher.settings.gradingTitle')} className="apple-soft-card" loading={gradingPrefQuery.isLoading}>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Typography.Text type="secondary">
+                {t('teacher.settings.preferenceInfoDesc')}
+              </Typography.Text>
+              <Radio.Group
+                value={gradingMode}
+                onChange={(e) => setGradingMode(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Radio.Button
+                    value="cheap"
+                    style={{ width: '100%', height: 'auto', padding: '12px 16px', textAlign: 'left' }}
+                  >
+                    <Typography.Text strong>{t('teacher.settings.modeFast')}</Typography.Text>
+                    <br />
+                    <Typography.Text type="secondary">{t('teacher.settings.modeFastDesc')}</Typography.Text>
+                  </Radio.Button>
+                  <Radio.Button
+                    value="quality"
+                    style={{ width: '100%', height: 'auto', padding: '12px 16px', textAlign: 'left' }}
+                  >
+                    <Typography.Text strong>{t('teacher.settings.modeQuality')}</Typography.Text>
+                    <br />
+                    <Typography.Text type="secondary">{t('teacher.settings.modeQualityDesc')}</Typography.Text>
+                  </Radio.Button>
+                </Space>
+              </Radio.Group>
+              <Button
+                type="primary"
+                loading={gradingMutation.isPending}
+                onClick={() => gradingMutation.mutate({ mode: gradingMode })}
+              >
+                {t('common.save')}
+              </Button>
+            </Space>
+          </ProCard>
+        )}
 
         <ProCard bordered title={t('profile.changePassword')} className="apple-soft-card">
           <Form

@@ -1,9 +1,70 @@
 const { fetchHomeworks, fetchClasses } = require('../../../services/teacher');
 const { uploadFiles } = require('../../../lib/request');
-const { showToast, showLoading, hideLoading } = require('../../../lib/ui');
+const { showToast, showLoading, hideLoading, confirm } = require('../../../lib/ui');
 const { pickErrorMessage } = require('../../../lib/utils');
-const errorHandler = require('../../../lib/error-handler');
-const { showHelp } = require('../../../lib/help');
+
+const CAPTURE_DRAFT_KEY = 'teacher_capture_draft';
+
+function isPersistentFilePath(filePath) {
+  return typeof filePath === 'string' && filePath.indexOf('wxfile://usr/') === 0;
+}
+
+function persistFile(file) {
+  if (!file || !file.path) {
+    return Promise.resolve(file);
+  }
+  if (isPersistentFilePath(file.path)) {
+    return Promise.resolve({
+      ...file,
+      persisted: true,
+    });
+  }
+  return new Promise((resolve) => {
+    wx.saveFile({
+      tempFilePath: file.path,
+      success(res) {
+        resolve({
+          ...file,
+          path: res.savedFilePath || file.path,
+          persisted: Boolean(res.savedFilePath),
+        });
+      },
+      fail() {
+        resolve({
+          ...file,
+          persisted: false,
+        });
+      },
+    });
+  });
+}
+
+function getSavedFilePathSet() {
+  return new Promise((resolve) => {
+    wx.getSavedFileList({
+      success(res) {
+        resolve(new Set((res.fileList || []).map((item) => item.filePath)));
+      },
+      fail() {
+        resolve(null);
+      },
+    });
+  });
+}
+
+function removeSavedFile(filePath) {
+  if (!isPersistentFilePath(filePath)) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    wx.removeSavedFile({
+      filePath,
+      complete() {
+        resolve();
+      },
+    });
+  });
+}
 
 Page({
   data: {
@@ -21,6 +82,8 @@ Page({
     showClassSelector: false,
     uploading: false,
     classSelectedIndex: 0,
+    hasDraft: false,
+    draftNotice: '',
   },
 
   onLoad(options) {
@@ -31,14 +94,15 @@ Page({
     if (classId) {
       this.setData({ selectedClassId: classId });
     }
-    this.loadClasses();
+    this.loadClasses().then(() => {
+      this.restoreDraft();
+    });
   },
 
   async loadClasses() {
     try {
       const classes = await fetchClasses();
       if (classes.length > 0) {
-        // 确定选中的班级
         let selectedClassId = this.data.selectedClassId || classes[0].id;
         let classSelectedIndex = classes.findIndex(c => c.id === selectedClassId);
         if (classSelectedIndex < 0) {
@@ -53,7 +117,7 @@ Page({
           selectedClassName,
           classSelectedIndex,
         });
-        this.loadHomeworks();
+        await this.loadHomeworks();
       } else {
         this.setData({
           classes: [],
@@ -82,11 +146,9 @@ Page({
     try {
       const homeworks = await fetchHomeworks({ classId: selectedClassId });
       if (homeworks.length > 0) {
-        // 保持当前选中的作业，如果没有则选中第一个
         let selectedHomeworkId = currentHomeworkId || homeworks[0].id;
         let selectedHomeworkTitle = homeworks[0].title;
 
-        // 查找当前选中的作业
         const currentIndex = homeworks.findIndex(h => h.id === selectedHomeworkId);
         if (currentIndex >= 0) {
           selectedHomeworkTitle = homeworks[currentIndex].title;
@@ -113,6 +175,112 @@ Page({
     }
   },
 
+  async restoreDraft() {
+    let draft = null;
+    try {
+      draft = wx.getStorageSync(CAPTURE_DRAFT_KEY) || null;
+    } catch (_error) {
+      draft = null;
+    }
+    if (!draft) {
+      return;
+    }
+
+    const savedPathSet = await getSavedFilePathSet();
+    const restoredImages = (draft.images || []).filter((item) => {
+      if (!item || !item.path) {
+        return false;
+      }
+      if (!savedPathSet) {
+        return true;
+      }
+      if (isPersistentFilePath(item.path)) {
+        return savedPathSet.has(item.path);
+      }
+      return true;
+    });
+
+    const hasDraft = restoredImages.length > 0;
+    if (!hasDraft) {
+      return;
+    }
+
+    const cls = this.data.classes.find(c => c.id === draft.selectedClassId);
+    const hw = this.data.homeworks.find(h => h.id === draft.selectedHomeworkId);
+
+    this.setData({
+      images: restoredImages,
+      mode: draft.mode || 'cheap',
+      hasDraft: true,
+      draftNotice: `已恢复上次未上传草稿（${restoredImages.length} 张图片）`,
+      selectedClassId: cls ? draft.selectedClassId : this.data.selectedClassId,
+      selectedClassName: cls ? cls.name : this.data.selectedClassName,
+      selectedHomeworkId: hw ? draft.selectedHomeworkId : this.data.selectedHomeworkId,
+      selectedHomeworkTitle: hw ? hw.title : this.data.selectedHomeworkTitle,
+    });
+  },
+
+  persistDraft(notice) {
+    const { images, mode, selectedClassId, selectedHomeworkId } = this.data;
+    const hasDraft = images.length > 0;
+
+    if (!hasDraft) {
+      try {
+        wx.removeStorageSync(CAPTURE_DRAFT_KEY);
+      } catch (_error) {}
+      this.setData({ hasDraft: false, draftNotice: '' });
+      return;
+    }
+
+    try {
+      wx.setStorageSync(CAPTURE_DRAFT_KEY, {
+        images: images.map((item) => ({
+          path: item.path,
+          size: item.size || 0,
+        })),
+        mode,
+        selectedClassId,
+        selectedHomeworkId,
+      });
+    } catch (_error) {}
+
+    this.setData({
+      hasDraft: true,
+      draftNotice: notice || '草稿已自动保存',
+    });
+  },
+
+  async clearDraftFiles(files) {
+    await Promise.all((files || []).map((item) => removeSavedFile(item && item.path)));
+  },
+
+  async clearDraftManually() {
+    const confirmed = await confirm({
+      title: '清空草稿',
+      content: '清空后需要重新选择图片和设置。',
+      confirmText: '清空',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    const currentImages = (this.data.images || []).slice();
+    await this.clearDraftFiles(currentImages);
+
+    try {
+      wx.removeStorageSync(CAPTURE_DRAFT_KEY);
+    } catch (_error) {}
+
+    this.setData({
+      images: [],
+      mode: 'cheap',
+      hasDraft: false,
+      draftNotice: '',
+      previewResult: null,
+    });
+    showToast('已清空草稿', 'success');
+  },
+
   onClassChange() {
     if (this.data.classes.length === 0) {
       showToast('暂无班级');
@@ -135,7 +303,12 @@ Page({
         selectedHomeworkTitle: '请选择',
         images: [],
         previewResult: null,
+        hasDraft: false,
+        draftNotice: '',
       });
+      try {
+        wx.removeStorageSync(CAPTURE_DRAFT_KEY);
+      } catch (_error) {}
       this.loadHomeworks();
     }
   },
@@ -151,13 +324,14 @@ Page({
   onSelectMode(e) {
     const { mode } = e.currentTarget.dataset;
     this.setData({ mode, showModeSelector: false });
+    this.persistDraft('已保存评分模式');
   },
 
   onCloseModeSelector() {
     this.setData({ showModeSelector: false });
   },
 
-  onChooseImage() {
+  async onChooseImage() {
     const maxCount = 9 - this.data.images.length;
     if (maxCount <= 0) {
       showToast('最多只能上传9张图片');
@@ -168,14 +342,20 @@ Page({
       count: maxCount,
       mediaType: ['image'],
       sourceType: ['album', 'camera'],
-      success: (res) => {
-        const newImages = res.tempFiles.map(file => ({
+      success: async (res) => {
+        const tempImages = res.tempFiles.map(file => ({
           path: file.tempFilePath,
           size: file.size,
         }));
+
+        const persistedImages = await Promise.all(tempImages.map((item) => persistFile(item)));
+        const newImages = [...this.data.images, ...persistedImages];
+
         this.setData({
-          images: [...this.data.images, ...newImages],
-          previewResult: null, // 清除之前的预览结果
+          images: newImages,
+          previewResult: null,
+        }, () => {
+          this.persistDraft(`已保存图片草稿（${newImages.length} 张）`);
         });
       },
       fail: (err) => {
@@ -184,13 +364,21 @@ Page({
     });
   },
 
-  onRemoveImage(e) {
+  async onRemoveImage(e) {
     const { index } = e.currentTarget.dataset;
     const images = [...this.data.images];
+    const removed = images[index];
     images.splice(index, 1);
+
+    if (removed && removed.path && !images.some((item) => item.path === removed.path)) {
+      await removeSavedFile(removed.path);
+    }
+
     this.setData({
       images,
-      previewResult: null, // 清除之前的预览结果
+      previewResult: null,
+    }, () => {
+      this.persistDraft(images.length ? `已更新图片草稿（${images.length} 张）` : '已清空图片草稿');
     });
   },
 
@@ -201,7 +389,6 @@ Page({
       return;
     }
 
-    // 重置预览结果
     this.setData({ previewResult: null });
     showLoading('识别中...');
 
@@ -276,11 +463,18 @@ Page({
         needRewrite: mode === 'quality',
       };
 
+      const currentImages = this.data.images.slice();
+
       const result = await uploadFiles({
         url: '/teacher/submissions/batch',
         files: images.map(img => ({ path: img.path, type: 'image/jpeg' })),
         formData,
       });
+
+      await this.clearDraftFiles(currentImages);
+      try {
+        wx.removeStorageSync(CAPTURE_DRAFT_KEY);
+      } catch (_error) {}
 
       hideLoading();
       showToast('上传成功', 'success');
@@ -314,13 +508,10 @@ Page({
       selectedHomeworkTitle: title,
       showHomeworkSelector: false,
     });
+    this.persistDraft('已保存作业选择');
   },
 
   onCloseHomeworkSelector() {
     this.setData({ showHomeworkSelector: false });
-  },
-
-  onShowHelp() {
-    showHelp('capture');
   },
 });

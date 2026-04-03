@@ -1,200 +1,352 @@
+const CHART_COLORS = [
+  '#f59e0b',
+  '#10b981',
+  '#ef4444',
+  '#14b8a6',
+  '#fbbf24',
+  '#84cc16',
+  '#f97316',
+  '#059669',
+];
+
+function getPixelRatio() {
+  try {
+    const deviceInfo = wx.getDeviceInfo();
+    return deviceInfo.pixelRatio || 1;
+  } catch (e) {
+    return 1;
+  }
+}
+
+const dpr = getPixelRatio();
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.arcTo(x + width, y, x + width, y + r, r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.arcTo(x + width, y + height, x + width - r, y + height, r);
+  ctx.lineTo(x + r, y + height);
+  ctx.arcTo(x, y + height, x, y + height - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function drawBarChart(ctx, data, width, height, colors, animate = true) {
+  if (!data || data.length === 0) return;
+
+  const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  const maxValue = Math.max(...data.map(d => d.value || 0), 1);
+  const barWidth = Math.min(40, (chartWidth / data.length) * 0.6);
+  const gap = (chartWidth - barWidth * data.length) / (data.length + 1);
+
+  ctx.save();
+  ctx.font = '10px -apple-system, sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.textAlign = 'right';
+
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (chartHeight / 4) * i;
+    const value = Math.round(maxValue * (1 - i / 4));
+    ctx.fillText(String(value), padding.left - 8, y + 4);
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#f3f4f6';
+    ctx.setLineDash([4, 4]);
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  data.forEach((item, index) => {
+    const x = padding.left + gap + (barWidth + gap) * index;
+    const barHeight = (item.value / maxValue) * chartHeight;
+    const y = padding.top + chartHeight - barHeight;
+
+    const color = colors[index % colors.length];
+    const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, color + 'cc');
+
+    ctx.fillStyle = gradient;
+    drawRoundedRect(ctx, x, y, barWidth, barHeight, 4);
+    ctx.fill();
+
+    ctx.shadowColor = color + '40';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    drawRoundedRect(ctx, x, y, barWidth, barHeight, 4);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    const label = item.label || '';
+    const displayLabel = label.length > 5 ? label.slice(0, 5) + '...' : label;
+    ctx.fillText(displayLabel, x + barWidth / 2, height - padding.bottom + 16);
+  });
+
+  ctx.restore();
+}
+
+function drawLineChart(ctx, data, width, height, colors, animate = true) {
+  if (!data || data.length === 0) return;
+
+  const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  const maxValue = Math.max(...data.map(d => d.value || 0), 1);
+  const pointGap = chartWidth / (data.length - 1 || 1);
+
+  ctx.save();
+  ctx.font = '10px -apple-system, sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.textAlign = 'right';
+
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (chartHeight / 4) * i;
+    const value = Math.round(maxValue * (1 - i / 4));
+    ctx.fillText(String(value), padding.left - 8, y + 4);
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#f3f4f6';
+    ctx.setLineDash([4, 4]);
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const points = data.map((item, index) => ({
+    x: padding.left + pointGap * index,
+    y: padding.top + chartHeight - (item.value / maxValue) * chartHeight,
+  }));
+
+  const color = colors[0];
+  const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
+  gradient.addColorStop(0, color + '40');
+  gradient.addColorStop(1, color + '05');
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    const xc = (points[i - 1].x + points[i].x) / 2;
+    const yc = (points[i - 1].y + points[i].y) / 2;
+    ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+  }
+  ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+  ctx.lineTo(points[points.length - 1].x, padding.top + chartHeight);
+  ctx.lineTo(points[0].x, padding.top + chartHeight);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    const xc = (points[i - 1].x + points[i].x) / 2;
+    const yc = (points[i - 1].y + points[i].y) / 2;
+    ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+  }
+  ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  points.forEach((point, index) => {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  data.forEach((item, index) => {
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    const label = item.label || '';
+    const displayLabel = label.length > 5 ? label.slice(0, 5) + '...' : label;
+    ctx.fillText(displayLabel, points[index].x, height - padding.bottom + 16);
+  });
+
+  ctx.restore();
+}
+
+function drawPieChart(ctx, data, width, height, colors) {
+  if (!data || data.length === 0) return;
+
+  const centerX = width / 2;
+  const centerY = height / 2 - 10;
+  const radius = Math.min(width, height) / 2 - 40;
+  const innerRadius = radius * 0.5;
+
+  const total = data.reduce((sum, item) => sum + (item.value || 0), 0) || 1;
+  let startAngle = -Math.PI / 2;
+
+  data.forEach((item, index) => {
+    const angle = ((item.value || 0) / total) * Math.PI * 2;
+    const endAngle = startAngle + angle;
+    const color = colors[index % colors.length];
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+    ctx.arc(centerX, centerY, innerRadius, endAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+
+    const midAngle = startAngle + angle / 2;
+    const labelRadius = radius + 20;
+    const labelX = centerX + Math.cos(midAngle) * labelRadius;
+    const labelY = centerY + Math.sin(midAngle) * labelRadius;
+
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = midAngle > Math.PI / 2 && midAngle < Math.PI * 1.5 ? 'right' : 'left';
+    const label = item.label || '';
+    const displayLabel = label.length > 6 ? label.slice(0, 6) + '...' : label;
+    ctx.fillText(`${displayLabel} ${Math.round((item.value / total) * 100)}%`, labelX, labelY);
+
+    startAngle = endAngle;
+  });
+
+  ctx.fillStyle = '#1f2937';
+  ctx.font = 'bold 16px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(total), centerX, centerY + 6);
+}
+
 Component({
   properties: {
     canvasId: {
       type: String,
-      value: 'chart'
+      value: 'chart',
     },
     width: {
       type: Number,
-      value: 650
+      value: 300,
     },
     height: {
       type: Number,
-      value: 300
+      value: 200,
     },
     title: {
       type: String,
-      value: ''
+      value: '',
     },
     type: {
       type: String,
-      value: 'line' // line | bar
+      value: 'bar',
     },
     data: {
       type: Array,
-      value: []
-    },
-    legend: {
-      type: Array,
-      value: []
+      value: [],
     },
     colors: {
       type: Array,
-      value: ['#0891b2', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
-    }
+      value: CHART_COLORS,
+    },
+    legend: {
+      type: Array,
+      value: [],
+    },
+  },
+
+  data: {
+    chartWidth: 300,
+    chartHeight: 200,
+  },
+
+  lifetimes: {
+    attached() {
+      try {
+        const deviceInfo = wx.getDeviceInfo();
+        const pixelRatio = deviceInfo.pixelRatio || 1;
+        this.setData({
+          chartWidth: this.properties.width * pixelRatio,
+          chartHeight: this.properties.height * pixelRatio,
+        });
+      } catch (e) {
+        this.setData({
+          chartWidth: this.properties.width,
+          chartHeight: this.properties.height,
+        });
+      }
+      this.drawChart();
+    },
   },
 
   observers: {
-    'data': function(newData) {
-      if (newData && newData.length > 0) {
-        this.drawChart();
-      }
-    }
+    'data, type, colors': function() {
+      this.drawChart();
+    },
   },
 
   methods: {
-    async drawChart() {
-      const { type, data, colors, canvasId, width, height } = this.properties;
+    drawChart() {
+      const { canvasId, type, data, colors, width, height } = this.properties;
 
-      try {
-        const query = this.createSelectorQuery();
-        const res = await new Promise((resolve, reject) => {
-          query.select(`#${canvasId}`)
-            .fields({ node: true, size: true })
-            .exec((result) => {
-              if (result && result[0]) {
-                resolve(result[0]);
-              } else {
-                reject(new Error('Canvas not found'));
-              }
-            });
-        });
-
-        const canvas = res.node;
-        const ctx = canvas.getContext('2d');
-
-        const systemInfo = wx.getWindowInfo();
-        const dpr = systemInfo.pixelRatio || 1;
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-        ctx.scale(dpr, dpr);
-
-        ctx.clearRect(0, 0, width, height);
-
-        if (!data || data.length === 0) return;
-
-        const padding = { top: 20, right: 20, bottom: 40, left: 50 };
-        const chartWidth = width - padding.left - padding.right;
-        const chartHeight = height - padding.top - padding.bottom;
-
-        const values = data.map(item => item.value);
-        const maxValue = Math.max(...values) || 100;
-        const minValue = Math.min(...values) || 0;
-        const range = maxValue - minValue || 1;
-
-        ctx.strokeStyle = '#e5e7eb';
-        ctx.lineWidth = 1;
-
-        const gridCount = 5;
-        for (let i = 0; i <= gridCount; i++) {
-          const y = padding.top + (chartHeight / gridCount) * i;
-          ctx.beginPath();
-          ctx.moveTo(padding.left, y);
-          ctx.lineTo(padding.left + chartWidth, y);
-          ctx.stroke();
-
-          const value = maxValue - (range / gridCount) * i;
-          ctx.fillStyle = '#9ca3af';
-          ctx.font = '20px sans-serif';
-          ctx.textAlign = 'right';
-          ctx.fillText(Math.round(value), padding.left - 10, y + 6);
-        }
-
-        if (type === 'line') {
-          this.drawLineChart(ctx, data, padding, chartWidth, chartHeight, minValue, range, colors[0]);
-        } else if (type === 'bar') {
-          this.drawBarChart(ctx, data, padding, chartWidth, chartHeight, minValue, range, colors);
-        }
-
-        const step = chartWidth / (data.length - 1 || 1);
-        data.forEach((item, index) => {
-          let x;
-          if (type === 'line') {
-            x = padding.left + step * index;
-          } else {
-            x = padding.left + (chartWidth / data.length) * index + (chartWidth / data.length / 2);
-          }
-
-          ctx.fillStyle = '#6b7280';
-          ctx.font = '20px sans-serif';
-          ctx.textAlign = 'center';
-
-          let label = item.label;
-          if (label.length > 6) {
-            label = label.substring(0, 6) + '..';
-          }
-          ctx.fillText(label, x, height - 10);
-        });
-      } catch (error) {
-        console.error('绘制图表失败:', error);
+      if (!data || data.length === 0) {
+        return;
       }
+
+      const query = this.createSelectorQuery();
+      query.select(`#${canvasId}`)
+        .fields({ node: true, size: true })
+        .exec((res) => {
+          if (!res || !res[0] || !res[0].node) {
+            return;
+          }
+
+          const canvas = res[0].node;
+          const ctx = canvas.getContext('2d');
+
+          canvas.width = width * dpr;
+          canvas.height = height * dpr;
+          ctx.scale(dpr, dpr);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+
+          const chartColors = colors.length > 0 ? colors : CHART_COLORS;
+
+          switch (type) {
+            case 'bar':
+              drawBarChart(ctx, data, width, height, chartColors);
+              break;
+            case 'line':
+              drawLineChart(ctx, data, width, height, chartColors);
+              break;
+            case 'pie':
+              drawPieChart(ctx, data, width, height, chartColors);
+              break;
+            default:
+              drawBarChart(ctx, data, width, height, chartColors);
+          }
+        });
     },
-
-    drawLineChart(ctx, data, padding, chartWidth, chartHeight, minValue, range, color) {
-      const step = chartWidth / (data.length - 1 || 1);
-
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-
-      data.forEach((item, index) => {
-        const x = padding.left + step * index;
-        const y = padding.top + chartHeight - ((item.value - minValue) / range) * chartHeight;
-
-        if (index === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-
-      ctx.stroke();
-
-      data.forEach((item, index) => {
-        const x = padding.left + step * index;
-        const y = padding.top + chartHeight - ((item.value - minValue) / range) * chartHeight;
-
-        ctx.beginPath();
-        ctx.fillStyle = '#ffffff';
-        ctx.arc(x, y, 6, 0, 2 * Math.PI);
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.arc(x, y, 6, 0, 2 * Math.PI);
-        ctx.stroke();
-      });
-
-      data.forEach((item, index) => {
-        const x = padding.left + step * index;
-        const y = padding.top + chartHeight - ((item.value - minValue) / range) * chartHeight;
-
-        ctx.fillStyle = color;
-        ctx.font = '22px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(item.value, x, y - 15);
-      });
-    },
-
-    drawBarChart(ctx, data, padding, chartWidth, chartHeight, minValue, range, colors) {
-      const barWidth = (chartWidth / data.length) * 0.6;
-      const gap = (chartWidth / data.length) * 0.4;
-
-      data.forEach((item, index) => {
-        const x = padding.left + (chartWidth / data.length) * index + gap / 2;
-        const barHeight = ((item.value - minValue) / range) * chartHeight;
-        const y = padding.top + chartHeight - barHeight;
-
-        const color = colors[index % colors.length];
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, barWidth, barHeight);
-
-        ctx.fillStyle = '#333';
-        ctx.font = '22px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(item.value, x + barWidth / 2, y - 8);
-      });
-    }
-  }
+  },
 });

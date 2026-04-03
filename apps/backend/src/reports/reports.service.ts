@@ -2,10 +2,11 @@ import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nest
 import { existsSync } from 'fs';
 import { isAbsolute, resolve } from 'path';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
-import PDFDocument from 'pdfkit';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const PDFDocument = require('pdfkit');
 import { PrismaService } from '../prisma/prisma.service';
 
-type PDFDocumentInstance = InstanceType<typeof PDFDocument>;
+type PDFDocumentInstance = ReturnType<typeof PDFDocument>;
 import { AuthUser } from '../auth/auth.types';
 import { ReportRangeQueryDto } from './dto/report-range-query.dto';
 

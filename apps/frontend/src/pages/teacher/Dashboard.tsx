@@ -1,16 +1,17 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, InputNumber, List, Select, Space, Tag, Typography } from 'antd';
+import { Alert, Button, InputNumber, List, Progress, Select, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchClasses, fetchHomeworksSummaryByClass, fetchTeacherClassReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
-import { OnboardingGuide } from '../../components/OnboardingGuide';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
 
 export const TeacherDashboardPage = () => {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['classes'],
     queryFn: fetchClasses,
@@ -67,7 +68,7 @@ export const TeacherDashboardPage = () => {
     .slice(0, 4);
 
   const classCount = data?.length ?? 0;
-  const summaryCards: Array<{ key: string; title: ReactNode; value?: number; suffix?: string }> = useMemo(
+  const summaryCards: Array<{ key: string; title: ReactNode; value?: number; suffix?: string; showProgress?: boolean; progressValue?: number }> = useMemo(
     () => [
       {
         key: 'classes',
@@ -109,6 +110,8 @@ export const TeacherDashboardPage = () => {
         ),
         value: submissionRate,
         suffix: '%',
+        showProgress: true,
+        progressValue: submissionRate,
       },
     ],
     [classCount, rangeDays, report?.totalStudents, submissionRate, summary?.count, t],
@@ -124,7 +127,20 @@ export const TeacherDashboardPage = () => {
         ],
       }}
     >
-      <OnboardingGuide role="TEACHER" />
+      {classCount === 0 && !isLoading ? (
+        <Alert
+          type="info"
+          showIcon
+          message={t('teacher.dashboard.welcomeTitle')}
+          description={t('teacher.dashboard.welcomeDesc')}
+          action={
+            <Button type="primary" onClick={() => navigate('/teacher/classes')}>
+              {t('teacher.dashboard.createClass')}
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
       {isError ? (
         <Alert
           type="error"
@@ -153,13 +169,7 @@ export const TeacherDashboardPage = () => {
           style={{ marginBottom: 16 }}
         />
       ) : null}
-      {classCount === 0 && !isLoading ? (
-        <SoftEmpty description={t('teacher.classes.empty')}>
-          <Button type="primary" onClick={() => refetch()}>
-            {t('common.retry')}
-          </Button>
-        </SoftEmpty>
-      ) : (
+      {classCount === 0 && !isLoading ? null : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <ProCard
             bordered 
@@ -192,6 +202,16 @@ export const TeacherDashboardPage = () => {
               {summaryCards.map((card) => (
                 <ProCard ghost key={card.key} colSpan={{ xs: 24, sm: 12, md: 6 }} loading={summaryLoading}>
                   <AnimatedStatistic title={<span className="apple-muted-label">{card.title}</span>} value={card.value} suffix={card.suffix} />
+                  {card.showProgress && card.progressValue != null && (
+                    <Progress 
+                      percent={card.progressValue} 
+                      showInfo={false}
+                      strokeColor={card.progressValue >= 80 ? '#10b981' : card.progressValue >= 50 ? '#f59e0b' : '#ef4444'}
+                      trailColor="#f3f4f6"
+                      size="small"
+                      style={{ marginTop: 8 }}
+                    />
+                  )}
                   {card.key === 'classes' ? (
                     <Typography.Text type="secondary" style={{ fontSize: '12px' }}>{t('teacher.dashboard.trackClasses')}</Typography.Text>
                   ) : null}

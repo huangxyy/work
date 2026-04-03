@@ -13,6 +13,7 @@ const mockRedisClient = {
   ping: jest.fn().mockResolvedValue('PONG'),
   quit: jest.fn().mockResolvedValue('OK'),
   disconnect: jest.fn(),
+  on: jest.fn(),
 };
 
 jest.mock('ioredis', () => ({

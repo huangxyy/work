@@ -75,8 +75,6 @@ export {
   fetchUnsubmittedStudents,
   fetchTeacherHomeworkSubmissions,
   fetchTeacherGradingSettings,
-  fetchTeacherGradingPreference,
-  updateTeacherGradingPreference,
   fetchTeacherGradingPolicy,
   fetchTeacherGradingPolicyPreview,
   upsertTeacherClassPolicy,
@@ -98,7 +96,6 @@ export {
   type TeacherSubmissionRow,
   type TeacherBatchUploadResult,
   type TeacherBatchPreviewResult,
-  type GradingPreferenceResponse,
 } from './teacher';
 
 // Notifications

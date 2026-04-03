@@ -1,15 +1,16 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
-import { Alert, Button, InputNumber, List, Space, Typography } from 'antd';
+import { Alert, Button, InputNumber, List, Progress, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { downloadTeacherStudentReportPdf, fetchTeacherStudentReportOverview } from '../../api';
+import { fetchTeacherStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { CHART_PALETTE, getDefaultGrid, getDefaultTooltip, createPieSeries } from '../../theme/charts';
 
 type StudentReport = {
   studentId: string;
@@ -22,7 +23,7 @@ type StudentReport = {
 };
 
 export const TeacherStudentReportPage = () => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const message = useMessage();
   const { studentId } = useParams();
   const [searchParams] = useSearchParams();
@@ -41,19 +42,31 @@ export const TeacherStudentReportPage = () => {
   const hasSummary = report?.summary?.count && report.summary.count > 0;
   const rangeTag = rangeDays === 7 ? t('common.last7Days') : t('common.recent');
 
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return '#10b981';
+    if (score >= 60) return '#f59e0b';
+    return '#ef4444';
+  };
+
   const trendOption = useMemo<EChartsOption>(() => {
     const data = report?.trend || [];
     return {
-      grid: { left: 24, right: 36, top: 30, bottom: 24, containLabel: true },
-      tooltip: { trigger: 'axis' },
-      legend: { data: [t('common.avgShort'), t('student.report.submissions')] },
+      grid: getDefaultGrid(),
+      tooltip: {
+        ...getDefaultTooltip(),
+        trigger: 'axis',
+      },
+      legend: { 
+        data: [t('common.avgShort'), t('student.report.submissions')],
+        top: 0,
+      },
       xAxis: {
         type: 'category',
         data: data.map((item) => item.date),
         axisLabel: { rotate: 30, width: 80, overflow: 'truncate' },
       },
       yAxis: [
-        { type: 'value', name: t('common.avgShort') },
+        { type: 'value', name: t('common.avgShort'), min: 0, max: 100 },
         { type: 'value', name: t('student.report.submissions'), minInterval: 1 },
       ],
       series: [
@@ -62,15 +75,31 @@ export const TeacherStudentReportPage = () => {
           type: 'line',
           data: data.map((item) => item.avg),
           smooth: true,
-          lineStyle: { width: 2, color: '#22c55e' },
-          itemStyle: { color: '#22c55e' },
+          symbol: 'circle',
+          symbolSize: 8,
+          lineStyle: { width: 3, color: CHART_PALETTE[1] },
+          itemStyle: { color: CHART_PALETTE[1], borderWidth: 2, borderColor: '#fff' },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: `${CHART_PALETTE[1]}30` },
+                { offset: 1, color: `${CHART_PALETTE[1]}05` },
+              ],
+            },
+          },
         },
         {
           name: t('student.report.submissions'),
           type: 'bar',
           yAxisIndex: 1,
           data: data.map((item) => item.count),
-          itemStyle: { color: '#94a3b8' },
+          itemStyle: { 
+            color: CHART_PALETTE[4],
+            borderRadius: [4, 4, 0, 0],
+          },
+          barWidth: 16,
         },
       ],
     };
@@ -78,22 +107,26 @@ export const TeacherStudentReportPage = () => {
 
   const errorOption = useMemo<EChartsOption>(() => {
     const data = report?.errorTypes || [];
+    const pieData = data.map((item) => ({
+      name: localizeErrorType(item.type),
+      value: item.count,
+    }));
     return {
-      grid: { left: 24, right: 24, top: 30, bottom: 24, containLabel: true },
-      tooltip: { trigger: 'axis' },
-      xAxis: {
-        type: 'category',
-        data: data.map((item) => localizeErrorType(item.type)),
-        axisLabel: { interval: 0, rotate: 20, width: 80, overflow: 'truncate' },
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderColor: '#e5e7eb',
+        borderWidth: 1,
+        textStyle: { color: '#1f2937' },
+        extraCssText: 'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); border-radius: 8px;',
+        formatter: '{b}: {c} ({d}%)',
       },
-      yAxis: { type: 'value' },
-      series: [
-        {
-          type: 'bar',
-          data: data.map((item) => item.count),
-          itemStyle: { color: '#f97316' },
-        },
-      ],
+      legend: {
+        orient: 'vertical',
+        right: 10,
+        top: 'center',
+      },
+      series: [createPieSeries(pieData)],
     };
   }, [report?.errorTypes]);
 
@@ -102,56 +135,45 @@ export const TeacherStudentReportPage = () => {
       message.error(t('teacher.reports.exportFailed'));
       return;
     }
+    if (!reportRef.current) {
+      message.error(t('teacher.reports.exportFailed'));
+      return;
+    }
     try {
       setExporting(true);
-      const blob = await downloadTeacherStudentReportPdf(studentId, rangeDays, language);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `student-${studentId}-${rangeDays}d.pdf`;
-      link.click();
-      setTimeout(() => window.URL.revokeObjectURL(url), 200);
-    } catch (error) {
-      console.error('导出PDF失败:', error);
-      if (!reportRef.current) {
-        message.error(t('teacher.reports.exportFailed'));
-        return;
-      }
-      try {
-        const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-          import('html2canvas'),
-          import('jspdf'),
-        ]);
-        const canvas = await html2canvas(reportRef.current, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-        });
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const imgWidth = pageWidth;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        let position = 0;
-        let heightLeft = imgHeight;
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let position = 0;
+      let heightLeft = imgHeight;
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
-        while (heightLeft > 0) {
-          position -= pageHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-        }
-        pdf.save(`student-${studentId}-${rangeDays}d.pdf`);
-      } catch (fallbackError) {
-        console.error('PDF备用导出失败:', fallbackError);
-        message.error(t('teacher.reports.exportFailed'));
       }
+      pdf.save(`student-${studentId}-${rangeDays}d.pdf`);
+    } catch (error) {
+      console.error('导出PDF失败:', error);
+      message.error(t('teacher.reports.exportFailed'));
     } finally {
       setExporting(false);
     }
-  }, [language, message, rangeDays, studentId, t]);
+  }, [message, rangeDays, studentId, t]);
 
   useEffect(() => {
     if (!report) {
@@ -231,52 +253,64 @@ export const TeacherStudentReportPage = () => {
 
             <ProCard bordered title={t('student.report.summary')} className="apple-soft-card">
               {hasSummary ? (
-                <ProCard gutter={16} wrap>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span>{t('student.report.avgScore')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.avg}
-                    />
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  <ProCard gutter={16} wrap>
+                    <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                          <Space size={6} align="center">
+                            <span>{t('student.report.avgScore')}</span>
+                            <span className="stat-chip">{rangeTag}</span>
+                          </Space>
+                        </Typography.Text>
+                        <Progress 
+                          type="dashboard" 
+                          percent={report.summary.avg} 
+                          size={100}
+                          strokeColor={getScoreColor(report.summary.avg)}
+                          format={(percent) => (
+                            <span style={{ fontSize: 24, fontWeight: 600, color: getScoreColor(percent || 0) }}>
+                              {percent}
+                            </span>
+                          )}
+                        />
+                      </div>
+                    </ProCard>
+                    <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                      <AnimatedStatistic
+                        title={
+                          <Space size={6} align="center">
+                            <span>{t('student.report.highestScore')}</span>
+                            <span className="stat-chip">{rangeTag}</span>
+                          </Space>
+                        }
+                        value={report.summary.max}
+                      />
+                    </ProCard>
+                    <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                      <AnimatedStatistic
+                        title={
+                          <Space size={6} align="center">
+                            <span>{t('student.report.lowestScore')}</span>
+                            <span className="stat-chip">{rangeTag}</span>
+                          </Space>
+                        }
+                        value={report.summary.min}
+                      />
+                    </ProCard>
+                    <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
+                      <AnimatedStatistic
+                        title={
+                          <Space size={6} align="center">
+                            <span>{t('student.report.submissions')}</span>
+                            <span className="stat-chip">{rangeTag}</span>
+                          </Space>
+                        }
+                        value={report.summary.count}
+                      />
+                    </ProCard>
                   </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span>{t('student.report.highestScore')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.max}
-                    />
-                  </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span>{t('student.report.lowestScore')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.min}
-                    />
-                  </ProCard>
-                  <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }}>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span>{t('student.report.submissions')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.count}
-                    />
-                  </ProCard>
-                </ProCard>
+                </Space>
               ) : (
                 <SoftEmpty description={t('student.report.noCompleted')} />
               )}

@@ -7,9 +7,19 @@
       <text class="user-name">{{userName}}</text>
       <text class="user-account">{{userAccount}}</text>
     </view>
+    <view class="message-badge" wx:if="{{unreadCount > 0}}" bindtap="goMessages">
+      <text class="badge-icon">🔔</text>
+      <view class="badge-count">{{unreadCount > 99 ? '99+' : unreadCount}}</view>
+    </view>
   </view>
 
   <view class="menu-list fade-in">
+    <view class="menu-item" bindtap="goMessages">
+      <text class="menu-icon">🔔</text>
+      <text class="menu-label">消息通知</text>
+      <view class="menu-badge" wx:if="{{unreadCount > 0}}">{{unreadCount > 99 ? '99+' : unreadCount}}</view>
+      <text class="menu-arrow">›</text>
+    </view>
     <view class="menu-item" bindtap="onGradingSettings">
       <text class="menu-icon">⚙️</text>
       <text class="menu-label">评分设置</text>
@@ -20,14 +30,79 @@
       <text class="menu-label">班级管理</text>
       <text class="menu-arrow">›</text>
     </view>
-    <view class="menu-item" bindtap="onChangePassword">
+  </view>
+
+  <view class="menu-list fade-in">
+    <view class="menu-item" bindtap="toggleProfileCard">
+      <text class="menu-icon">👤</text>
+      <text class="menu-label">修改资料</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="togglePasswordCard">
       <text class="menu-icon">🔒</text>
       <text class="menu-label">修改密码</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="onClearCache">
+      <text class="menu-icon">🗑️</text>
+      <text class="menu-label">清理缓存</text>
       <text class="menu-arrow">›</text>
     </view>
   </view>
 
   <view class="logout-section">
     <button class="btn btn-danger" bindtap="onLogout">退出登录</button>
+  </view>
+
+  <view class="card-modal {{showPasswordCard ? 'show' : ''}}" bindtap="togglePasswordCard">
+    <view class="card-content" catchtap="">
+      <view class="card-header">
+        <text class="card-title">修改密码</text>
+        <text class="card-close" bindtap="togglePasswordCard">×</text>
+      </view>
+      <view class="card-body">
+        <view class="form-item">
+          <text class="form-label">当前密码</text>
+          <input class="form-input" type="password" placeholder="请输入当前密码" value="{{oldPassword}}" bindinput="onOldPasswordInput" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">新密码</text>
+          <input class="form-input" type="password" placeholder="至少8位，含字母和数字" value="{{newPassword}}" bindinput="onNewPasswordInput" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">确认密码</text>
+          <input class="form-input" type="password" placeholder="再次输入新密码" value="{{confirmPassword}}" bindinput="onConfirmPasswordInput" />
+        </view>
+      </view>
+      <view class="card-footer">
+        <button class="btn btn-primary" bindtap="submitChangePassword" loading="{{changingPassword}}">确认修改</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="card-modal {{showProfileCard ? 'show' : ''}}" bindtap="toggleProfileCard">
+    <view class="card-content" catchtap="">
+      <view class="card-header">
+        <text class="card-title">修改资料</text>
+        <text class="card-close" bindtap="toggleProfileCard">×</text>
+      </view>
+      <view class="card-body">
+        <view class="form-item">
+          <text class="form-label">姓名 <text class="required">*</text></text>
+          <input class="form-input" placeholder="请输入姓名" value="{{profileName}}" bindinput="onProfileNameInput" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">邮箱</text>
+          <input class="form-input" type="text" placeholder="请输入邮箱（选填）" value="{{profileEmail}}" bindinput="onProfileEmailInput" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">手机</text>
+          <input class="form-input" type="text" placeholder="请输入手机号（选填）" value="{{profilePhone}}" bindinput="onProfilePhoneInput" />
+        </view>
+      </view>
+      <view class="card-footer">
+        <button class="btn btn-primary" bindtap="submitUpdateProfile" loading="{{updatingProfile}}">保存</button>
+      </view>
+    </view>
   </view>
 </view>

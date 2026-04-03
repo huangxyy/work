@@ -285,13 +285,13 @@ describe('AdminService', () => {
     it('should throw when account or name is empty', async () => {
       await expect(
         service.createUser({ account: '', name: 'N', password: 'p' }),
-      ).rejects.toThrow('Account and name are required');
+      ).rejects.toThrow('账号和姓名不能为空');
     });
 
     it('should throw when assigning non-student to class', async () => {
       await expect(
         service.createUser({ account: 'a', name: 'N', password: 'p', role: Role.TEACHER, classId: 'c1' }),
-      ).rejects.toThrow('Only students can be assigned to class');
+      ).rejects.toThrow('创建时只能为学生分配班级');
     });
 
     it('should create enrollment when classId provided', async () => {
@@ -324,7 +324,7 @@ describe('AdminService', () => {
 
       await expect(
         service.deleteUser('admin-1', mockAdmin),
-      ).rejects.toThrow('Cannot delete current user');
+      ).rejects.toThrow('无法删除当前用户');
     });
 
     it('should throw when deleting last admin', async () => {
@@ -333,7 +333,7 @@ describe('AdminService', () => {
 
       await expect(
         service.deleteUser('other-admin', mockAdmin),
-      ).rejects.toThrow('Cannot delete the last admin');
+      ).rejects.toThrow('无法删除最后一个管理员');
     });
 
     it('should throw when user not found', async () => {
@@ -372,7 +372,7 @@ describe('AdminService', () => {
 
       await expect(
         service.updateUser('u1', { name: '' }),
-      ).rejects.toThrow('Name is required');
+      ).rejects.toThrow('姓名不能为空');
     });
 
     it('should disconnect teacher from classes on role change', async () => {
@@ -512,7 +512,7 @@ describe('AdminService', () => {
     it('should throw on empty flag', async () => {
       await expect(
         service.updateFeatureFlag('  ', true),
-      ).rejects.toThrow('Flag is required');
+      ).rejects.toThrow('标志值不能为空');
     });
   });
 
@@ -683,13 +683,13 @@ describe('AdminService', () => {
     it('should throw on empty lines', async () => {
       await expect(
         service.bulkImportUsers({ text: '   \n  ' }),
-      ).rejects.toThrow('No valid lines');
+      ).rejects.toThrow('没有有效的数据行');
     });
 
     it('should throw when assigning non-student to class', async () => {
       await expect(
         service.bulkImportUsers({ text: 'alice', role: Role.TEACHER, classId: 'c1' }),
-      ).rejects.toThrow('Only students can be assigned to class');
+      ).rejects.toThrow('批量导入时只能为学生分配班级');
     });
 
     it('should mark existing accounts', async () => {
@@ -728,7 +728,7 @@ describe('AdminService', () => {
     it('should throw on empty list', async () => {
       await expect(
         service.bulkDisableUsers([]),
-      ).rejects.toThrow('At least one userId is required');
+      ).rejects.toThrow('至少需要一个用户ID');
     });
 
     it('should throw when disabling last admin', async () => {
@@ -738,7 +738,7 @@ describe('AdminService', () => {
 
       await expect(
         service.bulkDisableUsers(['admin-2']),
-      ).rejects.toThrow('Cannot disable the last active admin');
+      ).rejects.toThrow('无法禁用最后一个活跃管理员');
     });
   });
 
@@ -756,7 +756,7 @@ describe('AdminService', () => {
     it('should throw on empty list', async () => {
       await expect(
         service.bulkResetPassword([], 'pass'),
-      ).rejects.toThrow('At least one userId is required');
+      ).rejects.toThrow('至少需要一个用户ID');
     });
   });
 

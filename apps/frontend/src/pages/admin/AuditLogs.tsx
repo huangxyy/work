@@ -1,5 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Select, Space, Table, Tag } from 'antd';
+import { Alert, Button, Segmented, Space, Table, Tag } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { api } from '../../api/client';
@@ -30,26 +30,31 @@ const ACTION_LABELS: Record<string, string> = {
   ADMIN_ACTION: 'admin.auditLogs.actionAdminAction',
 };
 
+const LOGIN_ACTIONS = ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGIN_LOCKED', 'LOGOUT'];
+
 const localizeAction = (action: string, t: (key: string) => string): string => {
   const key = ACTION_LABELS[action];
   return key ? t(key) : action;
 };
 
+type FilterMode = 'all' | 'login';
+
 export const AdminAuditLogsPage = () => {
   const { t } = useI18n();
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [actionFilter, setActionFilter] = useState<string | undefined>();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
   const logsQuery = useQuery({
-    queryKey: ['admin-audit-logs', page, pageSize, actionFilter],
+    queryKey: ['admin-audit-logs', page, pageSize, actionFilter, filterMode],
     queryFn: async () => {
       const offset = (page - 1) * pageSize;
       const res = await api.get('/admin/audit-logs', {
         params: {
           limit: pageSize,
           offset,
-          ...(actionFilter ? { action: actionFilter } : {}),
+          ...(actionFilter ? { action: actionFilter } : filterMode === 'login' ? { actions: LOGIN_ACTIONS.join(',') } : {}),
         },
       });
       return res.data;
@@ -71,22 +76,45 @@ export const AdminAuditLogsPage = () => {
 
   const actionOptions = useMemo(() => Object.keys(ACTION_COLORS).map(k => ({ label: localizeAction(k, t), value: k })), [t]);
 
+  const handleFilterModeChange = (mode: FilterMode) => {
+    setFilterMode(mode);
+    setActionFilter(undefined);
+    setPage(1);
+  };
+
   return (
     <PageContainer title={t('admin.auditLogs.title')}>
       {logsQuery.isError ? (
         <Alert type="error" message={t('common.loadError')} action={<Button size="small" onClick={() => logsQuery.refetch()}>{t('common.retry')}</Button>} className="apple-inline-alert" />
       ) : null}
       <ProCard bordered className="apple-soft-card">
-        <Space className="apple-toolbar" style={{ marginBottom: 16 }}>
-          <Select
-            allowClear
-            placeholder={t('admin.auditLogs.filterAction')}
-            value={actionFilter}
-            onChange={(v) => { setActionFilter(v); setPage(1); }}
-            style={{ width: 200 }}
-            options={actionOptions}
+        <Space className="apple-toolbar" style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
+          <Segmented<FilterMode>
+            value={filterMode}
+            onChange={handleFilterModeChange}
+            options={[
+              { label: t('admin.auditLogs.allLogs'), value: 'all' },
+              { label: t('admin.loginHistory.title'), value: 'login' },
+            ]}
           />
+          {filterMode === 'all' && (
+            <Button onClick={() => { setActionFilter(undefined); setPage(1); }}>
+              {t('common.reset')}
+            </Button>
+          )}
         </Space>
+        {filterMode === 'all' && (
+          <Space className="apple-toolbar" style={{ marginBottom: 16 }}>
+            <Segmented<string>
+              value={actionFilter || 'all'}
+              onChange={(v) => { setActionFilter(v === 'all' ? undefined : v); setPage(1); }}
+              options={[
+                { label: t('admin.auditLogs.allActions'), value: 'all' },
+                ...actionOptions.slice(0, 6),
+              ]}
+            />
+          </Space>
+        )}
         <Table
           rowKey="id"
           columns={columns}

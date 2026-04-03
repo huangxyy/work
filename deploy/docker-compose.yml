@@ -35,7 +35,7 @@ services:
     ports:
       - "6379:6379"
     # 开发环境无需密码，生产环境应配置密码
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
+    command: redis-server --maxmemory 256mb --maxmemory-policy noeviction ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     deploy:
       resources:
         limits:

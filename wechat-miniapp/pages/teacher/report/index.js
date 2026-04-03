@@ -1,8 +1,17 @@
-const { fetchClasses, fetchClassReport } = require('../../../services/teacher');
-const { showToast, showLoading, hideLoading } = require('../../../lib/ui');
-const errorHandler = require('../../../lib/error-handler');
-const cache = require('../../../lib/cache');
-const { showHelp } = require('../../../lib/help');
+const { fetchClasses, fetchClassReport, fetchClassStudents } = require('../../../services/teacher');
+const { showToast } = require('../../../lib/ui');
+const { pickErrorMessage } = require('../../../lib/utils');
+
+function getScreenWidth() {
+  try {
+    const windowInfo = wx.getWindowInfo();
+    return windowInfo.windowWidth || 375;
+  } catch (e) {
+    return 375;
+  }
+}
+
+const screenWidth = getScreenWidth();
 
 Page({
   data: {
@@ -15,13 +24,17 @@ Page({
     submissionRateText: '0%',
     trendChartData: [],
     scoreDistribution: [],
-    chartColors: ['#0891b2', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+    chartWidth: screenWidth - 48,
+    chartColors: ['#f59e0b', '#10b981', '#ef4444', '#14b8a6', '#fbbf24'],
     scoreLegend: [
       { name: '优秀(90+)', color: '#10b981' },
-      { name: '良好(80-89)', color: '#0891b2' },
-      { name: '及格(60-79)', color: '#f59e0b' },
+      { name: '良好(80-89)', color: '#f59e0b' },
+      { name: '及格(60-79)', color: '#fbbf24' },
       { name: '不及格(<60)', color: '#ef4444' }
-    ]
+    ],
+    students: [],
+    showStudentList: false,
+    loadingStudents: false,
   },
 
   onLoad() {
@@ -139,7 +152,7 @@ Page({
   onSelectClass(e) {
     const classId = e.currentTarget.dataset.id;
     if (classId && classId !== this.data.selectedClassId) {
-      this.setData({ selectedClassId: classId, report: null });
+      this.setData({ selectedClassId: classId, report: null, students: [] });
       this.loadReport();
     }
   },
@@ -152,7 +165,36 @@ Page({
     }
   },
 
-  onShowHelp() {
-    showHelp('report');
-  }
+  async toggleStudentList() {
+    if (this.data.showStudentList) {
+      this.setData({ showStudentList: false });
+      return;
+    }
+
+    this.setData({ showStudentList: true, loadingStudents: true });
+    try {
+      const students = await fetchClassStudents(this.data.selectedClassId);
+      this.setData({ students: students || [] });
+    } catch (error) {
+      showToast(pickErrorMessage(error, '加载学生列表失败'));
+    } finally {
+      this.setData({ loadingStudents: false });
+    }
+  },
+
+  goStudentReport(e) {
+    const { id } = e.currentTarget.dataset;
+    if (!id) return;
+    wx.navigateTo({
+      url: `/pages/teacher/student-submissions/index?studentId=${id}&classId=${this.data.selectedClassId}`,
+    });
+  },
+
+  goStudentDetail(e) {
+    const { id } = e.currentTarget.dataset;
+    if (!id) return;
+    wx.navigateTo({
+      url: `/pages/teacher/student-report/index?studentId=${id}&classId=${this.data.selectedClassId}`,
+    });
+  },
 });

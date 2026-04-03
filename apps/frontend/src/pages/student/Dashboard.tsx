@@ -1,11 +1,10 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, List, Skeleton, Space, Tag, Typography } from 'antd';
+import { Alert, Button, List, Progress, Skeleton, Space, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchStudentHomeworks, fetchStudentReportOverview } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
-import { OnboardingGuide } from '../../components/OnboardingGuide';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
 import { formatDate } from '../../utils/dateFormat';
@@ -44,7 +43,7 @@ export const StudentDashboardPage = () => {
   const summary = report?.summary;
   const topErrors = useMemo(() => (report?.errorTypes || []).slice(0, 5), [report?.errorTypes]);
   const nextSteps = useMemo(() => (report?.nextSteps || []).slice(0, 5), [report?.nextSteps]);
-  const summaryCards = useMemo(
+  const summaryCards: Array<{ key: string; title: React.ReactNode; value?: number; showProgress?: boolean; progressValue?: number }> = useMemo(
     () => [
       {
         key: 'assignments',
@@ -75,6 +74,8 @@ export const StudentDashboardPage = () => {
           </Space>
         ),
         value: summary?.avg,
+        showProgress: true,
+        progressValue: summary?.avg,
       },
       {
         key: 'highestScore',
@@ -100,7 +101,6 @@ export const StudentDashboardPage = () => {
         ],
       }}
     >
-      <OnboardingGuide role="STUDENT" />
       {isError ? (
         <Alert
           type="error"
@@ -140,6 +140,19 @@ export const StudentDashboardPage = () => {
           }
           style={{ marginBottom: 16 }}
         />
+      ) : homeworkCount === 0 && !isLoading ? (
+        <Alert
+          type="info"
+          showIcon
+          message={t('student.dashboard.welcomeTitle')}
+          description={t('student.dashboard.welcomeDesc')}
+          action={
+            <Button type="primary" size="small" onClick={() => navigate('/student/homeworks')}>
+              {t('student.dashboard.viewHomeworks')}
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
       ) : null}
       {isLoading && !data ? (
         <Skeleton active paragraph={{ rows: 8 }} />
@@ -159,6 +172,16 @@ export const StudentDashboardPage = () => {
                 colSpan={{ xs: 24, sm: 12, md: 6 }}
               >
                 <AnimatedStatistic title={<span className="apple-muted-label">{card.title}</span>} value={card.value} />
+                {card.showProgress && card.progressValue != null && (
+                  <Progress 
+                    percent={card.progressValue} 
+                    showInfo={false}
+                    strokeColor={card.progressValue >= 80 ? '#10b981' : card.progressValue >= 60 ? '#f59e0b' : '#ef4444'}
+                    trailColor="#f3f4f6"
+                    size="small"
+                    style={{ marginTop: 8 }}
+                  />
+                )}
                 {card.key === 'assignments' ? (
                   <Typography.Text type="secondary" style={{ fontSize: '12px' }}>{t('student.dashboard.updatedFromList')}</Typography.Text>
                 ) : null}

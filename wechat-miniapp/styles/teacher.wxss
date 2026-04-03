@@ -6,14 +6,13 @@
 
 /* 老师端默认变量 (覆盖 theme.wxss 中相同的变量) */
 page {
-  --teacher-primary: #0891b2;
-  --teacher-primary-dark: #0e7490;
-  --teacher-secondary: #06b6d4;
+  --teacher-primary: #f59e0b;
+  --teacher-primary-dark: #d97706;
+  --teacher-secondary: #fb923c;
   --teacher-green: #10b981;
   --teacher-orange: #f59e0b;
-  --teacher-purple: #7c3aed;
   --teacher-red: #dc2626;
-  --teacher-cyan: #0891b2;
+  --teacher-teal: #14b8a6;
 
   /* 文本颜色 */
   --text-primary: #1f2937;
@@ -46,7 +45,7 @@ page {
 .hero {
   margin: -32rpx -32rpx 24rpx -32rpx;
   padding: 64rpx 32rpx 48rpx;
-  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #f59e0b 0%, #fb923c 100%));
   border-radius: 0 0 48rpx 48rpx;
   color: #ffffff;
 }
@@ -87,7 +86,7 @@ page {
 
 /* ===== 渐变背景类 ===== */
 .gradient-primary {
-  background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, #f59e0b 0%, #fb923c 100%);
 }
 
 .gradient-green {
@@ -98,12 +97,8 @@ page {
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 }
 
-.gradient-cyan {
-  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
-}
-
-.gradient-purple {
-  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+.gradient-teal {
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
 }
 
 .gradient-red {
@@ -125,7 +120,7 @@ page {
 }
 
 .card-hero {
-  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #f59e0b 0%, #fb923c 100%));
   color: #ffffff;
   border-radius: var(--border-radius-medium, 24rpx);
   padding: 32rpx;
@@ -164,7 +159,7 @@ page {
 }
 
 .btn-primary {
-  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #f59e0b 0%, #fb923c 100%));
   color: #ffffff;
   box-shadow: var(--shadow-md);
 }
@@ -176,8 +171,8 @@ page {
 
 .btn-secondary {
   background: #ffffff;
-  color: #0891b2;
-  border: 4rpx solid #0891b2;
+  color: #f59e0b;
+  border: 4rpx solid #f59e0b;
 }
 
 .btn-ghost {
@@ -202,14 +197,14 @@ page {
   bottom: 140rpx;
   width: 100rpx;
   height: 100rpx;
-  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #f59e0b 0%, #fb923c 100%));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   font-size: 48rpx;
-  box-shadow: 0 8rpx 24rpx rgba(8, 145, 178, 0.4);
+  box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.4);
   z-index: 100;
   transition: transform 0.2s;
 }
@@ -322,7 +317,7 @@ page {
 }
 
 .selector-value.mode-quality {
-  color: var(--teacher-purple);
+  color: var(--teacher-orange);
 }
 
 /* ===== 底部弹出选择器 ===== */
@@ -401,7 +396,7 @@ page {
 
 .stat-card {
   flex: 1;
-  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #f59e0b 0%, #fb923c 100%));
   border-radius: 20rpx;
   padding: 32rpx 24rpx;
   text-align: center;
@@ -422,12 +417,8 @@ page {
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 }
 
-.stat-card.cyan {
-  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
-}
-
-.stat-card.purple {
-  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+.stat-card.teal {
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
 }
 
 .stat-card.red {
@@ -526,7 +517,7 @@ page {
 .form-input:focus {
   background: #ffffff;
   border-color: var(--teacher-primary);
-  box-shadow: 0 0 0 4rpx rgba(8, 145, 178, 0.1);
+  box-shadow: 0 0 0 4rpx rgba(245, 158, 11, 0.1);
 }
 
 .form-textarea {
@@ -819,7 +810,7 @@ page {
 }
 
 .homework-action-btn.primary {
-  background: var(--gradient-primary, linear-gradient(135deg, #0891b2 0%, #06b6d4 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #f59e0b 0%, #fb923c 100%));
   color: #ffffff;
 }
 
@@ -935,7 +926,7 @@ page {
 .grading-value {
   font-size: 28rpx;
   font-weight: 600;
-  color: #0891b2;
+  color: #f59e0b;
   word-break: break-all;
   overflow-wrap: break-word;
   max-width: 100%;

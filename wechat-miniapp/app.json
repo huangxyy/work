@@ -20,6 +20,8 @@
     "pages/teacher/upload-result/index",
     "pages/teacher/grading-settings/index",
     "pages/teacher/student-submissions/index",
+    "pages/teacher/student-report/index",
+    "pages/teacher/messages/index",
     "pages/change-password/index"
   ],
   "window": {

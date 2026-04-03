@@ -171,6 +171,22 @@ async function updateGradingPreference(mode) {
   });
 }
 
+async function addTeacherFeedback(submissionId, data) {
+  return request({
+    url: `/submissions/${submissionId}/feedback`,
+    method: 'POST',
+    data,
+  });
+}
+
+async function regradeSubmission(submissionId, data) {
+  return request({
+    url: `/submissions/${submissionId}/regrade`,
+    method: 'POST',
+    data,
+  });
+}
+
 module.exports = {
   fetchClasses,
   fetchClassStudents,
@@ -191,4 +207,6 @@ module.exports = {
   fetchClassReport,
   fetchGradingPreference,
   updateGradingPreference,
+  addTeacherFeedback,
+  regradeSubmission,
 };

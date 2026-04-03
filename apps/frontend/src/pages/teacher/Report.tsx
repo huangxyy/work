@@ -1,19 +1,18 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
-import { Alert, Button, Dropdown, InputNumber, List, Select, Space, Typography } from 'antd';
+import { Alert, Button, Dropdown, InputNumber, Progress, Select, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   downloadTeacherClassReportCsv,
-  downloadTeacherClassReportPdf,
   fetchClasses,
   fetchTeacherClassReportOverview,
 } from '../../api';
-import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
-import { useI18n, localizeErrorType } from '../../i18n';
+import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
+import { CHART_PALETTE, getDefaultGrid, getDefaultTooltip } from '../../theme/charts';
 
 type ReportSummary = {
   avg: number;
@@ -33,19 +32,6 @@ type TrendPoint = {
   count: number;
 };
 
-type ErrorTypeStat = {
-  type: string;
-  count: number;
-  ratio: number;
-};
-
-type TopRankItem = {
-  studentId: string;
-  name: string;
-  avgScore: number;
-  count: number;
-};
-
 type ClassReport = {
   classId: string;
   className: string;
@@ -56,10 +42,10 @@ type ClassReport = {
   submissionRate: number;
   summary: ReportSummary;
   distribution: DistributionBucket[];
-  topRank: TopRankItem[];
   trend: TrendPoint[];
-  errorTypes: ErrorTypeStat[];
 };
+
+const { Title, Text } = Typography;
 
 export const TeacherReportPage = () => {
   const { t, language } = useI18n();
@@ -100,23 +86,51 @@ export const TeacherReportPage = () => {
   const report = reportQuery.data as ClassReport | undefined;
   const hasSummary = report?.summary?.count && report.summary.count > 0;
   const submissionRate = report?.submissionRate ? Number((report.submissionRate * 100).toFixed(1)) : 0;
-  const rangeTag = rangeDays === 7 ? t('common.last7Days') : t('common.recent');
+
   const distributionOption = useMemo<EChartsOption>(() => {
     const data = report?.distribution || [];
+    const colors: Record<string, string> = {
+      '90-100': '#10b981',
+      '80-89': '#f59e0b',
+      '60-79': '#fbbf24',
+      '0-59': '#ef4444',
+    };
     return {
-      grid: { left: 24, right: 24, top: 30, bottom: 24, containLabel: true },
-      tooltip: { trigger: 'axis' },
-      xAxis: {
-        type: 'category',
-        data: data.map((item) => item.bucket),
-        axisTick: { alignWithLabel: true },
+      grid: { left: 16, right: 16, top: 16, bottom: 16, containLabel: true },
+      tooltip: {
+        ...getDefaultTooltip(),
+        trigger: 'item',
+        formatter: '{b}: {c}人 ({d}%)',
       },
-      yAxis: { type: 'value' },
       series: [
         {
-          type: 'bar',
-          data: data.map((item) => item.count),
-          itemStyle: { color: '#3b82f6' },
+          type: 'pie',
+          radius: ['45%', '70%'],
+          center: ['50%', '50%'],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 6,
+            borderColor: '#fff',
+            borderWidth: 2,
+          },
+          label: {
+            show: true,
+            formatter: '{b}\n{c}人',
+            fontSize: 12,
+          },
+          labelLine: {
+            show: true,
+            length: 10,
+            length2: 10,
+          },
+          data: data.map((item) => ({
+            value: item.count,
+            name: item.bucket,
+            itemStyle: { color: colors[item.bucket] || CHART_PALETTE[0] },
+          })),
+          animationType: 'scale',
+          animationDuration: 800,
+          animationEasing: 'cubicOut',
         },
       ],
     };
@@ -125,58 +139,51 @@ export const TeacherReportPage = () => {
   const trendOption = useMemo<EChartsOption>(() => {
     const data = report?.trend || [];
     return {
-      grid: { left: 24, right: 36, top: 30, bottom: 24, containLabel: true },
-      tooltip: { trigger: 'axis' },
-      legend: { data: [t('common.avgShort'), t('teacher.reports.submissions')] },
+      grid: getDefaultGrid(),
+      tooltip: {
+        ...getDefaultTooltip(),
+        trigger: 'axis',
+      },
       xAxis: {
         type: 'category',
         data: data.map((item) => item.date),
         axisLabel: { rotate: 30, width: 80, overflow: 'truncate' },
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: '#e5e7eb' } },
       },
-      yAxis: [
-        { type: 'value', name: t('common.avgShort') },
-        { type: 'value', name: t('teacher.reports.submissions'), minInterval: 1 },
-      ],
+      yAxis: { 
+        type: 'value',
+        min: 0,
+        max: 100,
+        splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
       series: [
         {
-          name: t('common.avgShort'),
           type: 'line',
           data: data.map((item) => item.avg),
           smooth: true,
-          lineStyle: { width: 2, color: '#22c55e' },
-          itemStyle: { color: '#22c55e' },
-        },
-        {
-          name: t('teacher.reports.submissions'),
-          type: 'bar',
-          yAxisIndex: 1,
-          data: data.map((item) => item.count),
-          itemStyle: { color: '#94a3b8' },
-        },
-      ],
-    };
-  }, [report?.trend, t]);
-
-  const errorOption = useMemo<EChartsOption>(() => {
-    const data = report?.errorTypes || [];
-    return {
-      grid: { left: 24, right: 24, top: 30, bottom: 24, containLabel: true },
-      tooltip: { trigger: 'axis' },
-      xAxis: {
-        type: 'category',
-        data: data.map((item) => localizeErrorType(item.type)),
-        axisLabel: { interval: 0, rotate: 20, width: 80, overflow: 'truncate' },
-      },
-      yAxis: { type: 'value' },
-      series: [
-        {
-          type: 'bar',
-          data: data.map((item) => item.count),
-          itemStyle: { color: '#f97316' },
+          symbol: 'circle',
+          symbolSize: 8,
+          lineStyle: { width: 3, color: CHART_PALETTE[0] },
+          itemStyle: { color: CHART_PALETTE[0], borderWidth: 2, borderColor: '#fff' },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: `${CHART_PALETTE[0]}40` },
+                { offset: 1, color: `${CHART_PALETTE[0]}05` },
+              ],
+            },
+          },
+          animationDuration: 1000,
+          animationEasing: 'cubicOut',
         },
       ],
     };
-  }, [report?.errorTypes]);
+  }, [report?.trend]);
 
   const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
@@ -192,55 +199,41 @@ export const TeacherReportPage = () => {
       message.warning(t('teacher.reports.selectClassHint'));
       return;
     }
+    if (!reportRef.current) {
+      message.error(t('teacher.reports.exportFailed'));
+      return;
+    }
     try {
       setExporting(true);
-      const blob = await downloadTeacherClassReportPdf(selectedClassId, rangeDays, language);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `class-${selectedClassId}-report.pdf`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('导出PDF失败:', error);
-      // 尝试使用备用方案（html2canvas + jsPDF）
-      if (!reportRef.current) {
-        message.error(t('teacher.reports.exportFailed'));
-        return;
-      }
-      try {
-        message.loading(t('teacher.reports.fallbackExporting'));
-        const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-          import('html2canvas'),
-          import('jspdf'),
-        ]);
-        const canvas = await html2canvas(reportRef.current, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-        });
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const imgWidth = pageWidth;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        let position = 0;
-        let heightLeft = imgHeight;
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let position = 0;
+      let heightLeft = imgHeight;
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
-        while (heightLeft > 0) {
-          position -= pageHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-        }
-        pdf.save(`class-${selectedClassId}-report.pdf`);
-        message.success(t('teacher.reports.exportSuccess'));
-      } catch (fallbackError) {
-        console.error('PDF备用导出失败:', fallbackError);
-        message.error(t('teacher.reports.exportFailed'));
       }
+      pdf.save(`class-${selectedClassId}-report.pdf`);
+    } catch (error) {
+      console.error('导出PDF失败:', error);
+      message.error(t('teacher.reports.exportFailed'));
     } finally {
       setExporting(false);
     }
@@ -258,6 +251,13 @@ export const TeacherReportPage = () => {
       console.error('导出CSV失败:', error);
       message.error(t('teacher.reports.exportFailed'));
     }
+  };
+
+  const getScoreColor = (avg: number) => {
+    if (avg >= 90) return '#10b981';
+    if (avg >= 80) return '#f59e0b';
+    if (avg >= 60) return '#fbbf24';
+    return '#ef4444';
   };
 
   return (
@@ -284,18 +284,18 @@ export const TeacherReportPage = () => {
         />
       ) : null}
 
-      <ProCard bordered className="apple-soft-card apple-section-card">
-        <Space wrap className="apple-toolbar">
+      <ProCard bordered className="apple-soft-card" style={{ marginBottom: 16 }}>
+        <Space wrap size="middle">
           <Select
             placeholder={t('teacher.reports.selectClass')}
-            className="apple-toolbar-select-wide"
+            style={{ minWidth: 180 }}
             options={classOptions}
             loading={classesQuery.isLoading}
             value={selectedClassId || undefined}
             onChange={(value) => setSelectedClassId(value)}
           />
-          <Space className="apple-toolbar-score-range">
-            <Typography.Text>{t('teacher.reports.rangeDays')}</Typography.Text>
+          <Space>
+            <Text type="secondary">{t('teacher.reports.rangeDays')}</Text>
             <InputNumber min={1} max={30} value={rangeDays} onChange={(value) => setRangeDays(value || 7)} />
           </Space>
           <Dropdown.Button
@@ -303,13 +303,7 @@ export const TeacherReportPage = () => {
             onClick={handleExportPdf}
             loading={exporting}
             menu={{
-              items: [
-                {
-                  key: 'csv',
-                  label: t('teacher.reports.exportCsv'),
-                  onClick: handleExportCsv,
-                },
-              ],
+              items: [{ key: 'csv', label: t('teacher.reports.exportCsv'), onClick: handleExportCsv }],
             }}
           >
             {t('teacher.reports.exportPdf')}
@@ -326,184 +320,99 @@ export const TeacherReportPage = () => {
           <SoftEmpty description={t('teacher.reports.noData')} />
         ) : (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <ProCard 
-              title={t('teacher.reports.insightsTitle')} 
-              headerBordered 
-              bordered 
-              className="chart-panel apple-soft-card"
-            >
-              <ProCard gutter={[24, 24]} wrap ghost>
-                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                  <AnimatedStatistic
-                    title={
-                      <Space size={6} align="center">
-                        <span className="apple-muted-label">{t('teacher.reports.totalStudents')}</span>
-                        <span className="stat-chip">{t('common.realtime')}</span>
-                      </Space>
-                    }
-                    value={report.totalStudents}
-                  />
-                </ProCard>
-                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                  <AnimatedStatistic
-                    title={
-                      <Space size={6} align="center">
-                        <span className="apple-muted-label">{t('teacher.reports.submittedStudents')}</span>
-                        <span className="stat-chip">{rangeTag}</span>
-                      </Space>
-                    }
-                    value={report.submittedStudents}
-                  />
-                </ProCard>
-                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                  <AnimatedStatistic
-                    title={
-                      <Space size={6} align="center">
-                        <span className="apple-muted-label">{t('teacher.reports.pendingStudents')}</span>
-                        <span className="stat-chip">{rangeTag}</span>
-                      </Space>
-                    }
-                    value={report.pendingStudents}
-                  />
-                </ProCard>
-                <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                  <AnimatedStatistic
-                    title={
-                      <Space size={6} align="center">
-                        <span className="apple-muted-label">{t('teacher.reports.submissionRate')}</span>
-                        <span className="stat-chip">{rangeTag}</span>
-                      </Space>
-                    }
-                    value={submissionRate}
-                    suffix="%"
-                  />
-                </ProCard>
-              </ProCard>
-            </ProCard>
-            <ProCard 
-              title={t('teacher.reports.summary')} 
-              headerBordered 
-              bordered 
-              className="chart-panel apple-soft-card"
-            >
-              {hasSummary ? (
-                <ProCard gutter={[24, 24]} wrap ghost>
-                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span className="apple-muted-label">{t('teacher.reports.avgScore')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.avg}
+            <ProCard bordered className="apple-soft-card">
+              <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ minWidth: 200 }}>
+                  <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.submissionRate')}</Text>
+                  <div style={{ marginTop: 8 }}>
+                    <Progress 
+                      type="circle" 
+                      percent={submissionRate} 
+                      size={120}
+                      strokeColor={submissionRate >= 80 ? '#10b981' : submissionRate >= 60 ? '#f59e0b' : '#ef4444'}
+                      format={(percent) => <span style={{ fontSize: 28, fontWeight: 700 }}>{percent}%</span>}
                     />
-                  </ProCard>
-                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span className="apple-muted-label">{t('teacher.reports.highestScore')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.max}
-                    />
-                  </ProCard>
-                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span className="apple-muted-label">{t('teacher.reports.lowestScore')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.min}
-                    />
-                  </ProCard>
-                  <ProCard colSpan={{ xs: 24, sm: 12, md: 6 }} ghost>
-                    <AnimatedStatistic
-                      title={
-                        <Space size={6} align="center">
-                          <span className="apple-muted-label">{t('teacher.reports.submissions')}</span>
-                          <span className="stat-chip">{rangeTag}</span>
-                        </Space>
-                      }
-                      value={report.summary.count}
-                    />
-                  </ProCard>
-                </ProCard>
-              ) : (
-                <SoftEmpty description={t('teacher.reports.noCompleted')} />
-              )}
+                  </div>
+                </div>
+                <div style={{ flex: 1, minWidth: 300 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.totalStudents')}</Text>
+                      <Title level={2} style={{ margin: '8px 0 0' }}>{report.totalStudents}</Title>
+                    </div>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.submittedStudents')}</Text>
+                      <Title level={2} style={{ margin: '8px 0 0', color: '#10b981' }}>{report.submittedStudents}</Title>
+                    </div>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.pendingStudents')}</Text>
+                      <Title level={2} style={{ margin: '8px 0 0', color: '#f59e0b' }}>{report.pendingStudents}</Title>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </ProCard>
 
-            <ProCard gutter={[24, 24]} wrap ghost>
+            {hasSummary && (
+              <ProCard bordered className="apple-soft-card">
+                <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ minWidth: 200, textAlign: 'center' }}>
+                    <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.avgScore')}</Text>
+                    <div style={{ marginTop: 8 }}>
+                      <Progress 
+                        type="dashboard" 
+                        percent={report.summary.avg} 
+                        size={140}
+                        strokeColor={getScoreColor(report.summary.avg)}
+                        format={(percent) => (
+                          <span style={{ fontSize: 32, fontWeight: 700 }}>{percent}</span>
+                        )}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 300 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.highestScore')}</Text>
+                        <Title level={2} style={{ margin: '8px 0 0', color: '#10b981' }}>{report.summary.max}</Title>
+                      </div>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.lowestScore')}</Text>
+                        <Title level={2} style={{ margin: '8px 0 0', color: '#ef4444' }}>{report.summary.min}</Title>
+                      </div>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{t('teacher.reports.submissions')}</Text>
+                        <Title level={2} style={{ margin: '8px 0 0' }}>{report.summary.count}</Title>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </ProCard>
+            )}
+
+            <ProCard gutter={24} wrap ghost>
               <ProCard 
-                colSpan={{ xs: 24, lg: 12 }} 
-                title={t('teacher.reports.scoreDistribution')} 
-                headerBordered 
+                colSpan={{ xs: 24, md: 12 }} 
                 bordered 
-                className="chart-panel apple-soft-card"
+                className="apple-soft-card"
               >
+                <Title level={5} style={{ marginBottom: 16 }}>{t('teacher.reports.scoreDistribution')}</Title>
                 {report.distribution?.length ? (
-                  <ChartPanel option={distributionOption} />
+                  <ChartPanel option={distributionOption} height={240} />
                 ) : (
                   <SoftEmpty description={t('teacher.reports.noDistribution')} />
                 )}
               </ProCard>
               <ProCard 
-                colSpan={{ xs: 24, lg: 12 }} 
-                title={t('teacher.reports.trend')} 
-                headerBordered 
+                colSpan={{ xs: 24, md: 12 }} 
                 bordered 
-                className="chart-panel apple-soft-card"
+                className="apple-soft-card"
               >
+                <Title level={5} style={{ marginBottom: 16 }}>{t('teacher.reports.trend')}</Title>
                 {report.trend?.length ? (
-                  <ChartPanel option={trendOption} height={280} />
+                  <ChartPanel option={trendOption} height={240} />
                 ) : (
                   <SoftEmpty description={t('teacher.reports.noTrend')} />
-                )}
-              </ProCard>
-            </ProCard>
-
-            <ProCard gutter={[24, 24]} wrap ghost>
-              <ProCard 
-                colSpan={{ xs: 24, lg: 12 }} 
-                title={t('teacher.reports.topStudents')} 
-                headerBordered 
-                bordered 
-                className="chart-panel apple-soft-card"
-              >
-                {report.topRank?.length ? (
-                  <List
-                    dataSource={report.topRank}
-                    renderItem={(item) => (
-                      <List.Item className="apple-list-row">
-                        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                          <Typography.Text style={{ fontWeight: 500, fontSize: '15px' }}>{item.name}</Typography.Text>
-                          <Typography.Text style={{ color: 'var(--apple-primary)', fontWeight: 600 }}>
-                            {t('common.avgShort')} {item.avgScore}
-                          </Typography.Text>
-                        </Space>
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <SoftEmpty description={t('teacher.reports.noRanking')} />
-                )}
-              </ProCard>
-              <ProCard 
-                colSpan={{ xs: 24, lg: 12 }} 
-                title={t('teacher.reports.topErrorTypes')} 
-                headerBordered 
-                bordered 
-                className="chart-panel apple-soft-card"
-              >
-                {report.errorTypes?.length ? (
-                  <ChartPanel option={errorOption} />
-                ) : (
-                  <SoftEmpty description={t('teacher.reports.noErrorStats')} />
                 )}
               </ProCard>
             </ProCard>

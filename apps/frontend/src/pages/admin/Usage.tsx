@@ -1,6 +1,6 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import type { EChartsOption } from 'echarts';
-import { Alert, InputNumber, Space, Typography } from 'antd';
+import { Alert, InputNumber, Progress, Space, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { fetchAdminUsage, fetchLlmCostSummary } from '../../api';
@@ -9,15 +9,7 @@ import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n } from '../../i18n';
 import { formatDate } from '../../utils/dateFormat';
-
-const chartTextStyle = {
-  fontFamily: 'IBM Plex Mono, Noto Sans SC, monospace',
-  color: '#475569',
-};
-const axisLabel = { ...chartTextStyle, fontSize: 11 };
-const axisLine = { lineStyle: { color: 'rgba(15, 23, 42, 0.18)' } };
-const splitLine = { lineStyle: { color: 'rgba(15, 23, 42, 0.08)' } };
-const tooltipTextStyle = { color: '#e2e8f0', fontFamily: chartTextStyle.fontFamily };
+import { CHART_PALETTE, getDefaultGrid, getDefaultTooltip, createPieSeries } from '../../theme/charts';
 
 export const AdminUsagePage = () => {
   const { t } = useI18n();
@@ -33,54 +25,53 @@ export const AdminUsagePage = () => {
   const dailyOption = useMemo<EChartsOption>(() => {
     const daily = data?.daily || [];
     return {
-      textStyle: chartTextStyle,
-      grid: { left: 24, right: 24, top: 36, bottom: 28, containLabel: true },
+      grid: getDefaultGrid(),
       tooltip: {
+        ...getDefaultTooltip(),
         trigger: 'axis',
-        backgroundColor: 'rgba(15, 23, 42, 0.92)',
-        borderColor: 'rgba(148, 163, 184, 0.4)',
-        textStyle: tooltipTextStyle,
       },
       legend: {
         data: [t('admin.usage.total'), t('status.done'), t('status.failed')],
-        textStyle: chartTextStyle,
+        top: 0,
       },
       xAxis: {
         type: 'category',
         data: daily.map((item) => item.date),
-        axisLabel: { ...axisLabel, rotate: 30, width: 80, overflow: 'truncate' },
-        axisLine,
-        axisTick: { show: false },
+        axisLabel: { rotate: 30, width: 80, overflow: 'truncate' },
       },
       yAxis: {
         type: 'value',
-        axisLabel,
-        axisLine,
-        splitLine,
       },
-      animationDuration: 600,
-      animationEasing: 'cubicOut',
       series: [
         {
           name: t('admin.usage.total'),
           type: 'bar',
           data: daily.map((item) => item.total),
-          barWidth: 14,
-          itemStyle: { color: '#64748b' },
+          barWidth: 16,
+          itemStyle: { 
+            color: CHART_PALETTE[5],
+            borderRadius: [4, 4, 0, 0],
+          },
         },
         {
           name: t('status.done'),
           type: 'bar',
           data: daily.map((item) => item.done),
-          barWidth: 14,
-          itemStyle: { color: '#22c55e' },
+          barWidth: 16,
+          itemStyle: { 
+            color: CHART_PALETTE[1],
+            borderRadius: [4, 4, 0, 0],
+          },
         },
         {
           name: t('status.failed'),
           type: 'bar',
           data: daily.map((item) => item.failed),
-          barWidth: 14,
-          itemStyle: { color: '#ef4444' },
+          barWidth: 16,
+          itemStyle: { 
+            color: CHART_PALETTE[2],
+            borderRadius: [4, 4, 0, 0],
+          },
         },
       ],
     };
@@ -88,39 +79,26 @@ export const AdminUsagePage = () => {
 
   const errorOption = useMemo<EChartsOption>(() => {
     const errors = data?.errors || [];
+    const pieData = errors.map((item) => ({
+      name: item.code,
+      value: item.count,
+    }));
     return {
-      textStyle: chartTextStyle,
-      grid: { left: 24, right: 24, top: 36, bottom: 30, containLabel: true },
       tooltip: {
-        trigger: 'axis',
-        backgroundColor: 'rgba(15, 23, 42, 0.92)',
-        borderColor: 'rgba(148, 163, 184, 0.4)',
-        textStyle: tooltipTextStyle,
+        trigger: 'item',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderColor: '#e5e7eb',
+        borderWidth: 1,
+        textStyle: { color: '#1f2937' },
+        extraCssText: 'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); border-radius: 8px;',
+        formatter: '{b}: {c} ({d}%)',
       },
-      xAxis: {
-        type: 'category',
-        data: errors.map((item) => item.code),
-        axisLabel: { ...axisLabel, interval: 0, rotate: 20, width: 120, overflow: 'truncate' },
-        axisLine,
-        axisTick: { show: false },
+      legend: {
+        orient: 'vertical',
+        right: 10,
+        top: 'center',
       },
-      yAxis: {
-        type: 'value',
-        axisLabel,
-        axisLine,
-        splitLine,
-      },
-      animationDuration: 600,
-      animationEasing: 'cubicOut',
-      series: [
-        {
-          type: 'bar',
-          data: errors.map((item) => item.count),
-          barWidth: 18,
-          itemStyle: { color: '#f97316' },
-          emphasis: { itemStyle: { color: '#f97316' } },
-        },
-      ],
+      series: [createPieSeries(pieData)],
     };
   }, [data]);
 
@@ -195,15 +173,23 @@ export const AdminUsagePage = () => {
                 />
               </ProCard>
               <ProCard bordered colSpan={{ xs: 24, sm: 12, md: 6 }} className="apple-soft-card">
-                <AnimatedStatistic
-                  title={
+                <div style={{ textAlign: 'center' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                     <Space size={6} align="center">
-                      <span>{t('status.processing')}</span>
-                      <span className="stat-chip">{t('common.realtime')}</span>
+                      <span>{t('admin.usage.successRate')}</span>
+                      <span className="stat-chip">{days === 7 ? t('common.last7Days') : t('common.recent')}</span>
                     </Space>
-                  }
-                  value={data.summary.processing}
-                />
+                  </Typography.Text>
+                  <Progress 
+                    type="dashboard" 
+                    percent={data.summary.total > 0 ? Math.round((data.summary.done / data.summary.total) * 100) : 0} 
+                    size={80}
+                    strokeColor={data.summary.total > 0 && (data.summary.done / data.summary.total) >= 0.9 ? '#10b981' : data.summary.total > 0 && (data.summary.done / data.summary.total) >= 0.7 ? '#f59e0b' : '#ef4444'}
+                    format={(percent) => (
+                      <span style={{ fontSize: 18, fontWeight: 600 }}>{percent}%</span>
+                    )}
+                  />
+                </div>
               </ProCard>
             </ProCard>
           </ProCard>
@@ -244,35 +230,34 @@ function CostSummarySection({ days, t }: { days: number; t: (k: string) => strin
   const costChartOption = useMemo<EChartsOption>(() => {
     const daily = costData?.daily || [];
     return {
-      textStyle: chartTextStyle,
-      grid: { left: 24, right: 24, top: 36, bottom: 28, containLabel: true },
+      grid: getDefaultGrid(),
       tooltip: {
+        ...getDefaultTooltip(),
         trigger: 'axis',
-        backgroundColor: 'rgba(15, 23, 42, 0.92)',
-        borderColor: 'rgba(148, 163, 184, 0.4)',
-        textStyle: tooltipTextStyle,
       },
-      legend: { data: [t('admin.usage.totalCost'), t('admin.usage.totalCalls')], textStyle: chartTextStyle },
+      legend: { 
+        data: [t('admin.usage.totalCost'), t('admin.usage.totalCalls')], 
+        top: 0,
+      },
       xAxis: {
         type: 'category',
         data: daily.map((d) => d.date),
-        axisLabel: { ...axisLabel, rotate: 30, width: 80, overflow: 'truncate' },
-        axisLine,
-        axisTick: { show: false },
+        axisLabel: { rotate: 30, width: 80, overflow: 'truncate' },
       },
       yAxis: [
-        { type: 'value', name: t('admin.usage.costUnit'), axisLabel, axisLine, splitLine },
-        { type: 'value', name: t('admin.usage.totalCalls'), axisLabel, axisLine, splitLine, minInterval: 1 },
+        { type: 'value', name: t('admin.usage.costUnit') },
+        { type: 'value', name: t('admin.usage.totalCalls'), minInterval: 1 },
       ],
-      animationDuration: 600,
-      animationEasing: 'cubicOut',
       series: [
         {
           name: t('admin.usage.totalCost'),
           type: 'bar',
           data: daily.map((d) => d.cost),
-          barWidth: 14,
-          itemStyle: { color: '#8b5cf6' },
+          barWidth: 16,
+          itemStyle: { 
+            color: CHART_PALETTE[0],
+            borderRadius: [4, 4, 0, 0],
+          },
         },
         {
           name: t('admin.usage.totalCalls'),
@@ -280,8 +265,10 @@ function CostSummarySection({ days, t }: { days: number; t: (k: string) => strin
           yAxisIndex: 1,
           data: daily.map((d) => d.calls),
           smooth: true,
-          lineStyle: { width: 2, color: '#22c55e' },
-          itemStyle: { color: '#22c55e' },
+          symbol: 'circle',
+          symbolSize: 6,
+          lineStyle: { width: 2, color: CHART_PALETTE[1] },
+          itemStyle: { color: CHART_PALETTE[1] },
         },
       ],
     };

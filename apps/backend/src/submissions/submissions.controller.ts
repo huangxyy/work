@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   NotFoundException,
   Param,
   Post,
@@ -31,6 +32,10 @@ import { RegradeSubmissionDto } from './dto/regrade-submission.dto';
 import { StudentSubmissionsQueryDto } from './dto/student-submissions-query.dto';
 import { SubmissionsService } from './submissions.service';
 
+const logger = new Logger('SubmissionsController');
+
+const allowedMimeTypes = /jpeg|jpg|png|webp|gif/;
+
 @ApiTags('Submissions')
 @Controller('submissions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,20 +50,13 @@ export class SubmissionsController {
   @UseInterceptors(
     FilesInterceptor('images', 3, {
       storage: memoryStorage(),
-      limits: { files: 3, fileSize: 10 * 1024 * 1024 }, // 10MB per file
+      limits: { files: 3, fileSize: 10 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        // Validate image file types
-        console.log('[FilesInterceptor] File received:', {
-          originalname: file.originalname,
-          mimetype: file.mimetype,
-          size: file.size,
-        });
-        const allowedTypes = /jpeg|jpg|png|webp|gif/;
-        const mimetype = allowedTypes.test(file.mimetype);
+        const mimetype = allowedMimeTypes.test(file.mimetype);
         if (mimetype) {
           cb(null, true);
         } else {
-          console.warn('[FilesInterceptor] Invalid mimetype:', file.mimetype);
+          logger.warn(`Invalid mimetype rejected: ${file.mimetype}`);
           cb(null, false);
         }
       },
@@ -69,25 +67,15 @@ export class SubmissionsController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req: { user: AuthUser },
   ) {
-    console.log('[SubmissionsController] Create submission request:', {
-      body,
-      filesCount: files?.length || 0,
-      user: req.user?.account,
-    });
+    logger.debug(`Create submission request from user=${req.user?.account} files=${files?.length || 0}`);
 
     if (!files?.length) {
-      console.error('[SubmissionsController] No files uploaded');
       throw new BadRequestException('请至少上传一张图片');
     }
 
     for (const file of files) {
-      console.log('[SubmissionsController] File info:', {
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.buffer?.length,
-      });
       if (!isValidImageBuffer(file.buffer)) {
-        console.error('[SubmissionsController] Invalid image buffer for:', file.originalname);
+        logger.warn(`Invalid image buffer for: ${file.originalname}`);
         throw new BadRequestException(
           `文件 "${file.originalname}" 不是有效的图片格式`,
         );

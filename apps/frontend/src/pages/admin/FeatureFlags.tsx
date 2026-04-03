@@ -6,16 +6,10 @@ import { useI18n } from '../../i18n';
 import { useMessage } from '../../hooks/useMessage';
 
 const FLAG_DESCRIPTIONS: Record<string, { en: string; zh: string }> = {
-  dark_mode: { en: 'Dark Mode', zh: '深色模式' },
   announcements: { en: 'Announcements System', zh: '公告系统' },
   templates: { en: 'Homework Templates', zh: '作业模板' },
-  pwa: { en: 'PWA / Offline Mode', zh: 'PWA / 离线模式' },
   notifications: { en: 'Notification System', zh: '通知系统' },
   image_preview: { en: 'Image Preview', zh: '图片预览' },
-  teacher_feedback: { en: 'Teacher Feedback', zh: '教师反馈' },
-  global_search: { en: 'Global Search', zh: '全局搜索' },
-  class_comparison: { en: 'Class Comparison Charts', zh: '班级对比图表' },
-  onboarding: { en: 'New User Onboarding', zh: '新用户引导' },
 };
 
 export const AdminFeatureFlagsPage = () => {

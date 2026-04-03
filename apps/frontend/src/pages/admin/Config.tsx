@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Card,
-  Alert,
   Descriptions,
   Divider,
   Form,
@@ -13,8 +12,6 @@ import {
   Popconfirm,
   Space,
   Select,
-  Segmented,
-  Steps,
   Switch,
   Tag,
   Table,
@@ -22,7 +19,7 @@ import {
   Upload,
 } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   clearAdminLlmLogs,
   fetchAdminConfig,
@@ -106,14 +103,7 @@ export const AdminConfigPage = () => {
   const [ocrTestFile, setOcrTestFile] = useState<File | null>(null);
   const [ocrTestLoading, setOcrTestLoading] = useState(false);
   const [ocrTestResult, setOcrTestResult] = useState<{ ok: boolean; text?: string; length?: number; error?: string } | null>(null);
-  const [configMode, setConfigMode] = useState<'wizard' | 'advanced'>('wizard');
-  const [wizardStep, setWizardStep] = useState(0);
-  const llmConfigSectionRef = useRef<HTMLDivElement | null>(null);
   const llmLogsSectionRef = useRef<HTMLDivElement | null>(null);
-  const llmProvidersSectionRef = useRef<HTMLDivElement | null>(null);
-  const serviceSectionRef = useRef<HTMLDivElement | null>(null);
-  const validationSectionRef = useRef<HTMLDivElement | null>(null);
-  const publishSectionRef = useRef<HTMLDivElement | null>(null);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['admin-config'],
@@ -128,15 +118,6 @@ export const AdminConfigPage = () => {
       })),
     [config?.llmProviders],
   );
-  const wizardItems = useMemo(
-    () => [
-      { title: t('admin.config.wizard.stepCore') },
-      { title: t('admin.config.wizard.stepProviders') },
-      { title: t('admin.config.wizard.stepValidation') },
-      { title: t('admin.config.wizard.stepPublish') },
-    ],
-    [t],
-  );
 
   const logsQuery = useQuery({
     queryKey: ['admin-llm-logs', logFilters],
@@ -144,22 +125,6 @@ export const AdminConfigPage = () => {
   });
 
   const logs: LlmLogItem[] = logsQuery.data?.items || [];
-  const isWizard = configMode === 'wizard';
-  const canShowCoreConfig = !isWizard || wizardStep === 0;
-  const canShowProviders = !isWizard || wizardStep === 1;
-  const canShowValidation = !isWizard || wizardStep === 2;
-  const canShowPublish = !isWizard || wizardStep === 3;
-  const goToCurrentStep = useCallback(() => {
-    const target =
-      wizardStep === 0
-        ? llmConfigSectionRef.current
-        : wizardStep === 1
-          ? llmProvidersSectionRef.current
-          : wizardStep === 2
-            ? validationSectionRef.current
-            : publishSectionRef.current;
-    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [wizardStep]);
 
   const logColumns = useMemo(
     () => [
@@ -435,13 +400,6 @@ export const AdminConfigPage = () => {
     setRedisHealth(null);
   }, [config, form]);
 
-  useEffect(() => {
-    if (!isWizard) {
-      return;
-    }
-    goToCurrentStep();
-  }, [wizardStep, isWizard, goToCurrentStep]);
-
   const handleFinish = (values: {
     llm?: {
       providerName?: string;
@@ -562,42 +520,6 @@ export const AdminConfigPage = () => {
       }}
     >
       <Card loading={isLoading} className="apple-soft-card">
-        <ProCard bordered title={t('admin.config.wizard.title')} colSpan={24} className="apple-soft-card" style={{ marginBottom: 16 }}>
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Segmented
-              value={configMode}
-              onChange={(value) => setConfigMode(value as 'wizard' | 'advanced')}
-              options={[
-                { label: t('admin.config.wizard.modeWizard'), value: 'wizard' },
-                { label: t('admin.config.wizard.modeAdvanced'), value: 'advanced' },
-              ]}
-            />
-            {isWizard ? (
-              <>
-                <Alert type="info" showIcon message={t('admin.config.wizard.hint')} />
-                <Steps current={wizardStep} items={wizardItems} size="small" />
-                <Space wrap>
-                  <Button
-                    onClick={() => setWizardStep((prev) => Math.max(0, prev - 1))}
-                    disabled={wizardStep === 0}
-                  >
-                    {t('admin.config.wizard.prev')}
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={() => setWizardStep((prev) => Math.min(3, prev + 1))}
-                    disabled={wizardStep === 3}
-                  >
-                    {t('admin.config.wizard.next')}
-                  </Button>
-                  <Button onClick={goToCurrentStep}>{t('admin.config.wizard.goCurrent')}</Button>
-                </Space>
-              </>
-            ) : (
-              <Typography.Text type="secondary">{t('admin.config.wizard.advancedHint')}</Typography.Text>
-            )}
-          </Space>
-        </ProCard>
         <ProCard
           bordered
           title={t('admin.config.promptQuickAccessTitle')}
@@ -625,14 +547,6 @@ export const AdminConfigPage = () => {
             </Typography.Paragraph>
             <Space wrap>
               <Button
-                type="primary"
-                onClick={() =>
-                  llmConfigSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }
-              >
-                {t('admin.config.goToPromptEdit')}
-              </Button>
-              <Button
                 onClick={() =>
                   llmLogsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }
@@ -643,9 +557,7 @@ export const AdminConfigPage = () => {
           </Space>
         </ProCard>
         <Form layout="vertical" form={form} onFinish={handleFinish}>
-          {canShowCoreConfig ? (
-            <div ref={llmConfigSectionRef}>
-            <ProCard bordered title={t('admin.config.section.llm')} colSpan={24} className="apple-soft-card">
+          <ProCard bordered title={t('admin.config.section.llm')} colSpan={24} className="apple-soft-card">
             <Form.Item label={t('admin.config.providerName')} name={['llm', 'providerName']}>
               <Input placeholder={t('admin.config.providerNamePlaceholder')} />
             </Form.Item>
@@ -737,15 +649,11 @@ export const AdminConfigPage = () => {
                 ) : null}
               </Space>
             ) : null}
-            </ProCard>
-            </div>
-          ) : null}
+          </ProCard>
 
-          {canShowProviders ? <Divider /> : null}
+          <Divider />
 
-          {canShowProviders ? (
-            <div ref={llmProvidersSectionRef}>
-              <ProCard bordered title={t('admin.config.section.llmProviders')} colSpan={24} className="apple-soft-card">
+          <ProCard bordered title={t('admin.config.section.llmProviders')} colSpan={24} className="apple-soft-card">
             <Form.List name="llmProviders">
               {(fields, { add, remove }) => (
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -900,15 +808,11 @@ export const AdminConfigPage = () => {
                 </Space>
               )}
             </Form.List>
-              </ProCard>
-            </div>
-          ) : null}
+          </ProCard>
 
-          {canShowCoreConfig ? <Divider /> : null}
+          <Divider />
 
-          {canShowCoreConfig ? (
-            <div ref={serviceSectionRef}>
-              <ProCard bordered title={t('admin.config.section.ocr')} colSpan={24} className="apple-soft-card">
+          <ProCard bordered title={t('admin.config.section.ocr')} colSpan={24} className="apple-soft-card">
             <Form.Item
               label={t('admin.config.ocrApiKey')}
               name={['ocr', 'apiKey']}
@@ -1015,7 +919,7 @@ export const AdminConfigPage = () => {
                 </Typography.Paragraph>
               </Card>
             ) : null}
-              </ProCard>
+          </ProCard>
 
           <Divider />
 
@@ -1162,48 +1066,19 @@ export const AdminConfigPage = () => {
               </Space>
             ) : null}
           </ProCard>
-            </div>
-          ) : null}
 
-          {canShowPublish ? <Divider /> : null}
+          <Divider />
 
-          {canShowPublish ? (
-            <div ref={publishSectionRef}>
-              <Alert
-                type="success"
-                showIcon
-                message={t('admin.config.wizard.publishHint')}
-                style={{ marginBottom: 12 }}
-              />
-              <Form.Item style={{ marginBottom: 0 }}>
-                <Button type="primary" htmlType="submit" loading={mutation.isPending}>
-                  {t('admin.config.save')}
-                </Button>
-              </Form.Item>
-            </div>
-          ) : null}
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Button type="primary" htmlType="submit" loading={mutation.isPending}>
+              {t('admin.config.save')}
+            </Button>
+          </Form.Item>
         </Form>
-        {isWizard ? (
-          <div className="apple-sticky-action-bar">
-            <Space wrap>
-              <Button onClick={() => setWizardStep((prev) => Math.max(0, prev - 1))} disabled={wizardStep === 0}>
-                {t('admin.config.wizard.prev')}
-              </Button>
-              <Button type="primary" onClick={() => setWizardStep((prev) => Math.min(3, prev + 1))} disabled={wizardStep === 3}>
-                {t('admin.config.wizard.next')}
-              </Button>
-              <Button type="primary" ghost onClick={() => form.submit()} loading={mutation.isPending}>
-                {t('admin.config.save')}
-              </Button>
-            </Space>
-          </div>
-        ) : null}
 
-        {canShowValidation ? <Divider /> : null}
+        <Divider />
 
-        {canShowValidation ? (
-          <div ref={validationSectionRef}>
-            <ProCard bordered title={t('admin.config.section.llmTest')} colSpan={24} className="apple-soft-card">
+        <ProCard bordered title={t('admin.config.section.llmTest')} colSpan={24} className="apple-soft-card">
           <Form
             form={llmTestForm}
             layout="vertical"
@@ -1294,175 +1169,173 @@ export const AdminConfigPage = () => {
               </Space>
             </Card>
           ) : null}
-            </ProCard>
+        </ProCard>
 
-            <Divider />
+        <Divider />
 
-            <div ref={llmLogsSectionRef}>
-              <ProCard bordered title={t('admin.config.section.llmLogs')} colSpan={24} className="apple-soft-card">
-          <Space wrap style={{ marginBottom: 12 }}>
-            <Select
-              allowClear
-              placeholder={t('admin.config.logProviderPlaceholder')}
-              options={providerOptions}
-              value={logFilters.providerId}
-              onChange={(value) => setLogFilters((prev) => ({ ...prev, providerId: value }))}
-              style={{ minWidth: 200 }}
-            />
-            <Select
-              allowClear
-              placeholder={t('admin.config.logStatusPlaceholder')}
-              options={[
-                { label: 'OK', value: 'OK' },
-                { label: 'ERROR', value: 'ERROR' },
-              ]}
-              value={logFilters.status}
-              onChange={(value) => setLogFilters((prev) => ({ ...prev, status: value }))}
-              style={{ minWidth: 140 }}
-            />
-            <Select
-              allowClear
-              placeholder={t('admin.config.logSourcePlaceholder')}
-              options={[
-                { label: t('admin.config.logSourceGrading'), value: 'grading' },
-                { label: t('admin.config.logSourceAdminTest'), value: 'admin-test' },
-              ]}
-              value={logFilters.source}
-              onChange={(value) => setLogFilters((prev) => ({ ...prev, source: value }))}
-              style={{ minWidth: 160 }}
-            />
-            <Popconfirm
-              title={t('admin.config.confirmClearLogs')}
-              onConfirm={() =>
-                clearLogsMutation.mutate({
-                  before: new Date(Date.now() - clearDays * 24 * 60 * 60 * 1000).toISOString(),
-                })
-              }
-            >
-              <Button danger loading={clearLogsMutation.isPending}>
-                {t('admin.config.clearLogs')}
-              </Button>
-            </Popconfirm>
-            <Space size={6}>
-              <Typography.Text>{t('admin.config.clearBefore')}</Typography.Text>
-              <InputNumber min={1} max={365} value={clearDays} onChange={(value) => setClearDays(value || 7)} />
-              <Typography.Text type="secondary">{t('common.days')}</Typography.Text>
-            </Space>
-          </Space>
-
-          <Table
-            rowKey="id"
-            columns={logColumns}
-            dataSource={logs}
-            loading={logsQuery.isLoading}
-            pagination={false}
-            size="small"
-          />
-          <Modal
-            open={logDetailOpen}
-            onCancel={() => setLogDetailOpen(false)}
-            footer={<Button onClick={() => setLogDetailOpen(false)}>{t('common.close')}</Button>}
-            width={900}
-            title={t('admin.config.logDetailTitle')}
-          >
-            {selectedLog ? (
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                <Descriptions size="small" column={2} bordered>
-                  <Descriptions.Item label={t('admin.config.logId')}>{selectedLog.id}</Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logTime')}>
-                    {formatDate(selectedLog.createdAt)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logSource')}>
-                    {selectedLog.source || '--'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logStatus')}>
-                    <Tag color={selectedLog.status === 'OK' ? 'green' : 'red'}>{selectedLog.status}</Tag>
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logProviderName')}>
-                    {selectedLog.providerName || '--'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logProviderId')}>
-                    {selectedLog.providerId || '--'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logModel')}>
-                    {selectedLog.model || '--'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logLatency')}>
-                    {selectedLog.latencyMs ? `${selectedLog.latencyMs}ms` : '--'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logTokens')}>
-                    <Space size={6} wrap>
-                      <Typography.Text>{selectedLog.totalTokens ?? '--'}</Typography.Text>
-                      <Typography.Text type="secondary">
-                        {selectedLog.promptTokens ?? '--'} / {selectedLog.completionTokens ?? '--'}
-                      </Typography.Text>
-                    </Space>
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logCost')}>
-                    {typeof selectedLog.cost === 'number' ? selectedLog.cost.toFixed(4) : '--'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logUserId')}>
-                    {selectedLog.userId || '--'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label={t('admin.config.logSubmissionId')}>
-                    {selectedLog.submissionId || '--'}
-                  </Descriptions.Item>
-                </Descriptions>
-                <Divider />
-                <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <div>
-                    <Typography.Text type="secondary">{t('admin.config.logPrompt')}</Typography.Text>
-                    <Typography.Paragraph
-                      copyable
-                      style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}
-                    >
-                      {selectedLog.prompt || '--'}
-                    </Typography.Paragraph>
-                  </div>
-                  <div>
-                    <Typography.Text type="secondary">{t('admin.config.logSystemPrompt')}</Typography.Text>
-                    <Typography.Paragraph
-                      copyable
-                      style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}
-                    >
-                      {selectedLog.systemPrompt || '--'}
-                    </Typography.Paragraph>
-                  </div>
-                  <div>
-                    <Typography.Text type="secondary">{t('admin.config.logResponse')}</Typography.Text>
-                    <Typography.Paragraph
-                      copyable
-                      style={{ whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto' }}
-                    >
-                      {selectedLog.response || '--'}
-                    </Typography.Paragraph>
-                  </div>
-                  <div>
-                    <Typography.Text type="secondary">{t('admin.config.logError')}</Typography.Text>
-                    <Typography.Paragraph
-                      copyable
-                      style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto' }}
-                    >
-                      {selectedLog.error || '--'}
-                    </Typography.Paragraph>
-                  </div>
-                  <div>
-                    <Typography.Text type="secondary">{t('admin.config.logMeta')}</Typography.Text>
-                    <Typography.Paragraph
-                      copyable
-                      style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto' }}
-                    >
-                      {selectedLog.meta ? JSON.stringify(selectedLog.meta, null, 2) : '--'}
-                    </Typography.Paragraph>
-                  </div>
-                </Space>
+        <div ref={llmLogsSectionRef}>
+          <ProCard bordered title={t('admin.config.section.llmLogs')} colSpan={24} className="apple-soft-card">
+            <Space wrap style={{ marginBottom: 12 }}>
+              <Select
+                allowClear
+                placeholder={t('admin.config.logProviderPlaceholder')}
+                options={providerOptions}
+                value={logFilters.providerId}
+                onChange={(value) => setLogFilters((prev) => ({ ...prev, providerId: value }))}
+                style={{ minWidth: 200 }}
+              />
+              <Select
+                allowClear
+                placeholder={t('admin.config.logStatusPlaceholder')}
+                options={[
+                  { label: 'OK', value: 'OK' },
+                  { label: 'ERROR', value: 'ERROR' },
+                ]}
+                value={logFilters.status}
+                onChange={(value) => setLogFilters((prev) => ({ ...prev, status: value }))}
+                style={{ minWidth: 140 }}
+              />
+              <Select
+                allowClear
+                placeholder={t('admin.config.logSourcePlaceholder')}
+                options={[
+                  { label: t('admin.config.logSourceGrading'), value: 'grading' },
+                  { label: t('admin.config.logSourceAdminTest'), value: 'admin-test' },
+                ]}
+                value={logFilters.source}
+                onChange={(value) => setLogFilters((prev) => ({ ...prev, source: value }))}
+                style={{ minWidth: 160 }}
+              />
+              <Popconfirm
+                title={t('admin.config.confirmClearLogs')}
+                onConfirm={() =>
+                  clearLogsMutation.mutate({
+                    before: new Date(Date.now() - clearDays * 24 * 60 * 60 * 1000).toISOString(),
+                  })
+                }
+              >
+                <Button danger loading={clearLogsMutation.isPending}>
+                  {t('admin.config.clearLogs')}
+                </Button>
+              </Popconfirm>
+              <Space size={6}>
+                <Typography.Text>{t('admin.config.clearBefore')}</Typography.Text>
+                <InputNumber min={1} max={365} value={clearDays} onChange={(value) => setClearDays(value || 7)} />
+                <Typography.Text type="secondary">{t('common.days')}</Typography.Text>
               </Space>
-            ) : null}
-          </Modal>
-              </ProCard>
-            </div>
-          </div>
-        ) : null}
+            </Space>
+
+            <Table
+              rowKey="id"
+              columns={logColumns}
+              dataSource={logs}
+              loading={logsQuery.isLoading}
+              pagination={false}
+              size="small"
+            />
+            <Modal
+              open={logDetailOpen}
+              onCancel={() => setLogDetailOpen(false)}
+              footer={<Button onClick={() => setLogDetailOpen(false)}>{t('common.close')}</Button>}
+              width={900}
+              title={t('admin.config.logDetailTitle')}
+            >
+              {selectedLog ? (
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  <Descriptions size="small" column={2} bordered>
+                    <Descriptions.Item label={t('admin.config.logId')}>{selectedLog.id}</Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logTime')}>
+                      {formatDate(selectedLog.createdAt)}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logSource')}>
+                      {selectedLog.source || '--'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logStatus')}>
+                      <Tag color={selectedLog.status === 'OK' ? 'green' : 'red'}>{selectedLog.status}</Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logProviderName')}>
+                      {selectedLog.providerName || '--'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logProviderId')}>
+                      {selectedLog.providerId || '--'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logModel')}>
+                      {selectedLog.model || '--'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logLatency')}>
+                      {selectedLog.latencyMs ? `${selectedLog.latencyMs}ms` : '--'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logTokens')}>
+                      <Space size={6} wrap>
+                        <Typography.Text>{selectedLog.totalTokens ?? '--'}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {selectedLog.promptTokens ?? '--'} / {selectedLog.completionTokens ?? '--'}
+                        </Typography.Text>
+                      </Space>
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logCost')}>
+                      {typeof selectedLog.cost === 'number' ? selectedLog.cost.toFixed(4) : '--'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logUserId')}>
+                      {selectedLog.userId || '--'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label={t('admin.config.logSubmissionId')}>
+                      {selectedLog.submissionId || '--'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                  <Divider />
+                  <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                    <div>
+                      <Typography.Text type="secondary">{t('admin.config.logPrompt')}</Typography.Text>
+                      <Typography.Paragraph
+                        copyable
+                        style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}
+                      >
+                        {selectedLog.prompt || '--'}
+                      </Typography.Paragraph>
+                    </div>
+                    <div>
+                      <Typography.Text type="secondary">{t('admin.config.logSystemPrompt')}</Typography.Text>
+                      <Typography.Paragraph
+                        copyable
+                        style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}
+                      >
+                        {selectedLog.systemPrompt || '--'}
+                      </Typography.Paragraph>
+                    </div>
+                    <div>
+                      <Typography.Text type="secondary">{t('admin.config.logResponse')}</Typography.Text>
+                      <Typography.Paragraph
+                        copyable
+                        style={{ whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto' }}
+                      >
+                        {selectedLog.response || '--'}
+                      </Typography.Paragraph>
+                    </div>
+                    <div>
+                      <Typography.Text type="secondary">{t('admin.config.logError')}</Typography.Text>
+                      <Typography.Paragraph
+                        copyable
+                        style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto' }}
+                      >
+                        {selectedLog.error || '--'}
+                      </Typography.Paragraph>
+                    </div>
+                    <div>
+                      <Typography.Text type="secondary">{t('admin.config.logMeta')}</Typography.Text>
+                      <Typography.Paragraph
+                        copyable
+                        style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto' }}
+                      >
+                        {selectedLog.meta ? JSON.stringify(selectedLog.meta, null, 2) : '--'}
+                      </Typography.Paragraph>
+                    </div>
+                  </Space>
+                </Space>
+              ) : null}
+            </Modal>
+          </ProCard>
+        </div>
       </Card>
     </PageContainer>
   );

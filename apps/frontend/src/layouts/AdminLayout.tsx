@@ -7,8 +7,6 @@ import {
   DashboardOutlined,
   FlagOutlined,
   HistoryOutlined,
-  InfoCircleOutlined,
-  LoginOutlined,
   NotificationOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -80,11 +78,6 @@ export const AdminLayout = () => {
               name: t('nav.queue'),
               icon: <CloudServerOutlined />,
             },
-            {
-              path: '/admin/system/info',
-              name: t('admin.systemInfo.title'),
-              icon: <InfoCircleOutlined />,
-            },
           ],
         },
         {
@@ -98,19 +91,9 @@ export const AdminLayout = () => {
               icon: <BarChartOutlined />,
             },
             {
-              path: '/admin/diagnosis',
-              name: t('nav.diagnosis'),
-              icon: <BugOutlined />,
-            },
-            {
               path: '/admin/audit-logs',
               name: t('nav.auditLogs'),
               icon: <AuditOutlined />,
-            },
-            {
-              path: '/admin/login-history',
-              name: t('admin.loginHistory.title'),
-              icon: <LoginOutlined />,
             },
             {
               path: '/admin/feature-flags',

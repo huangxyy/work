@@ -1,11 +1,18 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, List, Skeleton, Space, Typography, Tag } from 'antd';
+import { Alert, Button, Descriptions, List, Progress, Skeleton, Space, Typography, Tag } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { fetchAdminMetrics, fetchAdminErrorTrends } from '../../api/admin';
 import { api } from '../../api/client';
 import { useI18n } from '../../i18n';
 import { SoftEmpty } from '../../components/SoftEmpty';
+
+const formatUptime = (seconds: number) => {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${d}d ${h}h ${m}m`;
+};
 
 export const AdminDashboardPage = () => {
   const { t } = useI18n();
@@ -31,7 +38,18 @@ export const AdminDashboardPage = () => {
     refetchInterval: 60_000,
   });
 
+  const systemInfoQuery = useQuery({
+    queryKey: ['admin-system-info'],
+    queryFn: async () => {
+      const res = await api.get('/admin/system-info');
+      return res.data;
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
   const data = overviewQuery.data;
+  const sysInfo = systemInfoQuery.data;
 
   return (
     <PageContainer
@@ -187,6 +205,42 @@ export const AdminDashboardPage = () => {
             </Space>
           </ProCard>
         </ProCard>
+
+        {sysInfo ? (
+          <ProCard
+            bordered
+            title={t('admin.systemInfo.title')}
+            headerBordered
+            className="chart-panel apple-soft-card"
+          >
+            <ProCard gutter={[24, 24]} wrap ghost>
+              <ProCard ghost colSpan={{ xs: 24, lg: 12 }}>
+                <Descriptions column={2} bordered size="small">
+                  <Descriptions.Item label="Node.js">{sysInfo.node}</Descriptions.Item>
+                  <Descriptions.Item label={t('admin.systemInfo.environment')}>
+                    <Tag color={sysInfo.env === 'production' ? 'green' : 'orange'} className="apple-tag-pill">
+                      {sysInfo.env === 'production' ? t('admin.systemInfo.envProduction') : t('admin.systemInfo.envDevelopment')}
+                    </Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('admin.systemInfo.platform')}>{sysInfo.platform} ({sysInfo.arch})</Descriptions.Item>
+                  <Descriptions.Item label={t('admin.systemInfo.uptime')}>{formatUptime(sysInfo.uptime)}</Descriptions.Item>
+                </Descriptions>
+              </ProCard>
+              <ProCard ghost colSpan={{ xs: 24, lg: 12 }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <div>
+                    <Typography.Text>{t('admin.systemInfo.heapUsed')}: {sysInfo.memoryUsage?.heapUsed}MB / {sysInfo.memoryUsage?.heapTotal}MB</Typography.Text>
+                    <Progress 
+                      percent={Math.round((sysInfo.memoryUsage?.heapUsed / sysInfo.memoryUsage?.heapTotal) * 100)} 
+                      status={sysInfo.memoryUsage?.heapUsed / sysInfo.memoryUsage?.heapTotal > 0.85 ? 'exception' : 'active'} 
+                    />
+                  </div>
+                  <Typography.Text type="secondary">RSS: {sysInfo.memoryUsage?.rss}MB</Typography.Text>
+                </Space>
+              </ProCard>
+            </ProCard>
+          </ProCard>
+        ) : null}
       </Space>
       )}
     </PageContainer>

@@ -1,5 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Collapse, Descriptions, Image, List, Skeleton, Space, Statistic, Steps, Tabs, Tag, Timeline, Typography } from 'antd';
+import { Alert, Button, Collapse, Descriptions, Image, List, Progress, Skeleton, Space, Statistic, Steps, Tabs, Tag, Timeline, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { fetchSubmission } from '../../api';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
 import { useI18n, localizeErrorType } from '../../i18n';
+import { CHART_PALETTE } from '../../theme/charts';
 
 type GradingResult = {
   totalScore: number;
@@ -292,36 +293,99 @@ export const SubmissionResultPage = () => {
 
           {grading?.dimensionScores ? (
             <ProCard bordered title={t('submission.dimensionScores')} className="apple-soft-card">
-              <ChartPanel
-                option={{
-                  radar: {
-                    indicator: [
-                      { name: t('submission.dim.grammar'), max: 20 },
-                      { name: t('submission.dim.vocabulary'), max: 20 },
-                      { name: t('submission.dim.structure'), max: 20 },
-                      { name: t('submission.dim.content'), max: 20 },
-                      { name: t('submission.dim.coherence'), max: 20 },
-                    ],
-                    radius: '65%',
-                  },
-                  series: [{
-                    type: 'radar',
-                    data: [{
-                      value: [
-                        grading.dimensionScores.grammar ?? 0,
-                        grading.dimensionScores.vocabulary ?? 0,
-                        grading.dimensionScores.structure ?? 0,
-                        grading.dimensionScores.content ?? 0,
-                        grading.dimensionScores.coherence ?? 0,
-                      ],
-                      name: t('submission.dimensionScores'),
-                      areaStyle: { opacity: 0.2 },
-                    }],
-                  }],
-                  tooltip: {},
-                }}
-                height={320}
-              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+                <div style={{ flex: '1 1 300px', minWidth: 280 }}>
+                  <ChartPanel
+                    option={{
+                      radar: {
+                        indicator: [
+                          { name: t('submission.dim.grammar'), max: 20 },
+                          { name: t('submission.dim.vocabulary'), max: 20 },
+                          { name: t('submission.dim.structure'), max: 20 },
+                          { name: t('submission.dim.content'), max: 20 },
+                          { name: t('submission.dim.coherence'), max: 20 },
+                        ],
+                        radius: '65%',
+                        axisName: {
+                          color: '#4b5563',
+                        },
+                        splitArea: {
+                          areaStyle: {
+                            color: ['#fafafa', '#f5f5f5', '#fafafa', '#f5f5f5'],
+                          },
+                        },
+                        axisLine: {
+                          lineStyle: {
+                            color: '#e5e7eb',
+                          },
+                        },
+                        splitLine: {
+                          lineStyle: {
+                            color: '#e5e7eb',
+                          },
+                        },
+                      },
+                      series: [{
+                        type: 'radar',
+                        data: [{
+                          value: [
+                            grading.dimensionScores.grammar ?? 0,
+                            grading.dimensionScores.vocabulary ?? 0,
+                            grading.dimensionScores.structure ?? 0,
+                            grading.dimensionScores.content ?? 0,
+                            grading.dimensionScores.coherence ?? 0,
+                          ],
+                          name: t('submission.dimensionScores'),
+                          areaStyle: { 
+                            color: `${CHART_PALETTE[0]}30`,
+                          },
+                          lineStyle: {
+                            color: CHART_PALETTE[0],
+                            width: 2,
+                          },
+                          itemStyle: {
+                            color: CHART_PALETTE[0],
+                          },
+                        }],
+                      }],
+                      tooltip: {
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderColor: '#e5e7eb',
+                        borderWidth: 1,
+                        textStyle: { color: '#1f2937' },
+                      },
+                    }}
+                    height={280}
+                  />
+                </div>
+                <div style={{ flex: '1 1 200px', minWidth: 200 }}>
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    {[
+                      { key: 'grammar', label: t('submission.dim.grammar'), score: grading.dimensionScores.grammar ?? 0 },
+                      { key: 'vocabulary', label: t('submission.dim.vocabulary'), score: grading.dimensionScores.vocabulary ?? 0 },
+                      { key: 'structure', label: t('submission.dim.structure'), score: grading.dimensionScores.structure ?? 0 },
+                      { key: 'content', label: t('submission.dim.content'), score: grading.dimensionScores.content ?? 0 },
+                      { key: 'coherence', label: t('submission.dim.coherence'), score: grading.dimensionScores.coherence ?? 0 },
+                    ].map((dim, index) => (
+                      <div key={dim.key}>
+                        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                          <Typography.Text style={{ fontSize: 13 }}>{dim.label}</Typography.Text>
+                          <Typography.Text strong style={{ color: CHART_PALETTE[index % CHART_PALETTE.length] }}>
+                            {dim.score}/20
+                          </Typography.Text>
+                        </Space>
+                        <Progress 
+                          percent={(dim.score / 20) * 100} 
+                          showInfo={false}
+                          strokeColor={CHART_PALETTE[index % CHART_PALETTE.length]}
+                          trailColor="#f3f4f6"
+                          size="small"
+                        />
+                      </div>
+                    ))}
+                  </Space>
+                </div>
+              </div>
             </ProCard>
           ) : null}
 
