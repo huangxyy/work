@@ -16,6 +16,7 @@ import { BaiduOcrService } from '../ocr/baidu-ocr.service';
 import { AuditService } from '../common/audit/audit.service';
 import { RedisService } from '../common/redis';
 import { AdminUsageQueryDto } from './dto/admin-usage-query.dto';
+import { QueueAlertDto } from './dto/queue-alert.dto';
 import { AuditLogsQueryDto } from './dto/audit-logs-query.dto';
 import { BulkImportUsersDto } from './dto/bulk-import-users.dto';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
@@ -1084,6 +1085,105 @@ export class AdminService {
       action: query.action,
       actions: query.actions,
     });
+  }
+
+  async getQueueAlerts(): Promise<QueueAlertDto[]> {
+    const alerts: QueueAlertDto[] = [];
+    const metrics = await this.getQueueMetrics({});
+    const counts = metrics.counts || {};
+
+    // Backlog alert
+    const backlogThreshold = 100;
+    const waiting = counts.waiting || 0;
+    if (waiting > backlogThreshold) {
+      alerts.push({
+        active: true,
+        type: 'backlog',
+        message: `Queue backlog: ${waiting} jobs waiting`,
+        value: waiting,
+        threshold: backlogThreshold,
+        timestamp: new Date(),
+      });
+    }
+
+    // Failure rate alert
+    const failureRateThreshold = 0.1; // 10%
+    const completed = counts.completed || 0;
+    const failed = counts.failed || 0;
+    const totalCompleted = completed + failed;
+    const failureRate = totalCompleted > 0 ? failed / totalCompleted : 0;
+
+    if (failureRate > failureRateThreshold && failed > 5) {
+      alerts.push({
+        active: true,
+        type: 'failure_rate',
+        message: `High failure rate: ${(failureRate * 100).toFixed(1)}%`,
+        value: Math.round(failureRate * 100),
+        threshold: failureRateThreshold * 100,
+        timestamp: new Date(),
+      });
+    }
+
+    // Worker health check
+    const queue = this.queueService.getQueue('grading');
+    if (queue) {
+      const workers = await queue.getWorkers();
+      const activeCount = workers.length;
+      if (activeCount === 0) {
+        alerts.push({
+          active: true,
+          type: 'worker_stale',
+          message: 'No active workers found',
+          value: 0,
+          threshold: 1,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    return alerts;
+  }
+
+  async getWorkerHealth(): Promise<{
+    healthy: boolean;
+    workers: Array<{ id: string; status: string; lastSeen: Date }>;
+  }> {
+    const queue = this.queueService.getQueue('grading');
+    const workers = queue ? await queue.getWorkers() : [];
+
+    return {
+      healthy: workers.length > 0,
+      workers: workers.map((w: any) => ({
+        id: w.id,
+        status: w.status || 'active',
+        lastSeen: new Date(w.updatedAt || Date.now()),
+      })),
+    };
+  }
+
+  async getQueueTrends(days: number = 7): Promise<{
+    dates: string[];
+    waiting: number[];
+    completed: number[];
+    failed: number[];
+  }> {
+    const dates: string[] = [];
+    const waiting: number[] = [];
+    const completed: number[] = [];
+    const failed: number[] = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().slice(0, 10);
+      dates.push(dateStr);
+
+      // For now, return zeros - actual implementation would query historical data
+      waiting.push(0);
+      completed.push(0);
+      failed.push(0);
+    }
+
+    return { dates, waiting, completed, failed };
   }
 
   async updateSystemConfig(dto: UpdateSystemConfigDto) {

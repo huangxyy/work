@@ -216,4 +216,19 @@ export class AdminController {
   async getAuditLogs(@Query() query: AuditLogsQueryDto) {
     return this.adminService.getAuditLogs(query);
   }
+
+  @Get('queue/alerts')
+  async getQueueAlerts() {
+    return this.adminService.getQueueAlerts();
+  }
+
+  @Get('queue/worker-health')
+  async getWorkerHealth() {
+    return this.adminService.getWorkerHealth();
+  }
+
+  @Get('queue/trends')
+  async getQueueTrends(@Query('days') days?: string) {
+    return this.adminService.getQueueTrends(days ? parseInt(days) : 7);
+  }
 }

@@ -10,6 +10,13 @@ export class QueueService {
 
   constructor(@InjectQueue('grading') private readonly gradingQueue: Queue) {}
 
+  getQueue(name: string): Queue | undefined {
+    if (name === 'grading') {
+      return this.gradingQueue;
+    }
+    return undefined;
+  }
+
   async enqueueDemo(message?: string) {
     const payload = {
       message: message || 'demo job from API',
