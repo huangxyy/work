@@ -76,14 +76,14 @@ nano deploy/.env.prod
 
 ```bash
 # Generate secure passwords with: openssl rand -base64 24
-MYSQL_ROOT_PASSWORD=your_secure_mysql_root_password_min_24_chars
-MYSQL_PASSWORD=your_secure_database_password_min_24_chars
+DB_ROOT_PASSWORD=your_secure_mysql_root_password_min_24_chars
+DB_PASS=your_secure_database_password_min_24_chars
 JWT_SECRET=your_jwt_secret_min_64_chars_use_openssl_rand_base64_64
 MINIO_ROOT_PASSWORD=your_secure_minio_password_min_24_chars
 
 # Database
-MYSQL_DATABASE=homework_ai
-MYSQL_USER=homework_ai
+DB_NAME=homework_ai
+DB_USER=homework_ai
 
 # CORS - Set your actual domain in production
 CORS_ORIGIN=https://your-domain.com
@@ -227,7 +227,7 @@ mkdir -p backups
 
 # Backup MySQL
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod exec -T mysql \
-  mysqladmin -uroot -p"${MYSQL_ROOT_PASSWORD}" shutdown || true
+  mysqladmin -uroot -p"${DB_ROOT_PASSWORD}" shutdown || true
 
 docker run --rm --volumes-from $(docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod ps -q mysql) \
   -v $(pwd)/backups:/backup \
@@ -433,7 +433,7 @@ Before deploying to production, ensure:
 
 ### Security
 
-- [ ] All default passwords changed (`MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `JWT_SECRET`, `MINIO_ROOT_PASSWORD`)
+- [ ] All default passwords changed (`DB_ROOT_PASSWORD`, `DB_PASS`, `JWT_SECRET`, `MINIO_ROOT_PASSWORD`)
 - [ ] Strong password policy enforced (minimum 16 characters, mixed case, numbers, symbols)
 - [ ] `CORS_ORIGIN` set to specific domain, not `*`
 - [ ] API keys for external services (OCR, LLM) configured
@@ -670,7 +670,7 @@ docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod log
 
 ```bash
 # Connect to MySQL
-docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod exec mysql mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" homework_ai
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod exec mysql mysql -uroot -p"${DB_ROOT_PASSWORD}" homework_ai
 
 # Run queries
 SHOW PROCESSLIST;
@@ -744,10 +744,10 @@ homework-ai/
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `MYSQL_ROOT_PASSWORD` | Yes | - | MySQL root password |
-| `MYSQL_PASSWORD` | Yes | - | MySQL application password |
-| `MYSQL_DATABASE` | No | `homework_ai` | Database name |
-| `MYSQL_USER` | No | `homework_ai` | Database user |
+| `DB_ROOT_PASSWORD` | Yes | - | MySQL root password |
+| `DB_PASS` | Yes | - | MySQL application password |
+| `DB_NAME` | No | `homework_ai` | Database name |
+| `DB_USER` | No | `homework_ai` | Database user |
 | `JWT_SECRET` | Yes | - | JWT signing secret |
 | `CORS_ORIGIN` | No | `*` | Allowed CORS origins |
 | `MINIO_ROOT_USER` | No | `minioadmin` | MinIO username |
