@@ -44,6 +44,9 @@ const AdminFeatureFlagsPage = lazy(() =>
 const AdminAnnouncementsPage = lazy(() =>
   import('../../pages/admin/Announcements').then((m) => ({ default: m.AdminAnnouncementsPage })),
 );
+const AdminQueueMonitoringPage = lazy(() =>
+  import('../../pages/admin/QueueMonitoring').then((m) => ({ default: m.default })),
+);
 const ProfilePage = lazy(() =>
   import('../../pages/ProfilePage').then((module) => ({ default: module.ProfilePage })),
 );
@@ -62,6 +65,7 @@ export const adminComponents = {
   AdminAuditLogsPage,
   AdminFeatureFlagsPage,
   AdminAnnouncementsPage,
+  AdminQueueMonitoringPage,
   ProfilePage,
 };
 
@@ -78,6 +82,7 @@ export const adminRoutes: RouteObject[] = [
   { path: 'system/budget', element: <adminComponents.AdminSystemBudgetPage /> },
   { path: 'system/retention', element: <adminComponents.AdminSystemRetentionPage /> },
   { path: 'system/queue', element: <adminComponents.AdminQueuePage /> },
+  { path: 'system/queue/monitoring', element: <adminComponents.AdminQueueMonitoringPage /> },
   { path: 'diagnosis', element: <adminComponents.AdminSubmissionDiagnosisPage /> },
   { path: 'audit-logs', element: <adminComponents.AdminAuditLogsPage /> },
   { path: 'feature-flags', element: <adminComponents.AdminFeatureFlagsPage /> },

@@ -469,3 +469,65 @@ export async function fetchLlmCostSummary(days = 7) {
     daily: Array<{ date: string; calls: number; tokens: number; cost: number }>;
   };
 }
+
+// Queue monitoring API
+export interface QueueAlert {
+  active: boolean;
+  type: 'backlog' | 'failure_rate' | 'worker_stale' | 'queue_stale';
+  message: string;
+  value: number;
+  threshold: number;
+  timestamp: string;
+}
+
+export interface WorkerHealthInfo {
+  healthy: boolean;
+  workers: Array<{ id: string; status: string; lastSeen: string }>;
+}
+
+export interface QueueTrends {
+  dates: string[];
+  waiting: number[];
+  completed: number[];
+  failed: number[];
+}
+
+export interface FailedJob {
+  id: string;
+  name: string;
+  failedReason: string | null;
+  attemptsMade: number;
+  failedAt: string;
+}
+
+export interface QueueMetrics {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+}
+
+export const getQueueMetrics = async (params?: { queue?: string }) => {
+  const response = await api.get<QueueMetrics>('/admin/queue/metrics/summary', { params });
+  return response.data;
+};
+
+export const getQueueAlerts = async () => {
+  const response = await api.get<QueueAlert[]>('/admin/queue/alerts');
+  return response.data;
+};
+
+export const getWorkerHealth = async () => {
+  const response = await api.get<WorkerHealthInfo>('/admin/queue/worker-health');
+  return response.data;
+};
+
+export const getQueueTrends = async (days: number = 7) => {
+  const response = await api.get<QueueTrends>('/admin/queue/trends', { params: { days } });
+  return response.data;
+};
+
+export const listFailedQueueJobs = async (params?: { queue?: string; limit?: number }) => {
+  const response = await api.get<{ jobs: FailedJob[] }>('/admin/queue/failed-jobs', { params });
+  return response.data;
+};
