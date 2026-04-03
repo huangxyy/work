@@ -14,6 +14,13 @@
     "test:cov": "pnpm --filter backend test:cov",
     "typecheck": "pnpm --filter backend exec tsc --noEmit && pnpm --filter frontend exec tsc --noEmit",
     "handover:package": "powershell -ExecutionPolicy Bypass -File ./scripts/create-handover-package.ps1",
-    "handover:package:with-accounts": "powershell -ExecutionPolicy Bypass -File ./scripts/create-handover-package.ps1 -IncludeAccountFile"
+    "handover:package:with-accounts": "powershell -ExecutionPolicy Bypass -File ./scripts/create-handover-package.ps1 -IncludeAccountFile",
+    "config:validate": "ts-node scripts/config-validator.ts",
+    "prestart:dev": "pnpm config:validate || true"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "dotenv": "^17.4.0",
+    "ts-node": "^10.9.2"
   }
 }
