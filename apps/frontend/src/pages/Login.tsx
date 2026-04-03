@@ -12,7 +12,7 @@ import { useMessage } from '../hooks/useMessage';
 export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const message = useMessage();
 
   const { data: overview } = useQuery({
@@ -130,18 +130,27 @@ export const LoginPage = () => {
               >
                 {t('login.signIn')}
               </Button>
-              <div style={{ textAlign: 'center', marginTop: 12 }}>
-                <Typography.Link onClick={() => navigate('/forgot-password')}>
-                  {t('forgotPassword.link')}
-                </Typography.Link>
-              </div>
-            </Form>
-            <Space style={{ marginTop: 16, justifyContent: 'center', display: 'flex' }}>
-              <Typography.Link onClick={() => navigate('/terms')}>{t('legal.terms')}</Typography.Link>
-              <Typography.Text type="secondary">·</Typography.Text>
-              <Typography.Link onClick={() => navigate('/privacy')}>{t('legal.privacy')}</Typography.Link>
-            </Space>
-          </Card>
+              <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <Typography.Link onClick={() => navigate('/forgot-password')}>
+                {t('forgotPassword.link')}
+              </Typography.Link>
+            </div>
+          </Form>
+          <div className="apple-login-footer-links">
+            <span className="apple-login-footer-hint">
+              {language.startsWith('zh') ? '登录即表示您同意我们的' : 'By signing in, you agree to our'}
+            </span>
+            <div className="apple-login-footer-actions">
+              <Typography.Link onClick={() => navigate('/terms')}>
+                {t('legal.terms')}
+              </Typography.Link>
+              <span className="apple-login-footer-divider">|</span>
+              <Typography.Link onClick={() => navigate('/privacy')}>
+                {t('legal.privacy')}
+              </Typography.Link>
+            </div>
+          </div>
+        </Card>
         </div>
       </main>
     </div>

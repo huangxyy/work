@@ -9,9 +9,9 @@
   <view class="filter-section scale-in">
     <scroll-view class="filter-chips" scroll-x enable-flex>
       <view class="filter-chip {{activeFilter === 'all' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="all">全部</view>
-      <view class="filter-chip {{activeFilter === 'open' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="open">进行中</view>
+      <view class="filter-chip {{activeFilter === 'ongoing' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="ongoing">进行中</view>
       <view class="filter-chip {{activeFilter === 'late' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="late">可补交</view>
-      <view class="filter-chip {{activeFilter === 'overdue' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="overdue">已截止</view>
+      <view class="filter-chip {{activeFilter === 'expired' ? 'active' : ''}}" bindtap="onFilterChange" data-filter="expired">已截止</view>
     </scroll-view>
   </view>
 
@@ -69,7 +69,7 @@
 
         <view class="card-actions">
           <button class="action-btn ghost" data-id="{{item.id}}" catchtap="goDetail">查看详情</button>
-          <button class="action-btn primary" data-id="{{item.id}}" data-closed="{{item.status.key === 'overdue'}}" catchtap="goSubmit">{{item.hasDraft ? '继续提交' : '去提交'}}</button>
+          <button class="action-btn primary" data-id="{{item.id}}" data-closed="{{item.status.key === 'expired'}}" catchtap="goSubmit">{{item.hasDraft ? '继续提交' : '去提交'}}</button>
         </view>
       </view>
     </view>

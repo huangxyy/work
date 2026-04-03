@@ -19,10 +19,24 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
+/**
+ * 认证服务
+ * @description 处理用户注册、登录、登出、密码重置等认证相关功能
+ */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  /**
+   * 构造函数
+   * @param prisma - Prisma 数据库服务
+   * @param jwtService - JWT 令牌服务
+   * @param audit - 审计日志服务
+   * @param lockout - 账户锁定服务
+   * @param tokenBlacklist - 令牌黑名单服务
+   * @param redis - Redis 缓存服务
+   * @param emailService - 邮件发送服务
+   */
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -33,12 +47,22 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
+  /**
+   * 清理用户敏感信息
+   * @param user - 原始用户对象
+   * @returns 移除密码哈希后的用户对象
+   */
   private sanitizeUser(user: User) {
     const safe = { ...user } as Omit<User, 'passwordHash'> & { passwordHash?: string };
     delete safe.passwordHash;
     return safe;
   }
 
+  /**
+   * 签发 JWT 令牌
+   * @param user - 用户对象
+   * @returns JWT 令牌字符串
+   */
   private signToken(user: User) {
     const jti = randomUUID();
     return this.jwtService.sign(
@@ -52,6 +76,13 @@ export class AuthService {
     );
   }
 
+  /**
+   * 用户注册
+   * @param dto - 注册数据传输对象
+   * @param ip - 客户端 IP 地址（可选，用于审计）
+   * @returns 包含令牌和用户信息的响应对象
+   * @throws {BadRequestException} 当账号已存在时抛出
+   */
   async register(dto: RegisterDto, ip?: string) {
     const startedAt = Date.now();
     const account = dto.account.trim();
@@ -92,6 +123,15 @@ export class AuthService {
 
   private readonly dummyHash = bcrypt.hashSync('dummy-password-for-timing', 10);
 
+  /**
+   * 用户登录
+   * @param dto - 登录数据传输对象
+   * @param ip - 客户端 IP 地址（可选，用于审计）
+   * @returns 包含令牌和用户信息的响应对象
+   * @throws {BadRequestException} 当账号为空时抛出
+   * @throws {ForbiddenException} 当账户被锁定或禁用时抛出
+   * @throws {UnauthorizedException} 当账号或密码错误时抛出
+   */
   async login(dto: LoginDto, ip?: string) {
     const startedAt = Date.now();
     const account = dto.account.trim();
@@ -161,6 +201,14 @@ export class AuthService {
     return { token, user: this.sanitizeUser(user) };
   }
 
+  /**
+   * 用户登出
+   * @param jti - JWT ID，用于将令牌加入黑名单
+   * @param expiresInSeconds - 令牌过期时间（秒）
+   * @param userId - 用户 ID（可选，用于审计）
+   * @param ip - 客户端 IP 地址（可选，用于审计）
+   * @returns Promise，在登出完成后解析
+   */
   async logout(jti: string, expiresInSeconds: number, userId?: string, ip?: string) {
     const startedAt = Date.now();
     await Promise.all([
@@ -177,10 +225,21 @@ export class AuthService {
     );
   }
 
+  /**
+   * 检查令牌是否已被撤销
+   * @param jti - JWT ID
+   * @returns 如果令牌已被撤销返回 true，否则返回 false
+   */
   async isTokenRevoked(jti: string): Promise<boolean> {
     return this.tokenBlacklist.isRevoked(jti);
   }
 
+  /**
+   * 更新用户资料
+   * @param userId - 用户 ID
+   * @param data - 更新数据传输对象
+   * @returns 更新后的用户信息（不含密码）
+   */
   async updateProfile(userId: string, data: UpdateProfileDto) {
     const updateData: Prisma.UserUpdateInput = {};
     if (data.name?.trim()) updateData.name = data.name.trim();
@@ -197,6 +256,15 @@ export class AuthService {
     return this.sanitizeUser(user);
   }
 
+  /**
+   * 修改密码
+   * @param userId - 用户 ID
+   * @param oldPassword - 当前密码
+   * @param newPassword - 新密码
+   * @returns 操作结果对象
+   * @throws {UnauthorizedException} 当用户不存在时抛出
+   * @throws {BadRequestException} 当当前密码不正确或新旧密码相同时抛出
+   */
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
     const startedAt = Date.now();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -229,6 +297,12 @@ export class AuthService {
     return { ok: true };
   }
 
+  /**
+   * 发送密码重置验证码
+   * @param emailAddress - 邮箱地址
+   * @returns 操作结果对象（无论邮箱是否存在都返回成功，防止枚举攻击）
+   * @description 验证码有效期为 5 分钟，存储在 Redis 中
+   */
   async sendPasswordResetCode(emailAddress: string) {
     const email = emailAddress.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
@@ -249,6 +323,11 @@ export class AuthService {
     return { ok: true };
   }
 
+  /**
+   * 导出用户数据（GDPR 合规）
+   * @param userId - 用户 ID
+   * @returns 包含用户信息、提交记录和通知的导出数据
+   */
   async exportUserData(userId: string) {
     const startedAt = Date.now();
     const [user, submissions, notifications] = await Promise.all([
@@ -284,6 +363,14 @@ export class AuthService {
     return { user, submissions, notifications, exportedAt: new Date().toISOString() };
   }
 
+  /**
+   * 使用验证码重置密码
+   * @param email - 邮箱地址
+   * @param code - 验证码
+   * @param newPassword - 新密码
+   * @returns 操作结果对象
+   * @throws {BadRequestException} 当验证码无效或新旧密码相同时抛出
+   */
   async resetPasswordWithCode(email: string, code: string, newPassword: string) {
     const startedAt = Date.now();
     const normalizedEmail = email.trim().toLowerCase();

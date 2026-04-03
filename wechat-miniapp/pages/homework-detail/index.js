@@ -64,7 +64,7 @@ Page({
         homework,
         status,
         dueLabel: homework.dueAt ? formatDateTime(homework.dueAt) : '灵活截止',
-        canSubmit: status.key !== 'overdue',
+        canSubmit: status.key !== 'expired',
         hasDraft: hasSubmitDraft(homework.id),
         latestSubmission: history[0] || null,
         history,

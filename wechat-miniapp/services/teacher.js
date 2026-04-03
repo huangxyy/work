@@ -95,9 +95,10 @@ async function updateHomework(homeworkId, data) {
   });
 }
 
-async function deleteHomework(homeworkId) {
+async function deleteHomework(homeworkId, force = false) {
+  const params = force ? { force: 'true' } : {};
   return request({
-    url: `/homeworks/${homeworkId}`,
+    url: buildUrlWithQuery(`/homeworks/${homeworkId}`, params),
     method: 'DELETE',
   });
 }

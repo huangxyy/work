@@ -183,10 +183,24 @@ const PRINT_PACKET_MAX_TOTAL = Number.isFinite(Number(process.env.PRINT_PACKET_M
   ? Number(process.env.PRINT_PACKET_MAX_TOTAL)
   : DEFAULT_PRINT_PACKET_MAX_TOTAL;
 
+/**
+ * 作业提交服务
+ * @description 处理学生作业提交、教师批量上传、批改结果查询等功能
+ */
 @Injectable()
 export class SubmissionsService {
   private readonly logger = new Logger(SubmissionsService.name);
 
+  /**
+   * 构造函数
+   * @param prisma - Prisma 数据库服务
+   * @param storage - 对象存储服务
+   * @param queueService - 队列服务
+   * @param gradingPolicyService - 批改策略服务
+   * @param baiduOcrService - 百度 OCR 服务
+   * @param systemConfigService - 系统配置服务
+   * @param llmConfigService - LLM 配置服务
+   */
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -197,6 +211,16 @@ export class SubmissionsService {
     private readonly llmConfigService: LlmConfigService,
   ) {}
 
+  /**
+   * 创建作业提交（学生端）
+   * @param dto - 提交数据传输对象
+   * @param files - 上传的图片文件数组（最多3张）
+   * @param user - 认证用户信息
+   * @returns 创建的提交记录
+   * @throws {ForbiddenException} 当非学生角色尝试提交时抛出
+   * @throws {BadRequestException} 当文件数量或类型不正确时抛出
+   * @throws {NotFoundException} 当作业不存在或无权访问时抛出
+   */
   async createSubmission(
     dto: CreateSubmissionDto,
     files: Express.Multer.File[],

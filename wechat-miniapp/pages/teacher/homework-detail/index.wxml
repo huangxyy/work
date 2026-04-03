@@ -8,7 +8,10 @@
 
   <view wx:elif="{{homework}}" class="content-wrapper">
     <view class="hero fade-in">
-      <view class="hero-title">{{homework.title}}</view>
+      <view class="hero-header">
+        <view class="hero-title">{{homework.title}}</view>
+        <view class="hero-action" bindtap="onMoreActions">管理</view>
+      </view>
       <view class="hero-subtitle">{{homework.description || '暂无描述'}}</view>
       <view class="hero-stats">
         <view class="hero-stat">
@@ -20,7 +23,7 @@
           <text class="hero-stat-label">已提交</text>
         </view>
         <view class="hero-stat">
-          <text class="hero-stat-value">{{(homework.studentCount || 0) - submissions.length}}</text>
+          <text class="hero-stat-value">{{utils.max((homework.studentCount || 0) - submissions.length, 0)}}</text>
           <text class="hero-stat-label">未提交</text>
         </view>
       </view>

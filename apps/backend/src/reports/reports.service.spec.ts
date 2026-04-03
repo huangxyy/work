@@ -5,28 +5,42 @@ import { ReportsService } from './reports.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter } from 'events';
 
-// Mock pdfkit
-jest.mock('pdfkit', () => {
-  return {
-    __esModule: true,
-    default: jest.fn().mockImplementation(() => {
-      const emitter = new EventEmitter();
-      const doc = Object.assign(emitter, {
-        fontSize: jest.fn().mockReturnThis(),
-        text: jest.fn().mockReturnThis(),
-        moveDown: jest.fn().mockReturnThis(),
-        font: jest.fn().mockReturnThis(),
-        end: jest.fn(function (this: EventEmitter) {
-          process.nextTick(() => {
-            this.emit('data', Buffer.from('fake-pdf'));
-            this.emit('end');
-          });
-        }),
+// Mock pdfkit - 使用函数声明确保可以作为构造函数使用
+function PDFDocumentMock(this: EventEmitter) {
+  EventEmitter.call(this);
+  Object.assign(this, {
+    fontSize: jest.fn().mockReturnThis(),
+    text: jest.fn().mockReturnThis(),
+    moveDown: jest.fn().mockReturnThis(),
+    font: jest.fn().mockReturnThis(),
+    registerFont: jest.fn().mockReturnThis(),
+    fill: jest.fn().mockReturnThis(),
+    stroke: jest.fn().mockReturnThis(),
+    lineWidth: jest.fn().mockReturnThis(),
+    rect: jest.fn().mockReturnThis(),
+    roundedRect: jest.fn().mockReturnThis(),
+    circle: jest.fn().mockReturnThis(),
+    polygon: jest.fn().mockReturnThis(),
+    translateX: jest.fn().mockReturnThis(),
+    translateY: jest.fn().mockReturnThis(),
+    scale: jest.fn().mockReturnThis(),
+    opacity: jest.fn().mockReturnThis(),
+    addPage: jest.fn().mockReturnThis(),
+    pipe: jest.fn().mockReturnThis(),
+    end: jest.fn(function (this: EventEmitter) {
+      process.nextTick(() => {
+        this.emit('data', Buffer.from('fake-pdf'));
+        this.emit('end');
       });
-      return doc;
     }),
-  };
-});
+  });
+}
+
+// 设置原型链以支持 EventEmitter 方法
+Object.setPrototypeOf(PDFDocumentMock, EventEmitter);
+Object.setPrototypeOf(PDFDocumentMock.prototype, EventEmitter.prototype);
+
+jest.mock('pdfkit', () => PDFDocumentMock);
 
 describe('ReportsService', () => {
   let service: ReportsService;

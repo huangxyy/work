@@ -20,7 +20,9 @@
       "Bash(npx tsc:*)",
       "Bash(curl:*)",
       "Bash(powershell.exe:*)",
-      "Bash(grep -o ''[^'']*'': i18n.ts)"
+      "Bash(grep -o ''[^'']*'': i18n.ts)",
+      "Bash(npm test:*)",
+      "Bash(pnpm test:*)"
     ]
   }
 }

@@ -45,17 +45,17 @@ Page({
           selectedIndex: index,
           selectedClassName: this.data.classes[index].name,
         });
-        this.loadHomeworks();
+        this.loadHomeworks(true);
         return;
       }
     }
     if (!this.data.isInitialLoad && this.data.selectedClassId) {
-      this.loadHomeworks();
+      this.loadHomeworks(true);
     }
   },
 
   onPullDownRefresh() {
-    this.loadHomeworks().then(() => {
+    this.loadHomeworks(true).then(() => {
       wx.stopPullDownRefresh();
     });
   },
@@ -192,22 +192,20 @@ Page({
     const { homeworks } = this.data;
     const now = new Date();
 
-    // 进行中的作业：有截止时间且未过期，或者没有截止时间
-    const openCount = homeworks.filter(h => {
-      if (!h.dueAt) return false; // 没有截止时间的作业不计入统计
+    const ongoingCount = homeworks.filter(h => {
+      if (!h.dueAt) return true;
       return new Date(h.dueAt) > now;
     }).length;
 
-    // 已截止的作业：有截止时间且已过期
-    const closedCount = homeworks.filter(h => {
+    const expiredCount = homeworks.filter(h => {
       if (!h.dueAt) return false;
       return new Date(h.dueAt) <= now;
     }).length;
 
     this.setData({
       homeworkCount: homeworks.length,
-      openCount,
-      closedCount,
+      openCount: ongoingCount,
+      closedCount: expiredCount,
     });
   },
 
@@ -218,13 +216,10 @@ Page({
     let filteredHomeworks = [];
 
     if (activeFilter === 'all') {
-      // 显示所有作业
       filteredHomeworks = [...homeworks];
-    } else if (activeFilter === 'open') {
-      // 进行中：未过截止时间
-      filteredHomeworks = homeworks.filter(h => h.dueAt && new Date(h.dueAt) > now);
-    } else if (activeFilter === 'closed') {
-      // 已截止：已过截止时间
+    } else if (activeFilter === 'ongoing') {
+      filteredHomeworks = homeworks.filter(h => !h.dueAt || new Date(h.dueAt) > now);
+    } else if (activeFilter === 'expired') {
       filteredHomeworks = homeworks.filter(h => h.dueAt && new Date(h.dueAt) <= now);
     }
 
@@ -280,8 +275,37 @@ Page({
     });
   },
 
-  async onDeleteHomework(e) {
+  onHomeworkLongPress(e) {
     const { id } = e.currentTarget.dataset;
+    const homework = this.data.homeworks.find(h => h.id === id);
+    if (!homework) return;
+
+    wx.showActionSheet({
+      itemList: ['编辑作业', '删除作业'],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          this.onEditHomework(id);
+        } else if (res.tapIndex === 1) {
+          this.onDeleteHomework(id);
+        }
+      },
+    });
+  },
+
+  onEditHomework(homeworkId) {
+    const { selectedClassId } = this.data;
+    wx.navigateTo({
+      url: `/pages/teacher/homework-edit/index?homeworkId=${homeworkId}&classId=${selectedClassId}`
+    });
+  },
+
+  async onDeleteHomework(e) {
+    let id;
+    if (typeof e === 'string') {
+      id = e;
+    } else {
+      id = e.currentTarget.dataset.id;
+    }
     const homework = this.data.homeworks.find(h => h.id === id);
     if (!homework) return;
 
@@ -301,10 +325,35 @@ Page({
       await deleteHomework(id);
       hideLoading();
       showToast('删除成功', 'success');
-      this.loadHomeworks();
+      this.loadHomeworks(true);
     } catch (error) {
       hideLoading();
-      showToast(pickErrorMessage(error, '删除失败'));
+      const errorMsg = pickErrorMessage(error, '删除失败');
+      
+      if (errorMsg.includes('still queued') || errorMsg.includes('being graded')) {
+        wx.showModal({
+          title: '无法删除',
+          content: '有提交正在批改中，是否强制删除？（未完成的批改将丢失）',
+          confirmText: '强制删除',
+          confirmColor: '#ef4444',
+          success: async (res) => {
+            if (res.confirm) {
+              showLoading('删除中...');
+              try {
+                await deleteHomework(id, true);
+                hideLoading();
+                showToast('删除成功', 'success');
+                this.loadHomeworks(true);
+              } catch (err2) {
+                hideLoading();
+                showToast(pickErrorMessage(err2, '删除失败'));
+              }
+            }
+          },
+        });
+      } else {
+        showToast(errorMsg);
+      }
     }
   },
 

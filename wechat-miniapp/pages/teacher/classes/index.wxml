@@ -74,6 +74,7 @@
           wx:key="id"
           class="student-item"
           bindtap="onStudentTap"
+          bindlongpress="onStudentLongPress"
           data-id="{{item.id}}"
           data-name="{{item.name}}"
           data-account="{{item.account}}"
@@ -103,7 +104,7 @@
 
   <!-- 导入学生弹窗 -->
   <view wx:if="{{showStudentModal}}" class="modal-overlay" bindtap="closeStudentModal">
-    <view class="modal-content" catchtap="true">
+    <view class="modal-content" catchtap="preventBubble">
       <view class="modal-header">
         <text class="modal-title">导入学生</text>
         <text class="modal-close" bindtap="closeStudentModal">×</text>

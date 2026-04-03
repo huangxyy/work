@@ -35,15 +35,36 @@
       <text class="section-title">作业图片</text>
       <text class="section-count">{{images.length}}/9</text>
     </view>
-    <view class="photo-grid">
+
+    <view wx:if="{{images.length === 0}}" class="upload-area-empty">
+      <view class="upload-icon">📷</view>
+      <view class="upload-hint">上传作业照片</view>
+      <view class="upload-subhint">最多9张，单张不超过10MB</view>
+      <view class="upload-buttons">
+        <button class="btn-upload btn-camera" bindtap="takePhoto">
+          <view class="btn-icon">📸</view>
+          <view class="btn-text">拍照</view>
+        </button>
+        <button class="btn-upload btn-album" bindtap="chooseFromAlbum">
+          <view class="btn-icon">🖼️</view>
+          <view class="btn-text">相册</view>
+        </button>
+      </view>
+    </view>
+
+    <view wx:else class="photo-grid">
       <view wx:for="{{images}}" wx:key="index" class="photo-item">
         <image src="{{item.path}}" mode="aspectFill" />
         <view class="remove-btn" data-index="{{index}}" bindtap="onRemoveImage">×</view>
       </view>
-      <view wx:if="{{images.length < 9}}" class="photo-item add-btn" bindtap="onChooseImage">
-        <text>+</text>
+      <view wx:if="{{images.length < 9}}" class="photo-item photo-add-item">
+        <view class="add-buttons">
+          <view class="add-btn" bindtap="takePhoto">📸</view>
+          <view class="add-btn" bindtap="chooseFromAlbum">🖼️</view>
+        </view>
       </view>
     </view>
+    <view class="upload-tip">建议上传清晰、平整、光线充足的作文照片</view>
   </view>
 
   <view class="actions">

@@ -5,6 +5,7 @@ const { getSubmitDraftStorageKey } = require('../../lib/draft');
 const { showToast, showLoading, hideLoading, confirm } = require('../../lib/ui');
 const { formatDateTime, getHomeworkStatus, pickErrorMessage } = require('../../lib/utils');
 const imageCompressor = require('../../utils/image-compressor');
+const { COMPRESS_QUALITY, COMPRESS_MAX_WIDTH } = imageCompressor;
 
 const MODE_OPTIONS = [
   { label: '标准批改', value: 'quality' },
@@ -146,7 +147,7 @@ Page({
         homework,
         status,
         dueLabel: homework.dueAt ? formatDateTime(homework.dueAt) : '灵活截止',
-        canSubmit: status.key !== 'overdue',
+        canSubmit: status.key !== 'expired',
       });
     } catch (error) {
       this.setData({ errorText: pickErrorMessage(error, '作业加载失败') });
@@ -275,28 +276,33 @@ Page({
       return;
     }
 
-    wx.chooseImage({
+    wx.chooseMedia({
       count: remain,
-      sizeType: ['original'],
+      mediaType: ['image'],
       sourceType: ['album'],
       success: async (res) => {
-        wx.showLoading({ title: '处理中...' });
+        showLoading('处理中...');
 
         try {
-          const tempFiles = res.tempFiles || res.tempFilePaths.map((path) => ({ path, size: 0 }));
-          const nextFiles = tempFiles.map(mapTempFile);
+          const tempFiles = res.tempFiles || [];
+          const nextFiles = tempFiles.map(file => ({
+            path: file.tempFilePath,
+            size: file.size || 0,
+            name: file.tempFilePath.split('/').pop() || `image-${Date.now()}.jpg`,
+            type: file.fileType || 'image/jpeg',
+          }));
 
           const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
           if (invalid) {
-            wx.hideLoading();
+            hideLoading();
             showToast('单张图片不能超过 10MB');
             return;
           }
 
           const compressedPaths = await imageCompressor.compressImages(
             nextFiles.map((f) => f.path),
-            80,
-            1200
+            imageCompressor.COMPRESS_QUALITY,
+            imageCompressor.COMPRESS_MAX_WIDTH
           );
 
           const compressedFiles = nextFiles.map((file, index) => ({
@@ -312,12 +318,15 @@ Page({
           });
         } catch (err) {
           console.error('图片处理失败:', err);
-          wx.hideLoading();
+          hideLoading();
           showToast('图片处理失败，请重试');
         }
 
-        wx.hideLoading();
+        hideLoading();
       },
+      fail: (err) => {
+        console.error('选择图片失败:', err);
+      }
     });
   },
 
@@ -329,28 +338,33 @@ Page({
       return;
     }
 
-    wx.chooseImage({
+    wx.chooseMedia({
       count: remain,
-      sizeType: ['original'],
+      mediaType: ['image'],
       sourceType: ['camera'],
       success: async (res) => {
-        wx.showLoading({ title: '处理中...' });
+        showLoading('处理中...');
 
         try {
-          const tempFiles = res.tempFiles || res.tempFilePaths.map((path) => ({ path, size: 0 }));
-          const nextFiles = tempFiles.map(mapTempFile);
+          const tempFiles = res.tempFiles || [];
+          const nextFiles = tempFiles.map(file => ({
+            path: file.tempFilePath,
+            size: file.size || 0,
+            name: file.tempFilePath.split('/').pop() || `image-${Date.now()}.jpg`,
+            type: file.fileType || 'image/jpeg',
+          }));
 
           const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
           if (invalid) {
-            wx.hideLoading();
+            hideLoading();
             showToast('单张图片不能超过 10MB');
             return;
           }
 
           const compressedPaths = await imageCompressor.compressImages(
             nextFiles.map((f) => f.path),
-            80,
-            1200
+            imageCompressor.COMPRESS_QUALITY,
+            imageCompressor.COMPRESS_MAX_WIDTH
           );
 
           const compressedFiles = nextFiles.map((file, index) => ({
@@ -366,12 +380,15 @@ Page({
           });
         } catch (err) {
           console.error('图片处理失败:', err);
-          wx.hideLoading();
+          hideLoading();
           showToast('图片处理失败，请重试');
         }
 
-        wx.hideLoading();
+        hideLoading();
       },
+      fail: (err) => {
+        console.error('拍照失败:', err);
+      }
     });
   },
 
@@ -383,20 +400,25 @@ Page({
       return;
     }
 
-    wx.chooseImage({
+    wx.chooseMedia({
       count: remain,
-      sizeType: ['original'],
+      mediaType: ['image'],
       sourceType: ['album', 'camera'],
       success: async (res) => {
-        wx.showLoading({ title: '处理中...' });
+        showLoading('处理中...');
 
         try {
-          const tempFiles = res.tempFiles || res.tempFilePaths.map((path) => ({ path, size: 0 }));
-          const nextFiles = tempFiles.map(mapTempFile);
+          const tempFiles = res.tempFiles || [];
+          const nextFiles = tempFiles.map(file => ({
+            path: file.tempFilePath,
+            size: file.size || 0,
+            name: file.tempFilePath.split('/').pop() || `image-${Date.now()}.jpg`,
+            type: file.fileType || 'image/jpeg',
+          }));
 
           const invalid = nextFiles.find((item) => item.size > 10 * 1024 * 1024);
           if (invalid) {
-            wx.hideLoading();
+            hideLoading();
             showToast('单张图片不能超过 10MB');
             return;
           }
@@ -420,12 +442,15 @@ Page({
           });
         } catch (err) {
           console.error('图片处理失败:', err);
-          wx.hideLoading();
+          hideLoading();
           showToast('图片处理失败，请重试');
         }
 
-        wx.hideLoading();
+        hideLoading();
       },
+      fail: (err) => {
+        console.error('选择图片失败:', err);
+      }
     });
   },
 

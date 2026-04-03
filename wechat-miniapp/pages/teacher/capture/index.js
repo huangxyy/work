@@ -2,6 +2,7 @@ const { fetchHomeworks, fetchClasses } = require('../../../services/teacher');
 const { uploadFiles } = require('../../../lib/request');
 const { showToast, showLoading, hideLoading, confirm } = require('../../../lib/ui');
 const { pickErrorMessage } = require('../../../lib/utils');
+const imageCompressor = require('../../../utils/image-compressor');
 
 const CAPTURE_DRAFT_KEY = 'teacher_capture_draft';
 
@@ -343,20 +344,164 @@ Page({
       mediaType: ['image'],
       sourceType: ['album', 'camera'],
       success: async (res) => {
-        const tempImages = res.tempFiles.map(file => ({
-          path: file.tempFilePath,
-          size: file.size,
-        }));
+        showLoading('处理中...');
+        try {
+          const tempImages = res.tempFiles.map(file => ({
+            path: file.tempFilePath,
+            size: file.size,
+          }));
 
-        const persistedImages = await Promise.all(tempImages.map((item) => persistFile(item)));
-        const newImages = [...this.data.images, ...persistedImages];
+          const invalid = tempImages.find((item) => item.size > 10 * 1024 * 1024);
+          if (invalid) {
+            hideLoading();
+            showToast('单张图片不能超过 10MB');
+            return;
+          }
 
-        this.setData({
-          images: newImages,
-          previewResult: null,
-        }, () => {
-          this.persistDraft(`已保存图片草稿（${newImages.length} 张）`);
-        });
+          const compressedPaths = await imageCompressor.compressImages(
+            tempImages.map((f) => f.path),
+            imageCompressor.COMPRESS_QUALITY,
+            imageCompressor.COMPRESS_MAX_WIDTH
+          );
+
+          const compressedImages = tempImages.map((img, index) => ({
+            ...img,
+            path: compressedPaths[index] || img.path,
+          }));
+
+          const persistedImages = await Promise.all(compressedImages.map((item) => persistFile(item)));
+          const newImages = [...this.data.images, ...persistedImages];
+
+          this.setData({
+            images: newImages,
+            previewResult: null,
+          }, () => {
+            this.persistDraft(`已保存图片草稿（${newImages.length} 张）`);
+          });
+        } catch (err) {
+          console.error('图片处理失败:', err);
+          showToast('图片处理失败，请重试');
+        } finally {
+          hideLoading();
+        }
+      },
+      fail: (err) => {
+        console.error('选择图片失败:', err);
+      }
+    });
+  },
+
+  async takePhoto() {
+    const maxCount = 9 - this.data.images.length;
+    if (maxCount <= 0) {
+      showToast('最多只能上传9张图片');
+      return;
+    }
+
+    wx.chooseMedia({
+      count: maxCount,
+      mediaType: ['image'],
+      sourceType: ['camera'],
+      success: async (res) => {
+        showLoading('处理中...');
+        try {
+          const tempImages = res.tempFiles.map(file => ({
+            path: file.tempFilePath,
+            size: file.size,
+          }));
+
+          const invalid = tempImages.find((item) => item.size > 10 * 1024 * 1024);
+          if (invalid) {
+            hideLoading();
+            showToast('单张图片不能超过 10MB');
+            return;
+          }
+
+          const compressedPaths = await imageCompressor.compressImages(
+            tempImages.map((f) => f.path),
+            80,
+            1200
+          );
+
+          const compressedImages = tempImages.map((img, index) => ({
+            ...img,
+            path: compressedPaths[index] || img.path,
+          }));
+
+          const persistedImages = await Promise.all(compressedImages.map((item) => persistFile(item)));
+          const newImages = [...this.data.images, ...persistedImages];
+
+          this.setData({
+            images: newImages,
+            previewResult: null,
+          }, () => {
+            this.persistDraft(`已保存图片草稿（${newImages.length} 张）`);
+          });
+        } catch (err) {
+          console.error('图片处理失败:', err);
+          showToast('图片处理失败，请重试');
+        } finally {
+          hideLoading();
+        }
+      },
+      fail: (err) => {
+        console.error('拍照失败:', err);
+      }
+    });
+  },
+
+  async chooseFromAlbum() {
+    const maxCount = 9 - this.data.images.length;
+    if (maxCount <= 0) {
+      showToast('最多只能上传9张图片');
+      return;
+    }
+
+    wx.chooseMedia({
+      count: maxCount,
+      mediaType: ['image'],
+      sourceType: ['album'],
+      success: async (res) => {
+        showLoading('处理中...');
+        try {
+          const tempImages = res.tempFiles.map(file => ({
+            path: file.tempFilePath,
+            size: file.size,
+          }));
+
+          const invalid = tempImages.find((item) => item.size > 10 * 1024 * 1024);
+          if (invalid) {
+            hideLoading();
+            showToast('单张图片不能超过 10MB');
+            return;
+          }
+
+          const compressedPaths = await imageCompressor.compressImages(
+            tempImages.map((f) => f.path),
+            80,
+            1200
+          );
+
+          const compressedImages = tempImages.map((img, index) => ({
+            ...img,
+            path: compressedPaths[index] || img.path,
+          }));
+
+          const persistedImages = await Promise.all(compressedImages.map((item) => persistFile(item)));
+          const newImages = [...this.data.images, ...persistedImages];
+
+          this.setData({
+            images: newImages,
+            previewResult: null,
+          }, () => {
+            this.persistDraft(`已保存图片草稿（${newImages.length} 张）`);
+          });
+        } catch (err) {
+          console.error('图片处理失败:', err);
+          showToast('图片处理失败，请重试');
+        } finally {
+          hideLoading();
+        }
       },
       fail: (err) => {
         console.error('选择图片失败:', err);

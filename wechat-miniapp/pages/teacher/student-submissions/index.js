@@ -48,8 +48,10 @@ Page({
 
     this.setData({ loading: true });
     try {
-      // 使用优化的 API 一次性获取学生在班级中的所有提交记录
-      const submissions = await fetchStudentSubmissions(studentId, classId);
+      const result = await fetchStudentSubmissions(studentId, classId);
+
+      const submissions = result?.submissions || [];
+      const studentInfo = result?.student || null;
 
       if (!submissions || submissions.length === 0) {
         this.setData({
@@ -65,7 +67,6 @@ Page({
         return;
       }
 
-      // 分离有提交和未提交的记录
       const submittedSubmissions = submissions.filter(s => s.submitted);
 
       // 计算统计数据

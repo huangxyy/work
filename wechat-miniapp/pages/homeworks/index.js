@@ -6,9 +6,9 @@ const { formatDateTime, getHomeworkStatus, pickErrorMessage } = require('../../l
 
 const STATUS_OPTIONS = [
   { label: '全部状态', value: 'all' },
-  { label: '进行中', value: 'open' },
+  { label: '进行中', value: 'ongoing' },
   { label: '逾期可补交', value: 'late' },
-  { label: '已截止', value: 'overdue' },
+  { label: '已截止', value: 'expired' },
 ];
 
 const FILTER_STORAGE_KEY = 'homeworks_filter_state';
@@ -43,10 +43,9 @@ function enrichList(list) {
 // 计算作业状态样式类 (用于列表显示)
 function getStatusClassForList(statusKey) {
   const statusMap = {
-    'open': 'progress',
+    'ongoing': 'progress',
     'late': 'late',
-    'overdue': 'expired',
-    'nodue': 'progress',
+    'expired': 'expired',
   };
   return statusMap[statusKey] || '';
 }
@@ -151,7 +150,7 @@ Page({
       }
       return true;
     });
-    const openCount = list.filter((item) => item.status.key === 'open').length;
+    const openCount = list.filter((item) => item.status.key === 'ongoing' || item.status.key === 'late').length;
     this.setData({
       filteredList,
       hasActiveFilters,

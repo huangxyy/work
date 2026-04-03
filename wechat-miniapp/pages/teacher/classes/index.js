@@ -1,6 +1,7 @@
 const { fetchClasses, fetchClassStudents, deleteClass, importStudents, removeStudent } = require('../../../services/teacher');
 const { showToast, showLoading, hideLoading, showConfirm } = require('../../../lib/ui');
 const { ensureLogin } = require('../../../lib/page');
+const { pickErrorMessage } = require('../../../lib/utils');
 
 Page({
   data: {
@@ -138,6 +139,46 @@ Page({
     }
   },
 
+  onStudentLongPress(e) {
+    const { id, name } = e.currentTarget.dataset;
+    const { selectedClassId } = this.data;
+    
+    wx.showActionSheet({
+      itemList: ['移除学生'],
+      itemColor: '#ef4444',
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          this.confirmRemoveStudent(id, name);
+        }
+      },
+    });
+  },
+
+  confirmRemoveStudent(studentId, studentName) {
+    const { selectedClassId } = this.data;
+    
+    wx.showModal({
+      title: '移除学生',
+      content: `确定要将"${studentName}"从班级中移除吗？`,
+      confirmColor: '#ef4444',
+      success: async (res) => {
+        if (res.confirm) {
+          showLoading('移除中...');
+          try {
+            await removeStudent(selectedClassId, studentId);
+            showToast('移除成功');
+            this.loadClassDetail();
+          } catch (error) {
+            console.error('移除学生失败:', error);
+            showToast('移除失败');
+          } finally {
+            hideLoading();
+          }
+        }
+      },
+    });
+  },
+
   goToClassHomeworks() {
     const { selectedClassId, selectedClassName } = this.data;
     
@@ -260,6 +301,8 @@ Page({
       },
     });
   },
+
+  preventBubble() {},
 
   async onRemoveStudent(e) {
     const { id, name } = e.currentTarget.dataset;

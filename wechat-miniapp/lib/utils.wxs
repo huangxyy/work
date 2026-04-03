@@ -59,7 +59,6 @@ var getSkipReasonText = function(reason) {
   return map[reason] || reason;
 };
 
-// 新增 toFixed 函数
 var toFixed = function(num, digits) {
   if (!num && num !== 0) return '--';
   digits = digits || 2;
@@ -79,12 +78,73 @@ var isHomeworkOpen = function(dueAt) {
   return due > now;
 };
 
-var getHomeworkStatusClass = function(dueAt) {
-  return isHomeworkOpen(dueAt) ? 'open' : 'closed';
+var getHomeworkStatusClass = function(dueAt, allowLateSubmission) {
+  if (!dueAt) return 'status-ongoing';
+  var due = getDate(dueAt);
+  var now = getDate();
+  if (due > now) return 'status-ongoing';
+  if (allowLateSubmission) return 'status-late';
+  return 'status-expired';
 };
 
-var getHomeworkStatusLabelText = function(dueAt) {
-  return isHomeworkOpen(dueAt) ? '进行中' : '已截止';
+var getHomeworkStatusLabelText = function(dueAt, allowLateSubmission) {
+  if (!dueAt) return '进行中';
+  var due = getDate(dueAt);
+  var now = getDate();
+  if (due > now) return '进行中';
+  if (allowLateSubmission) return '逾期可补交';
+  return '已截止';
+};
+
+var getHomeworkStatusMeta = function(dueAt, allowLateSubmission) {
+  if (!dueAt) {
+    return { key: 'ongoing', label: '进行中', className: 'status-ongoing' };
+  }
+  var due = getDate(dueAt);
+  var now = getDate();
+  if (due > now) {
+    return { key: 'ongoing', label: '进行中', className: 'status-ongoing' };
+  }
+  if (allowLateSubmission) {
+    return { key: 'late', label: '逾期可补交', className: 'status-late' };
+  }
+  return { key: 'expired', label: '已截止', className: 'status-expired' };
+};
+
+var max = function(a, b) {
+  a = a || 0;
+  b = b || 0;
+  return a > b ? a : b;
+};
+
+var min = function(a, b) {
+  a = a || 0;
+  b = b || 0;
+  return a < b ? a : b;
+};
+
+var clamp = function(value, minVal, maxVal) {
+  value = value || 0;
+  minVal = minVal || 0;
+  maxVal = maxVal || 0;
+  if (value < minVal) return minVal;
+  if (value > maxVal) return maxVal;
+  return value;
+};
+
+var round = function(value) {
+  value = value || 0;
+  return Math.round(value);
+};
+
+var calcPercent = function(numerator, denominator) {
+  numerator = numerator || 0;
+  denominator = denominator || 1;
+  if (denominator <= 0) return 0;
+  var percent = (numerator / denominator) * 100;
+  if (percent > 100) percent = 100;
+  if (percent < 0) percent = 0;
+  return Math.round(percent);
 };
 
 module.exports = {
@@ -98,4 +158,10 @@ module.exports = {
   isHomeworkOpen: isHomeworkOpen,
   getHomeworkStatusClass: getHomeworkStatusClass,
   getHomeworkStatusLabelText: getHomeworkStatusLabelText,
+  getHomeworkStatusMeta: getHomeworkStatusMeta,
+  max: max,
+  min: min,
+  clamp: clamp,
+  round: round,
+  calcPercent: calcPercent,
 };

@@ -1,5 +1,6 @@
-const { fetchHomeworkById, fetchSubmissions } = require('../../../services/teacher');
+const { fetchHomeworkById, fetchSubmissions, deleteHomework } = require('../../../services/teacher');
 const { showToast, showLoading, hideLoading } = require('../../../lib/ui');
+const { pickErrorMessage } = require('../../../lib/utils');
 
 Page({
   data: {
@@ -31,12 +32,12 @@ Page({
     const { homeworkId } = this.data;
     this.setData({ loading: true });
     try {
-      // 使用优化的 API 直接获取作业详情
       const [homework, submissions] = await Promise.all([
         fetchHomeworkById(homeworkId),
         fetchSubmissions({ homeworkId }),
       ]);
-      this.setData({ homework, submissions });
+      const classId = homework?.classId || homework?.class?.id || this.data.classId || '';
+      this.setData({ homework, submissions, classId });
     } catch (error) {
       showToast('加载失败');
     } finally {
@@ -50,8 +51,10 @@ Page({
   },
 
   onUploadBatch() {
-    const { homeworkId } = this.data;
-    wx.navigateTo({ url: `/pages/teacher/capture/index?homeworkId=${homeworkId}` });
+    const { homeworkId, classId } = this.data;
+    wx.navigateTo({ 
+      url: `/pages/teacher/capture/index?homeworkId=${homeworkId}&classId=${classId}` 
+    });
   },
 
   onViewSubmission(e) {
@@ -61,5 +64,80 @@ Page({
 
   onRefresh() {
     this.loadData();
+  },
+
+  onMoreActions() {
+    const { homeworkId } = this.data;
+    wx.showActionSheet({
+      itemList: ['编辑作业', '删除作业'],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          this.onEditHomework();
+        } else if (res.tapIndex === 1) {
+          this.onDeleteHomework();
+        }
+      },
+    });
+  },
+
+  onEditHomework() {
+    const { homeworkId, classId } = this.data;
+    wx.navigateTo({
+      url: `/pages/teacher/homework-edit/index?homeworkId=${homeworkId}&classId=${classId}`
+    });
+  },
+
+  onDeleteHomework() {
+    const { homework } = this.data;
+    if (!homework) return;
+
+    wx.showModal({
+      title: '确认删除',
+      content: `确定要删除作业"${homework.title}"吗？删除后无法恢复。`,
+      confirmColor: '#ef4444',
+      success: async (res) => {
+        if (res.confirm) {
+          showLoading('删除中...');
+          try {
+            await deleteHomework(this.data.homeworkId);
+            hideLoading();
+            showToast('删除成功', 'success');
+            setTimeout(() => {
+              wx.navigateBack();
+            }, 1500);
+          } catch (error) {
+            hideLoading();
+            const errorMsg = pickErrorMessage(error, '删除失败');
+            
+            if (errorMsg.includes('still queued') || errorMsg.includes('being graded')) {
+              wx.showModal({
+                title: '无法删除',
+                content: '有提交正在批改中，是否强制删除？（未完成的批改将丢失）',
+                confirmText: '强制删除',
+                confirmColor: '#ef4444',
+                success: async (res2) => {
+                  if (res2.confirm) {
+                    showLoading('删除中...');
+                    try {
+                      await deleteHomework(this.data.homeworkId, true);
+                      hideLoading();
+                      showToast('删除成功', 'success');
+                      setTimeout(() => {
+                        wx.navigateBack();
+                      }, 1500);
+                    } catch (err2) {
+                      hideLoading();
+                      showToast(pickErrorMessage(err2, '删除失败'));
+                    }
+                  }
+                },
+              });
+            } else {
+              showToast(errorMsg);
+            }
+          }
+        }
+      },
+    });
   },
 });

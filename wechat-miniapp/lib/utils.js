@@ -16,19 +16,19 @@ function formatDateTime(input) {
 
 function getHomeworkStatus(dueAt, allowLateSubmission) {
   if (!dueAt) {
-    return { key: 'nodue', label: '未设截止', className: 'status-nodue' };
+    return { key: 'ongoing', label: '进行中', className: 'status-ongoing' };
   }
   const time = new Date(dueAt).getTime();
   if (Number.isNaN(time)) {
-    return { key: 'nodue', label: '未设截止', className: 'status-nodue' };
+    return { key: 'ongoing', label: '进行中', className: 'status-ongoing' };
   }
   if (time < Date.now()) {
     if (allowLateSubmission) {
       return { key: 'late', label: '逾期可补交', className: 'status-late' };
     }
-    return { key: 'overdue', label: '已截止', className: 'status-overdue' };
+    return { key: 'expired', label: '已截止', className: 'status-expired' };
   }
-  return { key: 'open', label: '进行中', className: 'status-open' };
+  return { key: 'ongoing', label: '进行中', className: 'status-ongoing' };
 }
 
 function getSubmissionStatus(status) {
@@ -38,7 +38,7 @@ function getSubmissionStatus(status) {
     DONE: { label: '已完成', className: 'status-done' },
     FAILED: { label: '失败', className: 'status-failed' },
   };
-  return map[status] || { label: status || '未知', className: 'status-nodue' };
+  return map[status] || { label: status || '未知', className: 'status-queued' };
 }
 
 function safeJsonParse(value, fallback) {
@@ -64,6 +64,12 @@ function pickErrorMessage(error, fallback) {
   }
   if (Array.isArray(error)) {
     return error.join('；');
+  }
+  if (error.data && error.data.message) {
+    return error.data.message;
+  }
+  if (error.data && error.data.error) {
+    return error.data.error;
   }
   if (typeof error.message === 'string') {
     return error.message;

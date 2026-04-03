@@ -41,16 +41,16 @@
         全部
       </view>
       <view
-        class="teacher-filter-chip {{activeFilter === 'open' ? 'active' : ''}}"
+        class="teacher-filter-chip {{activeFilter === 'ongoing' ? 'active' : ''}}"
         bindtap="onFilterChange"
-        data-filter="open"
+        data-filter="ongoing"
       >
         进行中
       </view>
       <view
-        class="teacher-filter-chip {{activeFilter === 'closed' ? 'active' : ''}}"
+        class="teacher-filter-chip {{activeFilter === 'expired' ? 'active' : ''}}"
         bindtap="onFilterChange"
-        data-filter="closed"
+        data-filter="expired"
       >
         已截止
       </view>
@@ -87,10 +87,13 @@
         style="animation-delay: {{index * 0.05}}s"
         data-id="{{item.id}}"
         bindtap="onHomeworkTap"
+        bindlongpress="onHomeworkLongPress"
       >
         <view class="homework-header">
           <text class="homework-title">{{item.title}}</text>
-          <view class="status-tag {{utils.getHomeworkStatusClass(item.dueAt)}}">{{utils.getHomeworkStatusLabelText(item.dueAt)}}</view>
+          <view class="homework-actions">
+            <view class="status-tag {{utils.getHomeworkStatusClass(item.dueAt, item.allowLateSubmission)}}">{{utils.getHomeworkStatusLabelText(item.dueAt, item.allowLateSubmission)}}</view>
+          </view>
         </view>
 
         <view class="homework-meta">
@@ -108,11 +111,11 @@
           <view class="homework-progress-bar">
             <view
               class="homework-progress-fill"
-              style="width: {{item.studentCount > 0 ? (item.submissionCount / item.studentCount * 100) : 0}}%"
+              style="width: {{utils.calcPercent(item.submissionCount, item.studentCount)}}%"
             ></view>
           </view>
           <text class="homework-progress-text">
-            {{item.studentCount > 0 ? Math.round(item.submissionCount / item.studentCount * 100) : 0}}%
+            {{utils.calcPercent(item.submissionCount, item.studentCount)}}%
           </text>
         </view>
       </view>

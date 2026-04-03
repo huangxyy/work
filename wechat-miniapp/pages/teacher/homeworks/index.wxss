@@ -108,12 +108,12 @@
   font-weight: 500;
 }
 
-.status-tag.open {
+.status-tag.ongoing {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #ffffff;
 }
 
-.status-tag.closed {
+.status-tag.expired {
   background: #e5e7eb;
   color: #6b7280;
 }

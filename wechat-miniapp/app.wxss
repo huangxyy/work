@@ -141,7 +141,7 @@ view, text, button, input, picker, switch, textarea {
   font-weight: 600;
 }
 
-.status-open {
+.status-ongoing {
   color: #047857;
   background: #d1fae5;
 }
@@ -151,13 +151,12 @@ view, text, button, input, picker, switch, textarea {
   background: #fef3c7;
 }
 
-.status-overdue,
+.status-expired,
 .status-failed {
   color: #b91c1c;
   background: #fee2e2;
 }
 
-.status-nodue,
 .status-queued {
   color: #475569;
   background: #e2e8f0;
