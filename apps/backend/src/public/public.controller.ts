@@ -4,11 +4,15 @@ import { Throttle } from '@nestjs/throttler';
 import { PublicLandingQueryDto } from './dto/public-landing-query.dto';
 import { PublicOverviewQueryDto } from './dto/public-overview-query.dto';
 import { PublicService } from './public.service';
+import { ConfigValidatorService } from '../common/config-validator';
 
 @ApiTags('Public')
 @Controller('public')
 export class PublicController {
-  constructor(private readonly publicService: PublicService) {}
+  constructor(
+    private readonly publicService: PublicService,
+    private readonly validator: ConfigValidatorService,
+  ) {}
 
   @Get('overview')
   @Throttle({ default: { ttl: 60000, limit: 20 } })
@@ -26,5 +30,11 @@ export class PublicController {
   @Throttle({ default: { ttl: 60000, limit: 30 } })
   async getFeatureFlags() {
     return this.publicService.getPublicFeatureFlags();
+  }
+
+  @Get('config/validate')
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
+  validateConfig() {
+    return this.validator.validate();
   }
 }

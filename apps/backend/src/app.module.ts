@@ -26,6 +26,7 @@ import { HomeworkTemplateModule } from './homework-templates/homework-template.m
 import { SearchModule } from './search/search.module';
 import { LoggerModule } from './common/logger';
 import { PerformanceInterceptor } from './common/interceptors';
+import { ConfigValidatorModule } from './common/config-validator';
 
 const buildRedisConnection = (redisUrl: string) => {
   try {
@@ -82,6 +83,7 @@ const buildRedisConnection = (redisUrl: string) => {
     AnnouncementModule,
     HomeworkTemplateModule,
     SearchModule,
+    ConfigValidatorModule,
   ],
   providers: [
     {
