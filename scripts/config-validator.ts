@@ -1,36 +1,13 @@
 import { config } from 'dotenv';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { resolve } from 'path';
 
 // Load .env from various locations
-const envPaths = [
-  '.env',
-  'apps/backend/.env',
-  '.env.local',
-];
-
-let loaded = false;
+const envPaths = ['.env', 'apps/backend/.env', '.env.local'];
 for (const path of envPaths) {
-  const resolvedPath = resolve(path);
-  const result = config({ path: resolvedPath });
-  if (result.error) {
-    try {
-      // Try parsing directly
-      const content = readFileSync(resolvedPath, 'utf-8');
-      if (content.trim()) {
-        const parseResult = config({ path: resolvedPath });
-        if (parseResult.parsed) {
-          Object.assign(process.env, parseResult.parsed);
-          loaded = true;
-          break;
-        }
-      }
-    } catch {
-      continue;
-    }
-  } else if (result.parsed) {
+  const result = config({ path: resolve(path) });
+  if (result.parsed) {
     Object.assign(process.env, result.parsed);
-    loaded = true;
     break;
   }
 }
@@ -52,6 +29,8 @@ function validateConfiguration(): ValidationResult {
     { key: 'REDIS_URL', name: 'Redis URL' },
     { key: 'JWT_SECRET', name: 'JWT Secret' },
     { key: 'LLM_API_KEY', name: 'LLM API Key' },
+    { key: 'BAIDU_OCR_API_KEY', name: 'Baidu OCR API Key' },
+    { key: 'BAIDU_OCR_SECRET_KEY', name: 'Baidu OCR Secret Key' },
   ];
 
   for (const field of required) {
@@ -89,8 +68,9 @@ function validateConfiguration(): ValidationResult {
   }
 
   const ocrKey = process.env.BAIDU_OCR_API_KEY;
-  if (!ocrKey) {
-    warnings.push('BAIDU_OCR_API_KEY not set - OCR functionality will be disabled');
+  const ocrSecret = process.env.BAIDU_OCR_SECRET_KEY;
+  if (!ocrKey || !ocrSecret) {
+    warnings.push('Baidu OCR credentials not fully configured - OCR functionality will be disabled');
   }
 
   const minioEndpoint = process.env.MINIO_ENDPOINT;
