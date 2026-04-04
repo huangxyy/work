@@ -22,7 +22,10 @@
       "Bash(powershell.exe:*)",
       "Bash(grep -o ''[^'']*'': i18n.ts)",
       "Bash(npm test:*)",
-      "Bash(pnpm test:*)"
+      "Bash(pnpm test:*)",
+      "Read(//d D:/项目/英语批改-合作/**)",
+      "Bash(node scripts/config-validator.ts)",
+      "Bash(echo \"Exit code: $?\")"
     ]
   }
 }

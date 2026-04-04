@@ -876,66 +876,69 @@ export class ReportsService {
     if (!this.isZhLang(lang)) {
       return 'Helvetica';
     }
-    const envFont = process.env.REPORT_PDF_FONT || process.env.PDF_FONT_PATH || '';
-    const resolvedEnv = envFont
-      ? isAbsolute(envFont)
-        ? envFont
-        : resolve(process.cwd(), envFont)
-      : '';
 
-    // Windows 字体：优先使用单独的 TTF 文件，避免 PDFKit 与 TTC 文件的兼容性问题
-    // 注意：PDFKit 需要使用正斜杠路径
-    const windowsFonts = [
-      'C:/Windows/Fonts/msyh.ttf',        // 微软雅黑 (单字体)
-      'C:/Windows/Fonts/msyhbd.ttf',      // 微软雅黑粗体 (单字体)
-      'C:/Windows/Fonts/simhei.ttf',      // 黑体 (单字体)
-      'C:/Windows/Fonts/simsun.ttf',      // 宋体 (单字体)
-      'C:/Windows/Fonts/simkai.ttf',      // 楷体 (单字体)
-      'C:/Windows/Fonts/simfang.ttf',     // 仿宋 (单字体)
-    ];
+    // Cache resolved font at module level
+    if ((this.constructor as any).cachedFontPath) {
+      return (this.constructor as any).cachedFontPath;
+    }
 
-    // macOS 字体
-    const macFonts = [
-      '/Library/Fonts/Arial Unicode.ttf',
-      '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
-      '/System/Library/Fonts/PingFang.ttc',
-      '/System/Library/Fonts/STHeiti Light.ttc',
-      '/System/Library/Fonts/STHeiti Medium.ttc',
-    ];
+    // 1. Environment variable (highest priority)
+    const envFont = process.env.PDF_FONT_PATH || process.env.REPORT_PDF_FONT;
+    if (envFont && existsSync(envFont)) {
+      this.logger.log(`Using PDF font from env: ${envFont}`);
+      (this.constructor as any).cachedFontPath = envFont;
+      return envFont;
+    }
 
-    // Linux 字体
-    const linuxFonts = [
-      '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
-      '/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf',
-      '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-      '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
-      '/usr/share/fonts/truetype/arphic/uming.ttc',
-      '/usr/share/fonts/truetype/arphic/ukai.ttc',
-    ];
+    // 2. Bundled font (if available)
+    const bundledFont = resolve(__dirname, '../../assets/fonts/NotoSansCJK-Regular.ttc');
+    if (existsSync(bundledFont)) {
+      this.logger.log(`Using bundled PDF font: ${bundledFont}`);
+      (this.constructor as any).cachedFontPath = bundledFont;
+      return bundledFont;
+    }
 
-    // 合并所有候选字体，优先使用环境变量配置的字体
-    // 需要将 Windows 路径转换为正斜杠，否则 PDFKit 无法正确解析
-    const normalizePath = (path: string): string => {
-      return path.replace(/\\/g, '/');
+    // 3. Platform-specific fonts
+    const normalizePath = (p: string) => p.replace(/\\/g, '/');
+
+    const candidates: Record<string, string[]> = {
+      win32: [
+        'C:/Windows/Fonts/msyh.ttf',
+        'C:/Windows/Fonts/msyhbd.ttf',
+        'C:/Windows/Fonts/simhei.ttf',
+        'C:/Windows/Fonts/simsun.ttc',
+        'C:/Windows/Fonts/simkai.ttf',
+      ],
+      darwin: [
+        '/Library/Fonts/Arial Unicode.ttf',
+        '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+        '/System/Library/Fonts/PingFang.ttc',
+        '/System/Library/Fonts/STHeiti Light.ttc',
+      ],
+      linux: [
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf',
+        '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+        '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+      ],
     };
 
-    const candidates = [resolvedEnv, ...windowsFonts, ...macFonts, ...linuxFonts]
-      .filter(Boolean)
-      .map(normalizePath);
+    const platform = process.platform as keyof typeof candidates;
+    const platformFonts = candidates[platform] || [];
 
-    for (const candidate of candidates) {
-      // 对于正斜杠路径，需要转回反斜杠来检查文件是否存在
-      const checkPath = candidate.replace(/\//g, '\\');
-      if (existsSync(checkPath)) {
-        // TTC 文件需要特殊处理，记录警告但继续使用（可能导致中文显示问题）
-        if (candidate.endsWith('.ttc') && !candidate.includes('PingFang')) {
-          this.logger.warn(`Using TTC font file which may have compatibility issues: ${candidate}`);
-        }
-        return candidate;
+    for (const font of platformFonts) {
+      if (existsSync(font)) {
+        this.logger.log(`Using system PDF font: ${font}`);
+        (this.constructor as any).cachedFontPath = font;
+        return font;
       }
     }
 
-    this.logger.warn('No CJK font found, falling back to Helvetica (Chinese characters will not display)');
+    // 4. Final fallback
+    this.logger.warn('No CJK font found for PDF, Chinese characters will not display correctly');
+    this.logger.warn('Set PDF_FONT_PATH environment variable or install Noto Sans CJK');
+    (this.constructor as any).cachedFontPath = 'Helvetica';
     return 'Helvetica';
   }
 
