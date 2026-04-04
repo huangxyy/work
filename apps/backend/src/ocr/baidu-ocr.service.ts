@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../common/redis/redis.service';
 import {
   BaiduOcrConfig,
   BaiduOcrResponse,
@@ -7,6 +8,9 @@ import {
   RecognizeResult,
   BaiduOcrErrorCode,
 } from './ocr.types';
+
+const REDIS_TOKEN_KEY_PREFIX = 'baidu_ocr_token:';
+const REDIS_TOKEN_TTL_SECONDS = 29 * 24 * 60 * 60;
 
 @Injectable()
 export class BaiduOcrService {
@@ -24,7 +28,10 @@ export class BaiduOcrService {
   private readonly OAUTH_URL = 'https://aip.baidubce.com/oauth/2.0/token';
   private readonly OCR_API_URL = 'https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic';
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
+  ) {
     this.defaultApiKey = this.configService.get<string>('BAIDU_OCR_API_KEY') || '';
     this.defaultSecretKey = this.configService.get<string>('BAIDU_OCR_SECRET_KEY') || '';
     this.defaultTokenCacheTtl = Number(this.configService.get<string>('BAIDU_OCR_TOKEN_CACHE_TTL') || '2592000'); // 30 days default
@@ -116,14 +123,28 @@ export class BaiduOcrService {
     const now = Date.now();
     const REFRESH_MARGIN_MS = 5 * 60 * 1000;
     const tokenSignature = this.buildTokenSignature(config);
+    const redisKey = REDIS_TOKEN_KEY_PREFIX + tokenSignature;
 
     if (
       this.cachedToken &&
       this.cachedTokenSignature === tokenSignature &&
       this.tokenExpiresAt - REFRESH_MARGIN_MS > now
     ) {
-      this.logger.debug(`OCR access token cache hit durationMs=${Date.now() - startedAt}`);
+      this.logger.debug(`OCR access token memory cache hit durationMs=${Date.now() - startedAt}`);
       return this.cachedToken;
+    }
+
+    try {
+      const redisToken = await this.redisService.get(redisKey);
+      if (redisToken) {
+        this.cachedToken = redisToken;
+        this.cachedTokenSignature = tokenSignature;
+        this.tokenExpiresAt = now + REDIS_TOKEN_TTL_SECONDS * 1000;
+        this.logger.debug(`OCR access token Redis cache hit durationMs=${Date.now() - startedAt}`);
+        return redisToken;
+      }
+    } catch (error) {
+      this.logger.warn(`Redis get token failed, falling back to fetch: ${error}`);
     }
 
     if (this.accessTokenPromise && this.accessTokenPromiseSignature === tokenSignature) {
@@ -179,6 +200,13 @@ export class BaiduOcrService {
       this.cachedToken = data.access_token;
       this.cachedTokenSignature = tokenSignature;
       this.tokenExpiresAt = fetchedAt + expiresInSeconds * 1000;
+
+      try {
+        await this.redisService.set(redisKey, data.access_token, REDIS_TOKEN_TTL_SECONDS);
+        this.logger.debug(`OCR access token saved to Redis key=${redisKey}`);
+      } catch (error) {
+        this.logger.warn(`Failed to save token to Redis: ${error}`);
+      }
 
       this.logger.log(`Access token refreshed expiresInSeconds=${expiresInSeconds} durationMs=${fetchedAt - startedAt}`);
       return this.cachedToken;
@@ -284,6 +312,12 @@ export class BaiduOcrService {
   }
 
   private clearTokenCache() {
+    if (this.cachedTokenSignature) {
+      const redisKey = REDIS_TOKEN_KEY_PREFIX + this.cachedTokenSignature;
+      this.redisService.del(redisKey).catch((error) => {
+        this.logger.warn(`Failed to delete token from Redis: ${error}`);
+      });
+    }
     this.cachedToken = null;
     this.cachedTokenSignature = '';
     this.tokenExpiresAt = 0;
