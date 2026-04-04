@@ -132,6 +132,21 @@ Page({
     if (loadingMore || (!refresh && !hasMore)) return;
 
     if (refresh) {
+      const cached = cache.get(`homeworks_${selectedClassId}`);
+      if (cached && cached.length > 0) {
+        this.setData({ 
+          homeworks: cached,
+          page: 2,
+          hasMore: cached.length === pageSize,
+          loading: false,
+          error: ''
+        }, () => {
+          this.calculateStats();
+          this.applyFilter();
+        });
+        return;
+      }
+      
       this.setData({ 
         page: 1, 
         hasMore: true, 
