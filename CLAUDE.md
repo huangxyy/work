@@ -52,6 +52,11 @@ pnpm --filter backend test -- path/to/file.spec.ts
 
 # Frontend: Run a specific test file
 pnpm --filter frontend test -- path/to/file.test.ts
+
+# E2E Tests
+pnpm --filter backend test:e2e              # Run all E2E tests
+pnpm --filter backend test:e2e:watch        # E2E tests in watch mode
+pnpm --filter backend test:e2e -- auth.e2e-spec.ts  # Run specific E2E test
 ```
 
 ## Startup Scripts
@@ -61,6 +66,7 @@ pnpm --filter frontend test -- path/to/file.test.ts
 - `scripts/check-ports.bat` - Auto-fixes nginx port configuration
 - `pnpm handover:package` - Create deployment package for handover
 - `pnpm handover:package:with-accounts` - Include test accounts file in package
+- `pnpm config:validate` - Validate environment configuration before startup
 
 ## Critical Architecture: Grading Workflow
 
@@ -87,12 +93,14 @@ pnpm --filter frontend test -- path/to/file.test.ts
 | `src/ocr/` | Baidu OCR service |
 | `src/storage/` | MinIO S3-compatible file storage |
 | `src/retention/` | Scheduled data cleanup (7-day retention) |
-| `src/public/` | Public endpoints (landing page) |
+| `src/public/` | Public endpoints (landing page, health check, config validate) |
 | `src/submissions/` | Student/Teacher submission CRUD |
 | `src/homeworks/` | Homework management |
 | `src/classes/` | Class & enrollment management |
-| `src/admin/` | Admin dashboard endpoints |
+| `src/admin/` | Admin dashboard endpoints (users, config, queue monitoring, audit logs) |
 | `src/reports/` | PDF/CSV export functionality |
+| `src/common/config-validator/` | Configuration validation service |
+| `src/common/audit/` | Audit logging interceptor |
 
 ## Frontend Structure Reference
 
@@ -260,6 +268,22 @@ The `AuditLog` model tracks important user actions for admin review:
 - Automatically logged by `AuditInterceptor` on write operations
 - Configured in `src/common/audit/`
 
+### Queue Monitoring (Admin)
+Admin dashboard includes real-time queue monitoring at `/admin/queue`:
+- Queue status (waiting/active/completed/failed counts)
+- Worker health status
+- Failed jobs list with retry functionality
+- Historical trends chart
+- Auto-refresh every 5 seconds
+- Alerting for queue backlog (>100 jobs), failure rate (>10%), worker disconnection
+
+### Batch Upload with Streaming
+Teacher batch upload uses `yauzl` for streaming ZIP extraction:
+- Constant memory usage regardless of ZIP size
+- Progress reporting capability
+- Early rejection of oversized files
+- Supports ZIP files up to 100MB+
+
 ## Default Test Accounts
 
 > ⚠️ **Security Warning**: The following passwords are for local development only. Must change for production!
@@ -305,6 +329,7 @@ Production passwords must meet these requirements:
 - **502 errors**: Backend API or Worker not running
 - **Page refresh issues**: Check Nginx proxy configuration in `deploy/nginx/`
 - **PDF export corruption**: Chinese font loading failure (check `PDF_FONT_PATH`)
+- **Configuration errors**: Run `pnpm config:validate` to check `.env` setup
 
 ## Project Documentation
 
@@ -312,7 +337,11 @@ Located in `docs/`:
 - `DEVELOPMENT.md` - Developer onboarding and setup guide
 - `API.md` - Complete API reference
 - `ARCH.md` - System architecture
-- `DEPLOY.md` - Production deployment guide
+- `DEPLOY.md` - Production deployment guide (systemd)
+- `DEPLOY-Docker.md` - Docker deployment guide
+- `DEPLOY-LANDING.md` - Deployment method selection guide
 - `RUNBOOK.md` - Operations and troubleshooting
 - `PROJECT_OVERVIEW.md` - High-level project overview
+- `TESTING.md` - Manual testing checklist for post-deployment verification
 - `future-roadmap.md` - Development roadmap
+- `superpowers/specs/2026-04-04-deployment-stability-design.md` - Deployment stability design doc
