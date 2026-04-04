@@ -404,7 +404,13 @@ export class SubmissionsService {
     const startedAt = Date.now();
     const submissions = await this.prisma.submission.findMany({
       where: this.buildStudentSubmissionWhere(user.id, query),
-      include: {
+      select: {
+        id: true,
+        status: true,
+        totalScore: true,
+        errorCode: true,
+        errorMsg: true,
+        updatedAt: true,
         homework: { select: { id: true, title: true } },
         _count: { select: { images: true } },
       },
