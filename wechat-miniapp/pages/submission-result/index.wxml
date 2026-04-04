@@ -196,6 +196,7 @@
           class="preview-image"
           src="{{item.url}}"
           mode="aspectFill"
+          lazy-load
           data-current="{{item.url}}"
           bindtap="previewImage"
         />

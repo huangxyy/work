@@ -54,7 +54,7 @@
 
     <view wx:else class="photo-grid">
       <view wx:for="{{images}}" wx:key="index" class="photo-item">
-        <image src="{{item.path}}" mode="aspectFill" />
+        <image src="{{item.path}}" mode="aspectFill" lazy-load />
         <view class="remove-btn" data-index="{{index}}" bindtap="onRemoveImage">×</view>
       </view>
       <view wx:if="{{images.length < 9}}" class="photo-item photo-add-item">
