@@ -119,8 +119,10 @@ model Submission {
   @@index([createdAt])
   @@index([homeworkId, status])
   @@index([studentId, homeworkId])
-  // Composite index for duplicate submission check: find active submissions by student+homework+status
   @@index([homeworkId, studentId, status])
+  @@index([homeworkId, status, updatedAt])
+  @@index([studentId, createdAt])
+  @@index([status, updatedAt])
 }
 
 model BatchUpload {
@@ -188,6 +190,8 @@ model LlmCallLog {
   @@index([source])
   @@index([providerId])
   @@index([status])
+  @@index([source, createdAt])
+  @@index([status, createdAt])
 }
 
 model Notification {
