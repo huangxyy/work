@@ -1,9 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job, WorkerOptions } from 'bullmq';
+import os from 'os';
+import { Processor, WorkerHost, Job } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { SubmissionStatus } from '@prisma/client';
-import { GradingError } from '../grading/grading.errors';
 import { GradingService } from '../grading/grading.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -35,10 +36,12 @@ type GradingJobData = {
   needRewrite?: boolean;
 };
 
+const DEFAULT_CONCURRENCY = Math.min(os.cpus().length * 2, 10);
+
 @Processor('grading')
 export class GradingProcessor extends WorkerHost {
   private readonly logger = new Logger(GradingProcessor.name);
-  private readonly concurrency = Number(process.env.WORKER_CONCURRENCY || '5');
+  private readonly concurrency = Number(process.env.WORKER_CONCURRENCY) || DEFAULT_CONCURRENCY;
   private readonly defaultApiKey: string;
   private readonly defaultSecretKey: string;
 
