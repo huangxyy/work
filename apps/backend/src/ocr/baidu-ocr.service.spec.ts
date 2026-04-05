@@ -1,5 +1,19 @@
 import { ConfigService } from '@nestjs/config';
 import { BaiduOcrService } from './baidu-ocr.service';
+import { RedisService } from '../common/redis/redis.service';
+
+const mockRedisService = {
+  get: jest.fn().mockResolvedValue(null),
+  set: jest.fn().mockResolvedValue(undefined),
+  del: jest.fn().mockResolvedValue(undefined),
+};
+
+const makeRedisService = () => {
+  mockRedisService.get.mockClear();
+  mockRedisService.set.mockClear();
+  mockRedisService.del.mockClear();
+  return mockRedisService as unknown as RedisService;
+};
 
 // Mock global fetch
 const mockFetch = jest.fn();
@@ -42,7 +56,7 @@ describe('BaiduOcrService', () => {
 
   beforeEach(() => {
     mockFetch.mockReset();
-    service = new BaiduOcrService(makeConfigService());
+    service = new BaiduOcrService(makeConfigService(), makeRedisService());
   });
 
   // ─── recognize ───
@@ -61,7 +75,7 @@ describe('BaiduOcrService', () => {
       service = new BaiduOcrService(makeConfigService({
         BAIDU_OCR_API_KEY: '',
         BAIDU_OCR_SECRET_KEY: '',
-      }));
+      }), makeRedisService());
 
       await expect(
         service.recognize(Buffer.from('img')),
@@ -125,7 +139,7 @@ describe('BaiduOcrService', () => {
       service = new BaiduOcrService(makeConfigService({
         BAIDU_OCR_API_KEY: '',
         BAIDU_OCR_SECRET_KEY: '',
-      }));
+      }), makeRedisService());
 
       const result = await service.testConnection();
 
@@ -194,7 +208,7 @@ describe('BaiduOcrService', () => {
 
     it('should throw daily limit error', async () => {
       mockFetch.mockReset();
-      service = new BaiduOcrService(makeConfigService());
+      service = new BaiduOcrService(makeConfigService(), makeRedisService());
       mockTokenResponse();
       const dailyData = { error_code: 110, error_msg: 'Daily limit' };
       mockFetch.mockResolvedValueOnce({
@@ -210,7 +224,7 @@ describe('BaiduOcrService', () => {
 
     it('should clear token cache on auth error', async () => {
       mockFetch.mockReset();
-      service = new BaiduOcrService(makeConfigService());
+      service = new BaiduOcrService(makeConfigService(), makeRedisService());
       mockTokenResponse('token1');
       const authData = { error_code: 3, error_msg: 'Token expired' };
       // First OCR call returns auth error, retries get fresh token
@@ -249,7 +263,7 @@ describe('BaiduOcrService', () => {
 
   describe('callWithRetry', () => {
     it('should retry on network errors', async () => {
-      service = new BaiduOcrService(makeConfigService());
+      service = new BaiduOcrService(makeConfigService(), makeRedisService());
       mockFetch.mockReset();
       mockTokenResponse('retry-token');
       // First OCR call fails with network error
@@ -267,7 +281,7 @@ describe('BaiduOcrService', () => {
 
   describe('resolveConfig', () => {
     it('should trim config values', async () => {
-      service = new BaiduOcrService(makeConfigService());
+      service = new BaiduOcrService(makeConfigService(), makeRedisService());
       mockFetch.mockReset();
       mockTokenResponse();
       mockOcrResponse(['Trimmed']);

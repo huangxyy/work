@@ -1433,7 +1433,13 @@ describe('SubmissionsService', () => {
             lte: new Date('2026-03-31T23:59:59.000Z'),
           },
         },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          totalScore: true,
+          errorCode: true,
+          errorMsg: true,
+          updatedAt: true,
           homework: { select: { id: true, title: true } },
           _count: { select: { images: true } },
         },
