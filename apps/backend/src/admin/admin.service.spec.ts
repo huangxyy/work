@@ -103,8 +103,6 @@ describe('AdminService', () => {
     systemConfigService = {
       getValue: jest.fn().mockResolvedValue(null),
       setValue: jest.fn().mockResolvedValue(undefined),
-      getFeatureFlags: jest.fn().mockResolvedValue({}),
-      setFeatureFlag: jest.fn().mockResolvedValue({ flag: 'test', enabled: true }),
     };
 
     runtimeConfigService = {
@@ -492,27 +490,6 @@ describe('AdminService', () => {
     it('should delegate resumeQueue', async () => {
       await service.resumeQueue();
       expect(queueService.resumeQueue).toHaveBeenCalled();
-    });
-  });
-
-  // ─── feature flags ───
-
-  describe('feature flags', () => {
-    it('should get feature flags', async () => {
-      await service.getFeatureFlags();
-      expect(systemConfigService.getFeatureFlags).toHaveBeenCalled();
-    });
-
-    it('should update feature flag', async () => {
-      await service.updateFeatureFlag('myFlag', true);
-      expect(systemConfigService.setFeatureFlag).toHaveBeenCalledWith('myFlag', true);
-      expect(audit.log).toHaveBeenCalled();
-    });
-
-    it('should throw on empty flag', async () => {
-      await expect(
-        service.updateFeatureFlag('  ', true),
-      ).rejects.toThrow('标志值不能为空');
     });
   });
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Card, Col, Row, Statistic, Alert as AntAlert, Spin } from 'antd';
+import { useState } from 'react';
+import { Card, Col, Row, Statistic, Alert as AntAlert } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useI18n } from '../../../i18n';

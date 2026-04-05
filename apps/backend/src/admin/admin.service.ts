@@ -581,25 +581,6 @@ export class AdminService {
     return this.queueService.resumeQueue();
   }
 
-  async getFeatureFlags() {
-    return this.systemConfigService.getFeatureFlags();
-  }
-
-  async updateFeatureFlag(flag: string, enabled: boolean) {
-    const normalizedFlag = this.normalizeText(flag);
-    if (!normalizedFlag) {
-      throw new BadRequestException('标志值不能为空');
-    }
-
-    const result = await this.systemConfigService.setFeatureFlag(normalizedFlag, enabled);
-    await this.audit.log({
-      action: 'CONFIG_UPDATE',
-      targetId: normalizedFlag,
-      detail: `Updated feature flag ${normalizedFlag}=${enabled}`,
-    });
-    return result;
-  }
-
   async getSubmissionDiagnosis(submissionId: string) {
     const startedAt = Date.now();
     const submission = await this.prisma.submission.findUnique({
@@ -1153,7 +1134,7 @@ export class AdminService {
 
     return {
       healthy: workers.length > 0,
-      workers: workers.map((w: any) => ({
+      workers: workers.map((w) => ({
         id: w.id,
         status: w.status || 'active',
         lastSeen: new Date(w.updatedAt || Date.now()),

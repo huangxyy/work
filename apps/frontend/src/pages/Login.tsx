@@ -1,5 +1,5 @@
 import { LockOutlined, UserOutlined, ArrowRightOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Space, Typography } from 'antd';
+import { Button, Card, Form, Input, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -138,7 +138,7 @@ export const LoginPage = () => {
           </Form>
           <div className="apple-login-footer-links">
             <span className="apple-login-footer-hint">
-              {language.startsWith('zh') ? '登录即表示您同意我们�? : 'By signing in, you agree to our'}
+              {language.startsWith('zh') ? '登录即表示您同意我们的' : 'By signing in, you agree to our'}
             </span>
             <div className="apple-login-footer-actions">
               <Typography.Link onClick={() => navigate('/terms')}>

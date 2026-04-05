@@ -26,12 +26,6 @@ export class PublicController {
     return this.publicService.getLanding(query);
   }
 
-  @Get('feature-flags')
-  @Throttle({ default: { ttl: 60000, limit: 30 } })
-  async getFeatureFlags() {
-    return this.publicService.getPublicFeatureFlags();
-  }
-
   @Get('config/validate')
   @Throttle({ default: { ttl: 60000, limit: 30 } })
   validateConfig() {

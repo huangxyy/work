@@ -213,16 +213,6 @@ export class PublicService {
     private readonly llmConfigService: LlmConfigService,
   ) {}
 
-  async getPublicFeatureFlags(): Promise<Record<string, boolean>> {
-    const flags = await this.systemConfigService.getFeatureFlags();
-    const publicFlagKeys = ['dark_mode', 'announcements', 'templates', 'pwa'];
-    const publicFlags: Record<string, boolean> = {};
-    for (const key of publicFlagKeys) {
-      if (key in flags) publicFlags[key] = flags[key];
-    }
-    return publicFlags;
-  }
-
   async getOverview(query: PublicOverviewQueryDto) {
     const days = query.days ?? 7;
     const startedAt = Date.now();

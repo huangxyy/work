@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { fetchTeacherStudentReportOverview } from '../../api';
+import { fetchClassComparison } from '../../api';
 import { AnimatedStatistic } from '../../components/AnimatedStatistic';
 import { ChartPanel } from '../../components/ChartPanel';
 import { SoftEmpty } from '../../components/SoftEmpty';
@@ -35,6 +36,12 @@ export const TeacherStudentReportPage = () => {
     queryKey: ['teacher-student-report', studentId, rangeDays],
     queryFn: () => fetchTeacherStudentReportOverview(studentId || '', rangeDays),
     enabled: !!studentId,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const classComparisonQuery = useQuery({
+    queryKey: ['teacher-student-class-comparison', rangeDays],
+    queryFn: () => fetchClassComparison(rangeDays),
     staleTime: 2 * 60 * 1000,
   });
 
@@ -130,6 +137,56 @@ export const TeacherStudentReportPage = () => {
     };
   }, [report?.errorTypes]);
 
+  const comparisonOption = useMemo<EChartsOption>(() => {
+    const data = classComparisonQuery.data || [];
+    return {
+      grid: getDefaultGrid(),
+      tooltip: {
+        ...getDefaultTooltip(),
+        trigger: 'axis',
+      },
+      legend: {
+        data: [t('student.report.myScore'), t('student.report.classAvg')],
+        bottom: 0,
+      },
+      xAxis: {
+        type: 'category',
+        data: data.map((d: { className: string }) => d.className),
+        axisLine: { lineStyle: { color: '#e5e7eb' } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        max: 100,
+        splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      series: [
+        {
+          name: t('student.report.myScore'),
+          type: 'bar',
+          data: data.map((d: { studentAvg: number | null }) => d.studentAvg ?? 0),
+          itemStyle: {
+            color: CHART_PALETTE[1],
+            borderRadius: [4, 4, 0, 0],
+          },
+          barMaxWidth: 24,
+        },
+        {
+          name: t('student.report.classAvg'),
+          type: 'bar',
+          data: data.map((d: { classAvg: number | null }) => d.classAvg ?? 0),
+          itemStyle: {
+            color: CHART_PALETTE[4],
+            borderRadius: [4, 4, 0, 0],
+          },
+          barMaxWidth: 24,
+        },
+      ],
+    };
+  }, [classComparisonQuery.data, t]);
+
   const handleExportPdf = useCallback(async () => {
     if (!studentId) {
       message.error(t('teacher.reports.exportFailed'));
@@ -145,11 +202,25 @@ export const TeacherStudentReportPage = () => {
         import('html2canvas'),
         import('jspdf'),
       ]);
+
+      // Show PDF header temporarily
+      const pdfHeader = reportRef.current.querySelector('[data-pdf-header="true"]') as HTMLElement;
+      const originalDisplay = pdfHeader?.style.display;
+      if (pdfHeader) {
+        pdfHeader.style.display = 'block';
+      }
+
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
       });
+
+      // Hide PDF header after capture
+      if (pdfHeader) {
+        pdfHeader.style.display = originalDisplay || 'none';
+      }
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -232,6 +303,18 @@ export const TeacherStudentReportPage = () => {
       </ProCard>
 
       <div ref={reportRef}>
+        {/* PDF Export Header - only visible when exporting */}
+        <div style={{ display: 'none' }} data-pdf-header="true">
+          <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', textAlign: 'center' }}>
+            <Typography.Title level={2} style={{ margin: '0 0 16px 0' }}>得满分学习报告</Typography.Title>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '14px', color: '#666', textAlign: 'left' }}>
+              <div>学生：{report?.studentName || '-'}</div>
+              <div>生成时间：{new Date().toLocaleString('zh-CN')}</div>
+              <div>统计范围：近{rangeDays}天</div>
+            </div>
+          </div>
+        </div>
+
         {reportQuery.isLoading && !report ? (
           <ProCard bordered loading className="apple-soft-card" />
         ) : !report ? (
@@ -332,6 +415,14 @@ export const TeacherStudentReportPage = () => {
               )}
             </ProCard>
           </ProCard>
+
+            <ProCard bordered title={t('student.report.classComparison')} className="apple-soft-card">
+              {classComparisonQuery.data?.length ? (
+                <ChartPanel option={comparisonOption} height={200} />
+              ) : (
+                <SoftEmpty description={t('student.report.noClassData')} />
+              )}
+            </ProCard>
 
             <ProCard bordered title={t('student.report.nextSteps')} className="apple-soft-card">
               {report.nextSteps?.length ? (

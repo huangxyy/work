@@ -1,13 +1,13 @@
 /**
  * 公共路由配置
  *
- * 包含不需要身份验证的页面路由�?
+ * 包含不需要身份验证的页面路由。
  */
 
 import { lazy } from 'react';
 import { RouteObject } from 'react-router-dom';
 
-// 懒加载组�?
+// 懒加载组件
 const LandingPage = lazy(() =>
   import('../../pages/Landing').then((module) => ({ default: module.LandingPage })),
 );
@@ -22,7 +22,7 @@ const PrivacyPolicyPage = lazy(() =>
   import('../../pages/PrivacyPolicy').then((m) => ({ default: m.PrivacyPolicyPage })),
 );
 
-// 导出懒加载组�?
+// 导出懒加载组件
 export const publicComponents = {
   LandingPage,
   LoginPage,
@@ -33,10 +33,10 @@ export const publicComponents = {
 
 // 导出路由配置
 export const publicRoutes: RouteObject[] = [
-  { path: '/', element: <publicComponents.LandingPage /> },
-  { path: '/landing', element: <publicComponents.LandingPage /> },
-  { path: '/login', element: <publicComponents.LoginPage /> },
-  { path: '/forgot-password', element: <publicComponents.ForgotPasswordPage /> },
-  { path: '/terms', element: <publicComponents.TermsOfServicePage /> },
-  { path: '/privacy', element: <publicComponents.PrivacyPolicyPage /> },
+  { path: '/', element: <LandingPage /> },
+  { path: '/landing', element: <LandingPage /> },
+  { path: '/login', element: <LoginPage /> },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/terms', element: <TermsOfServicePage /> },
+  { path: '/privacy', element: <PrivacyPolicyPage /> },
 ];

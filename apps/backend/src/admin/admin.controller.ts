@@ -26,7 +26,6 @@ import { QueueCleanDto } from './dto/queue-clean.dto';
 import { QueueRetryDto } from './dto/queue-retry.dto';
 import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
-import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
 import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
 
 @ApiTags('Admin')
@@ -156,16 +155,6 @@ export class AdminController {
   @Post('queue/resume')
   async resumeQueue() {
     return this.adminService.resumeQueue();
-  }
-
-  @Get('feature-flags')
-  async getFeatureFlags() {
-    return this.adminService.getFeatureFlags();
-  }
-
-  @Patch('feature-flags')
-  async updateFeatureFlag(@Body() body: UpdateFeatureFlagDto) {
-    return this.adminService.updateFeatureFlag(body.flag, body.enabled);
   }
 
   @Get('submissions/:id/diagnosis')

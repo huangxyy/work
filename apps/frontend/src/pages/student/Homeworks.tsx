@@ -14,7 +14,7 @@ type FilterType = 'all' | 'ongoing' | 'late' | 'expired';
 
 const getStatus = (dueAt?: string | null, allowLateSubmission?: boolean): { key: FilterType; label: string; color: string } => {
   if (!dueAt) {
-    return { key: 'ongoing', label: '进行�?, color: 'blue' };
+    return { key: 'ongoing', label: '进行中', color: 'blue' };
   }
   const dueDate = new Date(dueAt);
   const now = Date.now();
@@ -22,16 +22,16 @@ const getStatus = (dueAt?: string | null, allowLateSubmission?: boolean): { key:
     if (allowLateSubmission) {
       return { key: 'late', label: '逾期补交', color: 'orange' };
     }
-    return { key: 'expired', label: '已截�?, color: 'red' };
+    return { key: 'expired', label: '已截止', color: 'red' };
   }
-  return { key: 'ongoing', label: '进行�?, color: 'blue' };
+  return { key: 'ongoing', label: '进行中', color: 'blue' };
 };
 
 const getGreeting = () => {
   const hour = new Date().getHours();
-  if (hour < 12) return '早上�?;
-  if (hour < 18) return '下午�?;
-  return '晚上�?;
+  if (hour < 12) return '早上好';
+  if (hour < 18) return '下午好';
+  return '晚上好';
 };
 
 export const StudentHomeworksPage = () => {
@@ -66,9 +66,9 @@ export const StudentHomeworksPage = () => {
 
   const filters = [
     { key: 'all' as FilterType, label: '全部' },
-    { key: 'ongoing' as FilterType, label: '进行�? },
+    { key: 'ongoing' as FilterType, label: '进行中' },
     { key: 'late' as FilterType, label: '逾期' },
-    { key: 'expired' as FilterType, label: '已截�? },
+    { key: 'expired' as FilterType, label: '已截止' },
   ];
 
   return (
@@ -86,7 +86,7 @@ export const StudentHomeworksPage = () => {
         <Alert
           type="error"
           message="加载失败"
-          description={error instanceof Error ? error.message : '请重�?}
+          description={error instanceof Error ? error.message : '请重试'}
           action={
             <Button size="small" onClick={() => refetch()}>
               重试
@@ -99,7 +99,7 @@ export const StudentHomeworksPage = () => {
       {/* Welcome Hero */}
       <div style={{ marginBottom: '16px' }}>
         <Typography.Title level={3} style={{ marginBottom: '8px' }}>
-          {getGreeting()}，同�?        </Typography.Title>
+          {getGreeting()}，同学        </Typography.Title>
         <Text type="secondary">你有 {pendingCount} 个作业待提交</Text>
       </div>
 
@@ -147,7 +147,7 @@ export const StudentHomeworksPage = () => {
         <ProCard bordered className="apple-soft-card">
           <SoftEmpty description="暂无作业">
             <Typography.Paragraph type="secondary" style={{ marginTop: '8px', marginBottom: 0 }}>
-              老师发布作业后会显示在这�?            </Typography.Paragraph>
+              老师发布作业后会显示在这里            </Typography.Paragraph>
           </SoftEmpty>
         </ProCard>
       ) : null}
@@ -183,7 +183,7 @@ export const StudentHomeworksPage = () => {
                     )}
                   </div>
                   <Text type="secondary" style={{ fontSize: '14px' }}>
-                    {item.dueAt ? `截止时间�?{formatDate(item.dueAt)}` : '弹性截�?} · {item.class.name}
+                    {item.dueAt ? `截止时间：${formatDate(item.dueAt)}` : '弹性截止'} · {item.class.name}
                   </Text>
                 </div>
                 {status.key !== 'expired' && (

@@ -111,52 +111,6 @@ describe('SystemConfigService', () => {
     });
   });
 
-  // ─── getFeatureFlags / setFeatureFlag ───
-
-  describe('getFeatureFlags', () => {
-    it('should return empty object when no flags stored', async () => {
-      prisma.systemConfig.findUnique.mockResolvedValue(null);
-
-      const result = await service.getFeatureFlags();
-
-      expect(result).toEqual({});
-    });
-
-    it('should return stored flags', async () => {
-      prisma.systemConfig.findUnique.mockResolvedValue({
-        key: 'feature_flags',
-        value: { dark_mode: true, beta: false },
-      });
-
-      const result = await service.getFeatureFlags();
-
-      expect(result).toEqual({ dark_mode: true, beta: false });
-    });
-  });
-
-  describe('setFeatureFlag', () => {
-    it('should merge new flag into existing flags', async () => {
-      prisma.systemConfig.findUnique.mockResolvedValue({
-        key: 'feature_flags',
-        value: { existing: true },
-      });
-      prisma.systemConfig.upsert.mockResolvedValue(undefined);
-
-      const result = await service.setFeatureFlag('new_flag', true);
-
-      expect(result).toEqual({ existing: true, new_flag: true });
-    });
-
-    it('should create flags from scratch when none exist', async () => {
-      prisma.systemConfig.findUnique.mockResolvedValue(null);
-      prisma.systemConfig.upsert.mockResolvedValue(undefined);
-
-      const result = await service.setFeatureFlag('first', true);
-
-      expect(result).toEqual({ first: true });
-    });
-  });
-
   // ─── deleteValue ───
 
   describe('deleteValue', () => {

@@ -1,11 +1,14 @@
 /**
- * 管理员路由配�? *
- * 包含管理员角色的所有页面路由�? */
+ * 管理员路由配置
+ *
+ * 包含管理员角色的所有页面路由。
+ */
 
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
 
-// 懒加载组�?const AdminDashboardPage = lazy(() =>
+// 懒加载组件
+const AdminDashboardPage = lazy(() =>
   import('../../pages/admin/Dashboard').then((module) => ({ default: module.AdminDashboardPage })),
 );
 const AdminClassesPage = lazy(() =>
@@ -45,7 +48,8 @@ const ProfilePage = lazy(() =>
   import('../../pages/ProfilePage').then((module) => ({ default: module.ProfilePage })),
 );
 
-// 导出懒加载组�?export const adminComponents = {
+// 导出懒加载组件
+export const adminComponents = {
   AdminDashboardPage,
   AdminClassesPage,
   AdminUsagePage,
@@ -64,19 +68,19 @@ const ProfilePage = lazy(() =>
 // 导出路由配置
 export const adminRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="/admin/dashboard" replace /> },
-  { path: 'dashboard', element: <adminComponents.AdminDashboardPage /> },
-  { path: 'classes', element: <adminComponents.AdminClassesPage /> },
-  { path: 'usage', element: <adminComponents.AdminUsagePage /> },
-  { path: 'users', element: <adminComponents.AdminUsersPage /> },
+  { path: 'dashboard', element: <AdminDashboardPage /> },
+  { path: 'classes', element: <AdminClassesPage /> },
+  { path: 'usage', element: <AdminUsagePage /> },
+  { path: 'users', element: <AdminUsersPage /> },
   { path: 'config', element: <Navigate to="/admin/system/config" replace /> },
   { path: 'system', element: <Navigate to="/admin/system/budget" replace /> },
-  { path: 'system/config', element: <adminComponents.AdminConfigPage /> },
-  { path: 'system/budget', element: <adminComponents.AdminSystemBudgetPage /> },
-  { path: 'system/retention', element: <adminComponents.AdminSystemRetentionPage /> },
-  { path: 'system/queue', element: <adminComponents.AdminQueuePage /> },
-  { path: 'system/queue/monitoring', element: <adminComponents.AdminQueueMonitoringPage /> },
-  { path: 'diagnosis', element: <adminComponents.AdminSubmissionDiagnosisPage /> },
-  { path: 'audit-logs', element: <adminComponents.AdminAuditLogsPage /> },
-  { path: 'announcements', element: <adminComponents.AdminAnnouncementsPage /> },
-  { path: 'profile', element: <adminComponents.ProfilePage /> },
+  { path: 'system/config', element: <AdminConfigPage /> },
+  { path: 'system/budget', element: <AdminSystemBudgetPage /> },
+  { path: 'system/retention', element: <AdminSystemRetentionPage /> },
+  { path: 'system/queue', element: <AdminQueuePage /> },
+  { path: 'system/queue/monitoring', element: <AdminQueueMonitoringPage /> },
+  { path: 'diagnosis', element: <AdminSubmissionDiagnosisPage /> },
+  { path: 'audit-logs', element: <AdminAuditLogsPage /> },
+  { path: 'announcements', element: <AdminAnnouncementsPage /> },
+  { path: 'profile', element: <ProfilePage /> },
 ];

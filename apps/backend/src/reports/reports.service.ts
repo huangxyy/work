@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { existsSync } from 'fs';
-import { isAbsolute, resolve } from 'path';
+import { resolve } from 'path';
 import { Prisma, Role, SubmissionStatus } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
@@ -9,6 +9,10 @@ import { PrismaService } from '../prisma/prisma.service';
 type PDFDocumentInstance = ReturnType<typeof PDFDocument>;
 import { AuthUser } from '../auth/auth.types';
 import { ReportRangeQueryDto } from './dto/report-range-query.dto';
+
+interface ReportsServiceConstructor {
+  cachedFontPath?: string;
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -878,15 +882,16 @@ export class ReportsService {
     }
 
     // Cache resolved font at module level
-    if ((this.constructor as any).cachedFontPath) {
-      return (this.constructor as any).cachedFontPath;
+    const ctor = this.constructor as ReportsServiceConstructor;
+    if (ctor.cachedFontPath) {
+      return ctor.cachedFontPath;
     }
 
     // 1. Environment variable (highest priority)
     const envFont = process.env.PDF_FONT_PATH || process.env.REPORT_PDF_FONT;
     if (envFont && existsSync(envFont)) {
       this.logger.log(`Using PDF font from env: ${envFont}`);
-      (this.constructor as any).cachedFontPath = envFont;
+      ctor.cachedFontPath = envFont;
       return envFont;
     }
 
@@ -894,12 +899,11 @@ export class ReportsService {
     const bundledFont = resolve(__dirname, '../../assets/fonts/NotoSansCJK-Regular.ttc');
     if (existsSync(bundledFont)) {
       this.logger.log(`Using bundled PDF font: ${bundledFont}`);
-      (this.constructor as any).cachedFontPath = bundledFont;
+      ctor.cachedFontPath = bundledFont;
       return bundledFont;
     }
 
     // 3. Platform-specific fonts
-    const normalizePath = (p: string) => p.replace(/\\/g, '/');
 
     const candidates: Record<string, string[]> = {
       win32: [
@@ -930,7 +934,7 @@ export class ReportsService {
     for (const font of platformFonts) {
       if (existsSync(font)) {
         this.logger.log(`Using system PDF font: ${font}`);
-        (this.constructor as any).cachedFontPath = font;
+        ctor.cachedFontPath = font;
         return font;
       }
     }
@@ -938,7 +942,7 @@ export class ReportsService {
     // 4. Final fallback
     this.logger.warn('No CJK font found for PDF, Chinese characters will not display correctly');
     this.logger.warn('Set PDF_FONT_PATH environment variable or install Noto Sans CJK');
-    (this.constructor as any).cachedFontPath = 'Helvetica';
+    ctor.cachedFontPath = 'Helvetica';
     return 'Helvetica';
   }
 

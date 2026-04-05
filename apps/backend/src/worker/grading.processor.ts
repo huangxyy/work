@@ -1,9 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import os from 'os';
-import { Processor, WorkerHost, Job } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job, WorkerOptions } from 'bullmq';
 import { SubmissionStatus } from '@prisma/client';
 import { GradingService } from '../grading/grading.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,6 +13,15 @@ import { BaiduOcrConfig } from '../ocr/ocr.types';
 import { NotificationService } from '../notifications/notification.service';
 
 class OcrError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
+class GradingError extends Error {
   readonly code: string;
 
   constructor(code: string, message: string) {

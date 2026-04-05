@@ -118,7 +118,7 @@ export const StudentReportPage = () => {
       tooltip: {
         ...getDefaultTooltip(),
         trigger: 'item',
-        formatter: '{b}: {c}�?({d}%)',
+        formatter: '{b}: {c} ({d}%)',
       },
       series: [
         {
@@ -133,7 +133,7 @@ export const StudentReportPage = () => {
           },
           label: {
             show: true,
-            formatter: '{b}\n{c}�?,
+            formatter: '{b}\n{c}',
             fontSize: 11,
           },
           labelLine: {
@@ -225,11 +225,25 @@ export const StudentReportPage = () => {
         import('html2canvas'),
         import('jspdf'),
       ]);
+
+      // Show PDF header temporarily
+      const pdfHeader = reportRef.current.querySelector('[data-pdf-header="true"]') as HTMLElement;
+      const originalDisplay = pdfHeader?.style.display;
+      if (pdfHeader) {
+        pdfHeader.style.display = 'block';
+      }
+
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
       });
+
+      // Hide PDF header after capture
+      if (pdfHeader) {
+        pdfHeader.style.display = originalDisplay || 'none';
+      }
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -299,6 +313,19 @@ export const StudentReportPage = () => {
       </ProCard>
 
       <div ref={reportRef}>
+        {/* PDF Export Header - only visible when exporting */}
+        <div style={{ display: 'none' }} data-pdf-header="true">
+          <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', textAlign: 'center' }}>
+            <Title level={2} style={{ margin: '0 0 16px 0' }}>得满分学习报告</Title>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '14px', color: '#666', textAlign: 'left' }}>
+              <div>学生：{report?.studentName || '-'}</div>
+              <div>ID：{report?.studentId || '-'}</div>
+              <div>生成时间：{new Date().toLocaleString('zh-CN')}</div>
+              <div>统计范围：近{rangeDays}天</div>
+            </div>
+          </div>
+        </div>
+
         {reportQuery.isLoading && !report ? (
           <ProCard bordered loading />
         ) : !report ? (
@@ -389,7 +416,7 @@ export const StudentReportPage = () => {
                     <List.Item className="apple-list-row">
                       <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                         <Text>{item.text}</Text>
-                        <Text type="secondary">{item.count}�?/Text>
+                        <Text type="secondary">{item.count} 次</Text>
                       </Space>
                     </List.Item>
                   )}

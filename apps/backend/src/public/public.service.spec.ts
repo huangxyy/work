@@ -17,7 +17,6 @@ describe('PublicService', () => {
     };
 
     systemConfig = {
-      getFeatureFlags: jest.fn().mockResolvedValue({}),
       getValue: jest.fn().mockResolvedValue(null),
       setValue: jest.fn().mockResolvedValue(undefined),
     };
@@ -42,29 +41,6 @@ describe('PublicService', () => {
     }).compile();
 
     service = module.get<PublicService>(PublicService);
-  });
-
-  // ─── getPublicFeatureFlags ───
-
-  describe('getPublicFeatureFlags', () => {
-    it('should return only public flag keys', async () => {
-      systemConfig.getFeatureFlags.mockResolvedValue({
-        dark_mode: true,
-        announcements: false,
-        secret_flag: true,
-      });
-
-      const result = await service.getPublicFeatureFlags();
-
-      expect(result).toEqual({ dark_mode: true, announcements: false });
-      expect(result).not.toHaveProperty('secret_flag');
-    });
-
-    it('should return empty object when no flags set', async () => {
-      const result = await service.getPublicFeatureFlags();
-
-      expect(result).toEqual({});
-    });
   });
 
   // ─── getOverview ───

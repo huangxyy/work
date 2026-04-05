@@ -1,9 +1,30 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { visualizer } from 'rollup-plugin-visualizer';
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [react()],
+    test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: ['./src/test/setup.ts'],
+        include: ['src/**/*.{test,spec}.{ts,tsx}'],
+        coverage: {
+            provider: 'v8',
+            include: ['src/**/*.{ts,tsx}'],
+            exclude: ['src/test/**', 'src/**/*.d.ts', 'src/main.tsx'],
+        },
+    },
+    plugins: [
+        react(),
+        visualizer({
+            open: false,
+            gzipSize: true,
+            brotliSize: true,
+            filename: 'dist/stats.html',
+        }),
+    ],
     server: {
         host: '0.0.0.0',
         port: 3001,

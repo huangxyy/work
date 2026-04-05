@@ -1,13 +1,13 @@
 /**
  * 学生路由配置
  *
- * 包含学生角色的所有页面路由�?
+ * 包含学生角色的所有页面路由。
  */
 
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
 
-// 懒加载组�?
+// 懒加载组件
 const StudentDashboardPage = lazy(() =>
   import('../../pages/student/Dashboard').then((module) => ({ default: module.StudentDashboardPage })),
 );
@@ -36,7 +36,7 @@ const ProfilePage = lazy(() =>
   import('../../pages/ProfilePage').then((module) => ({ default: module.ProfilePage })),
 );
 
-// 导出懒加载组�?
+// 导出懒加载组件
 export const studentComponents = {
   StudentDashboardPage,
   StudentHomeworksPage,
@@ -52,13 +52,13 @@ export const studentComponents = {
 // 导出路由配置
 export const studentRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="/student/dashboard" replace /> },
-  { path: 'dashboard', element: <studentComponents.StudentDashboardPage /> },
-  { path: 'homeworks', element: <studentComponents.StudentHomeworksPage /> },
-  { path: 'homeworks/:id', element: <studentComponents.StudentHomeworkDetailPage /> },
-  { path: 'submit/:homeworkId', element: <studentComponents.SubmitHomeworkPage /> },
-  { path: 'submissions', element: <studentComponents.StudentSubmissionsPage /> },
-  { path: 'submission/:id', element: <studentComponents.SubmissionResultPage /> },
-  { path: 'report', element: <studentComponents.StudentReportPage /> },
-  { path: 'announcements', element: <studentComponents.StudentAnnouncementsPage /> },
-  { path: 'profile', element: <studentComponents.ProfilePage /> },
+  { path: 'dashboard', element: <StudentDashboardPage /> },
+  { path: 'homeworks', element: <StudentHomeworksPage /> },
+  { path: 'homeworks/:id', element: <StudentHomeworkDetailPage /> },
+  { path: 'submit/:homeworkId', element: <SubmitHomeworkPage /> },
+  { path: 'submissions', element: <StudentSubmissionsPage /> },
+  { path: 'submission/:id', element: <SubmissionResultPage /> },
+  { path: 'report', element: <StudentReportPage /> },
+  { path: 'announcements', element: <StudentAnnouncementsPage /> },
+  { path: 'profile', element: <ProfilePage /> },
 ];
