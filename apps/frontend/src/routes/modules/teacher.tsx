@@ -1,14 +1,12 @@
 /**
  * 教师路由配置
  *
- * 包含教师角色的所有页面路由。
- */
+ * 包含教师角色的所有页面路由�? */
 
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
 
-// 懒加载组件
-const TeacherDashboardPage = lazy(() =>
+// 懒加载组�?const TeacherDashboardPage = lazy(() =>
   import('../../pages/teacher/Dashboard').then((module) => ({ default: module.TeacherDashboardPage })),
 );
 const TeacherClassesPage = lazy(() =>
@@ -44,8 +42,7 @@ const ProfilePage = lazy(() =>
   import('../../pages/ProfilePage').then((module) => ({ default: module.ProfilePage })),
 );
 
-// 导出懒加载组件
-export const teacherComponents = {
+// 导出懒加载组�?export const teacherComponents = {
   TeacherDashboardPage,
   TeacherClassesPage,
   TeacherClassDetailPage,

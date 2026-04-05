@@ -5,14 +5,14 @@ import { SoftEmpty } from './SoftEmpty';
 /**
  * VirtualList Props
  *
- * @template T - 数据项类型
+ * @template T - 数据项类�?
  */
 export interface VirtualListProps<T> {
-  /** 数据源 */
+  /** 数据�?*/
   data: T[];
   /** 渲染每一项的函数 */
   renderItem: (item: T, index: number) => React.ReactNode;
-  /** 估算的项目高度 (px)，用于计算虚拟滚动位置 */
+  /** 估算的项目高�?(px)，用于计算虚拟滚动位�?*/
   estimatedItemHeight?: number;
   /** 容器高度 (px) */
   height?: number | string;
@@ -22,15 +22,15 @@ export interface VirtualListProps<T> {
   onLoadMore?: () => void;
   /** 是否还有更多数据 */
   hasMore?: boolean;
-  /** 列表的唯一标识，用于保存滚动位置 */
+  /** 列表的唯一标识，用于保存滚动位�?*/
   listKey?: string;
-  /** 空状态描述 */
+  /** 空状态描�?*/
   emptyDescription?: string;
-  /** 自定义空状态 */
+  /** 自定义空状�?*/
   customEmpty?: React.ReactNode;
-  /** 额外的 CSS 类名 */
+  /** 额外�?CSS 类名 */
   className?: string;
-  /** 额外的样式 */
+  /** 额外的样�?*/
   style?: React.CSSProperties;
 }
 
@@ -55,7 +55,7 @@ function calculateVisibleRange(
 /**
  * VirtualList 虚拟滚动列表组件
  *
- * 用于高效渲染大量数据的列表组件，只渲染可见区域的项目。
+ * 用于高效渲染大量数据的列表组件，只渲染可见区域的项目�?
  *
  * @example
  * ```tsx
@@ -111,7 +111,7 @@ export function VirtualList<T>({
     return data.slice(startIndex, endIndex);
   }, [data, startIndex, endIndex]);
 
-  // 总高度
+  // 总高�?
   const totalHeight = useMemo(() => {
     return data.length * estimatedItemHeight;
   }, [data.length, estimatedItemHeight]);
@@ -153,7 +153,7 @@ export function VirtualList<T>({
         const saved = sessionStorage.getItem(`virtual-scroll-${listKey}`);
         if (saved) {
           const { scrollTop: savedScrollTop, timestamp } = JSON.parse(saved);
-          // 只恢复 30 分钟内的滚动位置
+          // 只恢�?30 分钟内的滚动位置
           if (Date.now() - timestamp < 30 * 60 * 1000) {
             containerRef.current.scrollTop = savedScrollTop;
           }
@@ -164,7 +164,7 @@ export function VirtualList<T>({
     }
   }, [listKey]);
 
-  // 空状态
+  // 空状�?
   if (!loading && data.length === 0) {
     return customEmpty || <SoftEmpty description={emptyDescription} />;
   }
@@ -211,7 +211,7 @@ export function VirtualList<T>({
         </div>
       </div>
 
-      {/* 加载更多指示器 */}
+      {/* 加载更多指示�?*/}
       {hasMore && loading && (
         <div style={{ padding: '16px', textAlign: 'center' }}>
           <Spin size="small" />
@@ -221,7 +221,7 @@ export function VirtualList<T>({
       {/* 没有更多数据提示 */}
       {!hasMore && data.length > 0 && (
         <div style={{ padding: '16px', textAlign: 'center', color: '#999', fontSize: '12px' }}>
-          已加载全部数据
+          已加载全部数�?
         </div>
       )}
     </div>
@@ -229,9 +229,9 @@ export function VirtualList<T>({
 }
 
 /**
- * FixedSizeVirtualList 固定项目大小的虚拟列表
+ * FixedSizeVirtualList 固定项目大小的虚拟列�?
  *
- * 当所有项目高度固定时使用，性能更好。
+ * 当所有项目高度固定时使用，性能更好�?
  */
 export interface FixedSizeVirtualListProps<T> {
   data: T[];

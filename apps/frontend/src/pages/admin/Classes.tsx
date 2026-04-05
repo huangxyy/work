@@ -203,7 +203,7 @@ export const AdminClassesPage = () => {
               return false;
             }
           }}
-          modalProps={{ destroyOnClose: true }}
+          modalProps={{ destroyOnHidden: true }}
         >
           <ProFormSelect
             name="teacherIds"
@@ -313,7 +313,7 @@ export const AdminClassesPage = () => {
                     return false;
                   }
                 }}
-                modalProps={{ destroyOnClose: true }}
+                modalProps={{ destroyOnHidden: true }}
               >
                 <ProFormTextArea
                   name="text"

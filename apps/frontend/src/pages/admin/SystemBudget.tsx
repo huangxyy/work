@@ -112,7 +112,7 @@ export const AdminSystemBudgetPage = () => {
               percent={usagePercent} 
               strokeColor={usageColor}
               trailColor="#f3f4f6"
-              strokeWidth={12}
+              size={{ height: 12 }}
               showInfo={false}
             />
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>

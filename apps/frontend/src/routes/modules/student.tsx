@@ -1,13 +1,13 @@
 /**
  * 学生路由配置
  *
- * 包含学生角色的所有页面路由。
+ * 包含学生角色的所有页面路由�?
  */
 
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
 
-// 懒加载组件
+// 懒加载组�?
 const StudentDashboardPage = lazy(() =>
   import('../../pages/student/Dashboard').then((module) => ({ default: module.StudentDashboardPage })),
 );
@@ -36,7 +36,7 @@ const ProfilePage = lazy(() =>
   import('../../pages/ProfilePage').then((module) => ({ default: module.ProfilePage })),
 );
 
-// 导出懒加载组件
+// 导出懒加载组�?
 export const studentComponents = {
   StudentDashboardPage,
   StudentHomeworksPage,

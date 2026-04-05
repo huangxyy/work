@@ -19,9 +19,9 @@ export interface BaseCardProps extends Omit<ProCardProps, 'border' | 'ghost'> {
   styleType?: CardStyleType;
   /** 卡片变体 */
   variant?: CardVariant;
-  /** 子组件 */
+  /** 子组�?*/
   children: ReactNode;
-  /** 是否可折叠 */
+  /** 是否可折�?*/
   collapsible?: boolean;
   /** 默认是否折叠 */
   defaultCollapsed?: boolean;
@@ -29,17 +29,17 @@ export interface BaseCardProps extends Omit<ProCardProps, 'border' | 'ghost'> {
   onCollapse?: (collapsed: boolean) => void;
   /** 卡片标题 */
   title?: ReactNode;
-  /** 卡片副标题 */
+  /** 卡片副标�?*/
   subTitle?: ReactNode;
-  /** 额外操作区 */
+  /** 额外操作�?*/
   extra?: ReactNode;
   /** 是否显示边框 */
   bordered?: boolean;
   /** 悬停效果 */
   hoverable?: boolean;
-  /** 自定义类名 */
+  /** 自定义类�?*/
   className?: string;
-  /** 自定义样式 */
+  /** 自定义样�?*/
   style?: React.CSSProperties;
 }
 
@@ -70,7 +70,7 @@ const CARD_STYLES: Record<CardStyleType, React.CSSProperties> = {
 /**
  * BaseCard 基础卡片组件
  *
- * 提供统一的卡片样式和交互，支持多种风格。
+ * 提供统一的卡片样式和交互，支持多种风格�?
  *
  * @example
  * ```tsx
@@ -158,22 +158,22 @@ export function BaseCard({
 /**
  * StatisticCard 统计卡片组件
  *
- * 用于显示关键指标数据。
+ * 用于显示关键指标数据�?
  */
 export interface StatisticCardProps {
   /** 标题 */
   title: ReactNode;
-  /** 数值 */
+  /** 数�?*/
   value: number | string;
   /** 单位 */
   unit?: string;
-  /** 趋势（up/down/neutral） */
+  /** 趋势（up/down/neutral�?*/
   trend?: 'up' | 'down' | 'neutral';
-  /** 趋势值 */
+  /** 趋势�?*/
   trendValue?: number;
   /** 图标 */
   icon?: ReactNode;
-  /** 加载中 */
+  /** 加载�?*/
   loading?: boolean;
   /** 样式类型 */
   styleType?: CardStyleType;
@@ -195,7 +195,7 @@ export function StatisticCard({
   const trendColor =
     trend === 'up' ? '#52c41a' : trend === 'down' ? '#ff4d4f' : '#8c8c8c';
   const trendIcon =
-    trend === 'up' ? '↑' : trend === 'down' ? '↓' : '−';
+    trend === 'up' ? '�? : trend === 'down' ? '�? : '�?;
 
   return (
     <BaseCard
@@ -233,7 +233,7 @@ export function StatisticCard({
               color: '#262626',
             }}
           >
-            {loading ? '—' : value}
+            {loading ? '�? : value}
             <span
               style={{
                 fontSize: '14px',
@@ -265,7 +265,7 @@ export function StatisticCard({
 /**
  * ActionCard 操作卡片组件
  *
- * 用于显示可点击的操作项。
+ * 用于显示可点击的操作项�?
  */
 export interface ActionCardProps {
   /** 标题 */
@@ -276,9 +276,9 @@ export interface ActionCardProps {
   icon?: ReactNode;
   /** 点击事件 */
   onClick: () => void;
-  /** 禁用状态 */
+  /** 禁用状�?*/
   disabled?: boolean;
-  /** 加载中 */
+  /** 加载�?*/
   loading?: boolean;
   /** 样式类型 */
   styleType?: CardStyleType;
@@ -315,7 +315,7 @@ export function ActionCard({
               marginBottom: description ? '4px' : 0,
             }}
           >
-            {loading ? '加载中...' : title}
+            {loading ? '加载�?..' : title}
           </div>
           {description && !loading && (
             <div

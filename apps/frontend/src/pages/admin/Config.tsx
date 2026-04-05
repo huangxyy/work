@@ -657,19 +657,21 @@ export const AdminConfigPage = () => {
             <Form.List name="llmProviders">
               {(fields, { add, remove }) => (
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                  {fields.map((field) => (
-                    <Card
-                      key={field.key}
-                      size="small"
-                      title={t('admin.config.provider')}
-                      extra={
-                        <Button danger onClick={() => remove(field.name)}>
-                          {t('common.remove')}
-                        </Button>
-                      }
-                    >
+                  {fields.map((field) => {
+                    const { key: fieldKey, ...restField } = field;
+                    return (
+                      <Card
+                        key={fieldKey}
+                        size="small"
+                        title={t('admin.config.provider')}
+                        extra={
+                          <Button danger onClick={() => remove(field.name)}>
+                            {t('common.remove')}
+                          </Button>
+                        }
+                      >
                       <Form.Item
-                        {...field}
+                        {...restField}
                         label={t('admin.config.providerId')}
                         name={[field.name, 'id']}
                         rules={[{ required: true, message: t('admin.config.providerIdRequired') }]}
@@ -677,14 +679,14 @@ export const AdminConfigPage = () => {
                         <Input placeholder={t('admin.config.providerIdPlaceholder')} />
                       </Form.Item>
                       <Form.Item
-                        {...field}
+                        {...restField}
                         label={t('admin.config.providerName')}
                         name={[field.name, 'name']}
                       >
                         <Input placeholder={t('admin.config.providerNamePlaceholder')} />
                       </Form.Item>
                       <Form.Item
-                        {...field}
+                        {...restField}
                         label={t('admin.config.baseUrl')}
                         name={[field.name, 'baseUrl']}
                         rules={[{ required: true, message: t('admin.config.baseUrlRequired') }]}
@@ -692,14 +694,14 @@ export const AdminConfigPage = () => {
                         <Input placeholder={t('admin.config.baseUrlPlaceholder')} />
                       </Form.Item>
                       <Form.Item
-                        {...field}
+                        {...restField}
                         label={t('admin.config.providerPath')}
                         name={[field.name, 'path']}
                       >
                         <Input placeholder={t('admin.config.providerPathPlaceholder')} />
                       </Form.Item>
                       <Form.Item
-                        {...field}
+                        {...restField}
                         label={t('admin.config.apiKey')}
                         name={[field.name, 'apiKey']}
                         extra={
@@ -711,7 +713,7 @@ export const AdminConfigPage = () => {
                         <Input.Password placeholder={t('admin.config.apiKeyPlaceholder')} autoComplete="new-password" />
                       </Form.Item>
                       <Form.Item
-                        {...field}
+                        {...restField}
                         label={t('admin.config.clearApiKey')}
                         name={[field.name, 'clearApiKey']}
                         valuePropName="checked"
@@ -719,7 +721,7 @@ export const AdminConfigPage = () => {
                         <Switch />
                       </Form.Item>
                       <Form.Item
-                        {...field}
+                        {...restField}
                         label={t('admin.config.providerEnabled')}
                         name={[field.name, 'enabled']}
                         valuePropName="checked"
@@ -736,21 +738,18 @@ export const AdminConfigPage = () => {
                             {headerFields.map((headerField) => (
                               <Space key={headerField.key} align="baseline" wrap>
                                 <Form.Item
-                                  {...headerField}
                                   name={[headerField.name, 'key']}
                                   rules={[{ required: true, message: t('admin.config.headerKeyRequired') }]}
                                 >
                                   <Input placeholder={t('admin.config.headerKey')} />
                                 </Form.Item>
                                 <Form.Item
-                                  {...headerField}
                                   name={[headerField.name, 'value']}
                                   rules={[{ required: true, message: t('admin.config.headerValueRequired') }]}
                                 >
                                   <Input placeholder={t('admin.config.headerValue')} />
                                 </Form.Item>
                                 <Form.Item
-                                  {...headerField}
                                   name={[headerField.name, 'secret']}
                                   valuePropName="checked"
                                 >
@@ -775,19 +774,18 @@ export const AdminConfigPage = () => {
                             {modelFields.map((modelField) => (
                               <Space key={modelField.key} align="baseline" wrap>
                                 <Form.Item
-                                  {...modelField}
                                   name={[modelField.name, 'name']}
                                   rules={[{ required: true, message: t('admin.config.modelRequired') }]}
                                 >
                                   <Input placeholder={t('admin.config.modelPlaceholder')} />
                                 </Form.Item>
-                                <Form.Item {...modelField} name={[modelField.name, 'priceIn']}>
+                                <Form.Item name={[modelField.name, 'priceIn']}>
                                   <InputNumber min={0} step={0.001} placeholder={t('admin.config.priceIn')} />
                                 </Form.Item>
-                                <Form.Item {...modelField} name={[modelField.name, 'priceOut']}>
+                                <Form.Item name={[modelField.name, 'priceOut']}>
                                   <InputNumber min={0} step={0.001} placeholder={t('admin.config.priceOut')} />
                                 </Form.Item>
-                                <Form.Item {...modelField} name={[modelField.name, 'isDefault']} valuePropName="checked">
+                                <Form.Item name={[modelField.name, 'isDefault']} valuePropName="checked">
                                   <Switch />
                                 </Form.Item>
                                 <Button onClick={() => removeModel(modelField.name)}>{t('common.remove')}</Button>
@@ -800,7 +798,8 @@ export const AdminConfigPage = () => {
                         )}
                       </Form.List>
                     </Card>
-                  ))}
+                    );
+                  })}
 
                   <Button type="dashed" onClick={() => add({ headers: [], models: [], enabled: true })}>
                     {t('admin.config.addProvider')}

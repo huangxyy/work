@@ -430,16 +430,6 @@ export const fetchAdminErrorTrends = async (days = 7) => {
   };
 };
 
-export async function fetchFeatureFlags(): Promise<Record<string, boolean>> {
-  const res = await api.get('/admin/feature-flags');
-  return res.data;
-}
-
-export async function updateFeatureFlag(flag: string, enabled: boolean) {
-  const res = await api.patch('/admin/feature-flags', { flag, enabled });
-  return res.data;
-}
-
 export async function bulkImportUsers(payload: {
   text: string;
   role?: string;

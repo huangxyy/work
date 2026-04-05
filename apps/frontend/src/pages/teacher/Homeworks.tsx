@@ -132,7 +132,7 @@ export const TeacherHomeworksPage = () => {
           <Space direction="vertical" size={0}>
             <Typography.Text>{t('teacher.homeworkDetail.deleteConfirmDesc')}</Typography.Text>
             <Typography.Text type="secondary">
-              {`${t('teacher.homeworkDetail.deleteWillRemove')} ${preview.submissionCount} ${t('teacher.homeworkDetail.deleteSubmissionsUnit')}ï¼Œ${preview.imageCount} ${t('teacher.homeworkDetail.deleteImagesUnit')}`}
+              {`${t('teacher.homeworkDetail.deleteWillRemove')} ${preview.submissionCount} ${t('teacher.homeworkDetail.deleteSubmissionsUnit')}ï¼?{preview.imageCount} ${t('teacher.homeworkDetail.deleteImagesUnit')}`}
             </Typography.Text>
           </Space>
         ),
@@ -254,7 +254,7 @@ export const TeacherHomeworksPage = () => {
             return true;
           }}
           dateFormatter={false}
-          modalProps={{ destroyOnClose: true }}
+          modalProps={{ destroyOnHidden: true }}
         >
           <ProFormText
             name="title"
@@ -364,7 +364,7 @@ export const TeacherHomeworksPage = () => {
                   return true;
                 }}
                 dateFormatter={false}
-                modalProps={{ destroyOnClose: true }}
+                modalProps={{ destroyOnHidden: true }}
                 submitter={{ submitButtonProps: { loading: createMutation.isPending } }}
               >
               {(templatesQuery.data?.length ?? 0) > 0 && (

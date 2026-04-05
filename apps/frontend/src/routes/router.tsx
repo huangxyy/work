@@ -1,8 +1,8 @@
 /**
  * 路由配置
  *
- * 使用 React Router v6 配置应用路由。
- * 路由按模块拆分，便于维护。
+ * 使用 React Router v6 配置应用路由�?
+ * 路由按模块拆分，便于维护�?
  */
 
 import { Suspense } from 'react';
@@ -21,7 +21,7 @@ import {
 } from './modules';
 
 /**
- * 带 Suspense 的高阶组件
+ * �?Suspense 的高阶组�?
  */
 const withSuspense = (element: JSX.Element) => (
   <Suspense fallback={<PageFallback />}>{element}</Suspense>
@@ -31,7 +31,7 @@ const withSuspense = (element: JSX.Element) => (
  * 创建完整路由配置
  */
 export const createAppRoutes = (): RouteObject[] => [
-  // 公共路由（无需认证）
+  // 公共路由（无需认证�?
   ...publicRoutes.map((route) => ({
     ...route,
     element: withSuspense(route.element as React.ReactElement),
@@ -75,7 +75,7 @@ export const createAppRoutes = (): RouteObject[] => [
     ],
   },
 
-  // 管理员路由
+  // 管理员路�?
   {
     path: '/admin',
     element: (
@@ -99,7 +99,7 @@ export const createAppRoutes = (): RouteObject[] => [
 ];
 
 /**
- * 创建并导出路由实例
+ * 创建并导出路由实�?
  */
 export const router = createBrowserRouter(createAppRoutes());
 

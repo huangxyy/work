@@ -347,7 +347,7 @@ export const TeacherClassDetailPage = () => {
                               return false;
                             }
                           }}
-                          modalProps={{ destroyOnClose: true }}
+                          modalProps={{ destroyOnHidden: true }}
                         >
                           <ProFormTextArea
                             name="text"

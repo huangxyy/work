@@ -1,14 +1,11 @@
 /**
- * 管理员路由配置
- *
- * 包含管理员角色的所有页面路由。
- */
+ * 管理员路由配�? *
+ * 包含管理员角色的所有页面路由�? */
 
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
 
-// 懒加载组件
-const AdminDashboardPage = lazy(() =>
+// 懒加载组�?const AdminDashboardPage = lazy(() =>
   import('../../pages/admin/Dashboard').then((module) => ({ default: module.AdminDashboardPage })),
 );
 const AdminClassesPage = lazy(() =>
@@ -38,9 +35,6 @@ const AdminSubmissionDiagnosisPage = lazy(() =>
 const AdminAuditLogsPage = lazy(() =>
   import('../../pages/admin/AuditLogs').then((m) => ({ default: m.AdminAuditLogsPage })),
 );
-const AdminFeatureFlagsPage = lazy(() =>
-  import('../../pages/admin/FeatureFlags').then((m) => ({ default: m.AdminFeatureFlagsPage })),
-);
 const AdminAnnouncementsPage = lazy(() =>
   import('../../pages/admin/Announcements').then((m) => ({ default: m.AdminAnnouncementsPage })),
 );
@@ -51,8 +45,7 @@ const ProfilePage = lazy(() =>
   import('../../pages/ProfilePage').then((module) => ({ default: module.ProfilePage })),
 );
 
-// 导出懒加载组件
-export const adminComponents = {
+// 导出懒加载组�?export const adminComponents = {
   AdminDashboardPage,
   AdminClassesPage,
   AdminUsagePage,
@@ -63,7 +56,6 @@ export const adminComponents = {
   AdminQueuePage,
   AdminSubmissionDiagnosisPage,
   AdminAuditLogsPage,
-  AdminFeatureFlagsPage,
   AdminAnnouncementsPage,
   AdminQueueMonitoringPage,
   ProfilePage,
@@ -85,7 +77,6 @@ export const adminRoutes: RouteObject[] = [
   { path: 'system/queue/monitoring', element: <adminComponents.AdminQueueMonitoringPage /> },
   { path: 'diagnosis', element: <adminComponents.AdminSubmissionDiagnosisPage /> },
   { path: 'audit-logs', element: <adminComponents.AdminAuditLogsPage /> },
-  { path: 'feature-flags', element: <adminComponents.AdminFeatureFlagsPage /> },
   { path: 'announcements', element: <adminComponents.AdminAnnouncementsPage /> },
   { path: 'profile', element: <adminComponents.ProfilePage /> },
 ];

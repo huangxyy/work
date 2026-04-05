@@ -159,7 +159,5 @@ export {
   type AdminClassSummary,
   type AdminSystemConfig,
   fetchAdminErrorTrends,
-  fetchFeatureFlags,
-  updateFeatureFlag,
   type AdminUser,
 } from './admin';

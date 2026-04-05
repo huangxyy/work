@@ -181,7 +181,7 @@ export const AdminUsersPage = () => {
               return false;
             }
           }}
-          modalProps={{ destroyOnClose: true }}
+          modalProps={{ destroyOnHidden: true }}
         >
           <ProFormSelect
             name="role"
@@ -212,7 +212,7 @@ export const AdminUsersPage = () => {
                 return false;
               }
             }}
-            modalProps={{ destroyOnClose: true }}
+            modalProps={{ destroyOnHidden: true }}
           >
             <ProFormSelect
               name="classId"
@@ -239,7 +239,7 @@ export const AdminUsersPage = () => {
               return false;
             }
           }}
-          modalProps={{ destroyOnClose: true }}
+          modalProps={{ destroyOnHidden: true }}
         >
           <ProFormText.Password
             name="password"
@@ -401,7 +401,7 @@ export const AdminUsersPage = () => {
                   return false;
                 }
               }}
-              modalProps={{ destroyOnClose: true, width: 600 }}
+              modalProps={{ destroyOnHidden: true, width: 600 }}
             >
               <Alert
                 type="info"
@@ -458,7 +458,7 @@ export const AdminUsersPage = () => {
                   return false;
                 }
               }}
-              modalProps={{ destroyOnClose: true }}
+              modalProps={{ destroyOnHidden: true }}
             >
               <ProFormText
                 name="account"

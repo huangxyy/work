@@ -44,59 +44,59 @@ const DEFAULT_LANDING_PAYLOAD: PublicLandingPayload = {
     zh: {
       brand: {
         title: 'Homework AI',
-        tagline: 'AI驱动的英语作文智能批改系统',
-        description: '基于深度学习与 OCR 技术，为教师和学生打造的下一代智能作业批改系统。精准识别手写笔迹，多维点评，让批改更高效。',
+        tagline: 'AI驱动的英语作文智能批改系�?,
+        description: '基于深度学习�?OCR 技术，为教师和学生打造的下一代智能作业批改系统。精准识别手写笔迹，多维点评，让批改更高效�?,
       },
       hero: {
         headline: '让批改更快，教学更有温度',
-        subhead: '老师批改从小时变成分钟，学生拿到结构化反馈与改写建议。',
-        note: '支持拍照作业、批量上传与班级级别的学情分析。',
+        subhead: '老师批改从小时变成分钟，学生拿到结构化反馈与改写建议�?,
+        note: '支持拍照作业、批量上传与班级级别的学情分析�?,
         primaryCta: '进入系统',
         secondaryCta: '预约演示',
       },
       highlights: [
-        { title: '深度学习 AI 批改引擎', desc: '接入 DeepSeek LLM，从语法、词汇、句子结构到篇章逻辑，进行全方位的深度点评与打分，提供详细的改进建议。' },
-        { title: '精准手写 OCR 识别', desc: '集成百度 OCR，支持高精度的手写英文识别。即使是潦草笔迹，也能准确转化为文本进行分析。' },
-        { title: '极速批量处理', desc: '教师可一键批量上传全班作业，系统基于 BullMQ 队列实现异步高效批改，无需等待，随时查看结果。' },
+        { title: '深度学习 AI 批改引擎', desc: '接入 DeepSeek LLM，从语法、词汇、句子结构到篇章逻辑，进行全方位的深度点评与打分，提供详细的改进建议�? },
+        { title: '精准手写 OCR 识别', desc: '集成百度 OCR，支持高精度的手写英文识别。即使是潦草笔迹，也能准确转化为文本进行分析�? },
+        { title: '极速批量处�?, desc: '教师可一键批量上传全班作业，系统基于 BullMQ 队列实现异步高效批改，无需等待，随时查看结果�? },
       ],
       capabilities: [
-        { title: '多角色系统', desc: '支持学生、教师、管理员三种角色，权限隔离，协同高效。' },
-        { title: '数据导出', desc: '支持 PDF、CSV 格式的详细报告导出，方便归档与分析。' },
-        { title: '跳过文件重试', desc: '对无法识别的文件支持手动指定学生并重新批改，确保无一遗漏。' },
-        { title: '中英双语', desc: '完整的中英文界面支持，无缝适配双语教学场景。' },
+        { title: '多角色系�?, desc: '支持学生、教师、管理员三种角色，权限隔离，协同高效�? },
+        { title: '数据导出', desc: '支持 PDF、CSV 格式的详细报告导出，方便归档与分析�? },
+        { title: '跳过文件重试', desc: '对无法识别的文件支持手动指定学生并重新批改，确保无一遗漏�? },
+        { title: '中英双语', desc: '完整的中英文界面支持，无缝适配双语教学场景�? },
       ],
       workflow: [
-        { title: '上传与识别', desc: '图像进入 OCR 与学号识别。' },
-        { title: '分发与归档', desc: '匹配学生并分组生成提交。' },
-        { title: 'AI批改', desc: '评分、结构化反馈与改写建议输出。' },
-        { title: '教学复盘', desc: '趋势、错因与班级对比自动生成。' },
+        { title: '上传与识�?, desc: '图像进入 OCR 与学号识别�? },
+        { title: '分发与归�?, desc: '匹配学生并分组生成提交�? },
+        { title: 'AI批改', desc: '评分、结构化反馈与改写建议输出�? },
+        { title: '教学复盘', desc: '趋势、错因与班级对比自动生成�? },
       ],
       metrics: [
-        { label: 'OCR 识别准确率', value: '99%', hint: '手写英文精准转化' },
-        { label: '平均批改耗时', value: '1s', hint: '深度模型快速响应' },
+        { label: 'OCR 识别准确�?, value: '99%', hint: '手写英文精准转化' },
+        { label: '平均批改耗时', value: '1s', hint: '深度模型快速响�? },
         { label: '多维评分标准', value: '5+', hint: '词汇、语法、结构等' },
       ],
       proof: [
-        { title: '教研更聚焦', desc: '把时间用在策略和反馈质量上。' },
-        { title: '学生更投入', desc: '更快获得可执行的改写方案。' },
+        { title: '教研更聚�?, desc: '把时间用在策略和反馈质量上�? },
+        { title: '学生更投�?, desc: '更快获得可执行的改写方案�? },
       ],
       faq: [
-        { question: '是否支持纸质作业？', answer: '支持拍照上传与批量扫描上传。' },
-        { question: '评分标准可以自定义吗？', answer: '支持班级或作业级别的评分配置。' },
-        { question: '如何保障数据安全？', answer: '采用分权限访问与可追溯日志。' },
+        { question: '是否支持纸质作业�?, answer: '支持拍照上传与批量扫描上传�? },
+        { question: '评分标准可以自定义吗�?, answer: '支持班级或作业级别的评分配置�? },
+        { question: '如何保障数据安全�?, answer: '采用分权限访问与可追溯日志�? },
       ],
       cta: {
         title: '准备好革新你的教学体验了吗？',
-        subtitle: '无需复杂配置，只需登录即可开始体验下一代的智能批改流程。',
-        primary: '立即开始',
+        subtitle: '无需复杂配置，只需登录即可开始体验下一代的智能批改流程�?,
+        primary: '立即开�?,
         secondary: '咨询方案',
       },
       consult: {
         title: '预约产品演示',
-        subtitle: '请留下您的联系方式，我们将安排专属顾问为您演示系统功能。',
-        fields: { name: '姓名', org: '学校/机构', contact: '工作邮箱', need: '需求描述' },
+        subtitle: '请留下您的联系方式，我们将安排专属顾问为您演示系统功能�?,
+        fields: { name: '姓名', org: '学校/机构', contact: '工作邮箱', need: '需求描�? },
         submit: '提交申请',
-        success: '提交成功，我们会尽快联系你。',
+        success: '提交成功，我们会尽快联系你�?,
       },
     },
     en: {
@@ -276,7 +276,7 @@ export const LandingPage = () => {
         <section className="apple-section apple-features-section">
           <div className="apple-section-header">
             <Typography.Title level={2} className="apple-section-title">
-              {zh ? '核心功能，尽在掌握。' : 'Core Features. Mastered.'}
+              {zh ? '核心功能，尽在掌握�? : 'Core Features. Mastered.'}
             </Typography.Title>
             <Typography.Paragraph className="apple-section-desc">
               {content.brand.description}
@@ -300,10 +300,10 @@ export const LandingPage = () => {
         <section className="apple-section apple-workflow-section">
           <div className="apple-section-header">
             <Typography.Title level={2} className="apple-section-title">
-              {zh ? '四步完成，从上传到复盘。' : 'Four Steps. Upload to Insight.'}
+              {zh ? '四步完成，从上传到复盘�? : 'Four Steps. Upload to Insight.'}
             </Typography.Title>
             <Typography.Paragraph className="apple-section-desc">
-              {zh ? '简单流程，强大结果。' : 'Simple process, powerful results.'}
+              {zh ? '简单流程，强大结果�? : 'Simple process, powerful results.'}
             </Typography.Paragraph>
           </div>
           <div className="apple-workflow-grid">
@@ -321,7 +321,7 @@ export const LandingPage = () => {
         <section className="apple-section apple-metrics-section">
           <div className="apple-section-header">
             <Typography.Title level={2} className="apple-section-title">
-              {zh ? '用数据说话。' : 'Numbers that speak.'}
+              {zh ? '用数据说话�? : 'Numbers that speak.'}
             </Typography.Title>
           </div>
           <div className="apple-metrics-grid">
@@ -339,10 +339,10 @@ export const LandingPage = () => {
         <section className="apple-section apple-capabilities-section">
           <div className="apple-section-header">
             <Typography.Title level={2} className="apple-section-title">
-              {zh ? '不只是批改，更是平台。' : 'More than grading. A platform.'}
+              {zh ? '不只是批改，更是平台�? : 'More than grading. A platform.'}
             </Typography.Title>
             <Typography.Paragraph className="apple-section-desc">
-              {zh ? '覆盖教学场景的全方位能力。' : 'Comprehensive capabilities for every teaching scenario.'}
+              {zh ? '覆盖教学场景的全方位能力�? : 'Comprehensive capabilities for every teaching scenario.'}
             </Typography.Paragraph>
           </div>
           <div className="apple-capabilities-grid">
@@ -363,7 +363,7 @@ export const LandingPage = () => {
         <section className="apple-section apple-proof-section">
           <div className="apple-section-header">
             <Typography.Title level={2} className="apple-section-title">
-              {zh ? '为什么选择我们？' : 'Why educators choose us.'}
+              {zh ? '为什么选择我们�? : 'Why educators choose us.'}
             </Typography.Title>
           </div>
           <div className="apple-proof-grid">
@@ -387,7 +387,7 @@ export const LandingPage = () => {
           </div>
           <Collapse
             className="apple-faq-collapse"
-            bordered={false}
+            variant="borderless"
             expandIconPosition="end"
             items={content.faq.map((item, i) => ({
               key: String(i),
@@ -408,7 +408,7 @@ export const LandingPage = () => {
             </Typography.Paragraph>
             <Space size="middle" style={{ marginTop: 16 }}>
               <Button type="primary" size="large" className="apple-btn-primary" onClick={() => navigate('/login')}>
-                {content.cta?.primary ?? (zh ? '立即开始' : 'Start Now')}
+                {content.cta?.primary ?? (zh ? '立即开�? : 'Start Now')}
               </Button>
               <Button size="large" className="apple-btn-ghost" onClick={() => setConsultOpen(true)}>
                 {content.cta?.secondary ?? (zh ? '咨询方案' : 'Request a Demo')}

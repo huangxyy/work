@@ -2,14 +2,14 @@ import { Skeleton as AntSkeleton, Card, Col, List, Row, Space } from 'antd';
 import { ReactNode } from 'react';
 
 /**
- * 基础骨架屏配置
+ * 基础骨架屏配�?
  */
 export interface SkeletonProps {
-  /** 是否显示骨架屏 */
+  /** 是否显示骨架�?*/
   loading?: boolean;
-  /** 子组件，加载完成后显示 */
+  /** 子组件，加载完成后显�?*/
   children: ReactNode;
-  /** 骨架屏行数 */
+  /** 骨架屏行�?*/
   rows?: number;
   /** 是否显示头像 */
   avatar?: boolean;
@@ -17,18 +17,18 @@ export interface SkeletonProps {
   title?: boolean;
   /** 是否显示段落 */
   paragraph?: boolean;
-  /** 骨架屏是否处于活跃状态 */
+  /** 骨架屏是否处于活跃状�?*/
   active?: boolean;
   /** 自定义骨架屏 */
   customSkeleton?: ReactNode;
-  /** 额外的样式 */
+  /** 额外的样�?*/
   style?: React.CSSProperties;
 }
 
 /**
- * Skeleton 骨架屏组件
+ * Skeleton 骨架屏组�?
  *
- * 在数据加载时显示占位内容，提升用户体验。
+ * 在数据加载时显示占位内容，提升用户体验�?
  *
  * @example
  * ```tsx
@@ -67,16 +67,16 @@ export function Skeleton({
 }
 
 /**
- * CardSkeleton 卡片骨架屏
+ * CardSkeleton 卡片骨架�?
  *
- * 用于卡片列表加载状态。
+ * 用于卡片列表加载状态�?
  */
 export interface CardSkeletonProps {
   /** 卡片数量 */
   count?: number;
   /** 是否显示头像 */
   avatar?: boolean;
-  /** 骨架屏行数 */
+  /** 骨架屏行�?*/
   rows?: number;
   /** 栅格列数 */
   colSpan?: number;
@@ -104,9 +104,9 @@ export function CardSkeleton({
 }
 
 /**
- * TableSkeleton 表格骨架屏
+ * TableSkeleton 表格骨架�?
  *
- * 用于表格加载状态。
+ * 用于表格加载状态�?
  */
 export interface TableSkeletonProps {
   /** 行数 */
@@ -141,9 +141,9 @@ export function TableSkeleton({ rows = 5, columns = 4, title = true }: TableSkel
 }
 
 /**
- * FormSkeleton 表单骨架屏
+ * FormSkeleton 表单骨架�?
  *
- * 用于表单加载状态。
+ * 用于表单加载状态�?
  */
 export interface FormSkeletonProps {
   /** 字段数量 */
@@ -184,12 +184,12 @@ export function FormSkeleton({ fieldCount = 4, title = true, actions = true }: F
 }
 
 /**
- * ListSkeleton 列表骨架屏
+ * ListSkeleton 列表骨架�?
  *
- * 用于列表加载状态。
+ * 用于列表加载状态�?
  */
 export interface ListSkeletonProps {
-  /** 列表项数量 */
+  /** 列表项数�?*/
   count?: number;
   /** 是否显示头像 */
   avatar?: boolean;
@@ -217,9 +217,9 @@ export function ListSkeleton({ count = 5, avatar = true, rows = 2 }: ListSkeleto
 }
 
 /**
- * DescriptionSkeleton 描述列表骨架屏
+ * DescriptionSkeleton 描述列表骨架�?
  *
- * 用于详情页加载状态。
+ * 用于详情页加载状态�?
  */
 export interface DescriptionSkeletonProps {
   /** 项数 */
@@ -250,9 +250,9 @@ export function DescriptionSkeleton({ count = 4, column = 1 }: DescriptionSkelet
 }
 
 /**
- * StatisticSkeleton 统计数字骨架屏
+ * StatisticSkeleton 统计数字骨架�?
  *
- * 用于统计卡片加载状态。
+ * 用于统计卡片加载状态�?
  */
 export interface StatisticSkeletonProps {
   /** 卡片数量 */
@@ -279,9 +279,9 @@ export function StatisticSkeleton({ count = 4 }: StatisticSkeletonProps) {
 }
 
 /**
- * ImageSkeleton 图片骨架屏
+ * ImageSkeleton 图片骨架�?
  *
- * 用于图片加载状态。
+ * 用于图片加载状态�?
  */
 export interface ImageSkeletonProps {
   /** 宽度 */
@@ -290,7 +290,7 @@ export interface ImageSkeletonProps {
   height?: number | string;
   /** 是否显示 */
   loading?: boolean;
-  /** 子组件 */
+  /** 子组�?*/
   children?: ReactNode;
 }
 

@@ -100,7 +100,7 @@ export const TeacherReportPage = () => {
       tooltip: {
         ...getDefaultTooltip(),
         trigger: 'item',
-        formatter: '{b}: {c}äºº ({d}%)',
+        formatter: '{b}: {c}äº?({d}%)',
       },
       series: [
         {
@@ -115,7 +115,7 @@ export const TeacherReportPage = () => {
           },
           label: {
             show: true,
-            formatter: '{b}\n{c}äºº',
+            formatter: '{b}\n{c}äº?,
             fontSize: 12,
           },
           labelLine: {

@@ -118,7 +118,7 @@ export const StudentReportPage = () => {
       tooltip: {
         ...getDefaultTooltip(),
         trigger: 'item',
-        formatter: '{b}: {c}æ¬¡ ({d}%)',
+        formatter: '{b}: {c}æ¬?({d}%)',
       },
       series: [
         {
@@ -133,7 +133,7 @@ export const StudentReportPage = () => {
           },
           label: {
             show: true,
-            formatter: '{b}\n{c}æ¬¡',
+            formatter: '{b}\n{c}æ¬?,
             fontSize: 11,
           },
           labelLine: {
@@ -389,7 +389,7 @@ export const StudentReportPage = () => {
                     <List.Item className="apple-list-row">
                       <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                         <Text>{item.text}</Text>
-                        <Text type="secondary">{item.count}æ¬¡</Text>
+                        <Text type="secondary">{item.count}æ¬?/Text>
                       </Space>
                     </List.Item>
                   )}

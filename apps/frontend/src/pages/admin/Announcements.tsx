@@ -56,7 +56,7 @@ export const AdminAnnouncementsPage = () => {
               await createMutation.mutateAsync(values as { classId?: string; title: string; content: string; pinned?: boolean });
               return true;
             }}
-            modalProps={{ destroyOnClose: true }}
+            modalProps={{ destroyOnHidden: true }}
           >
             <ProFormSelect name="classId" label={t('announcements.class')} options={classOptions} placeholder={t('announcements.allClasses')} />
             <ProFormText name="title" label={t('common.title')} rules={[{ required: true }]} />

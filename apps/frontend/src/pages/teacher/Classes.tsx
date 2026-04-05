@@ -109,7 +109,7 @@ export const TeacherClassesPage = () => {
                     await createMutation.mutateAsync(values as { name: string; grade?: string });
                     return true;
                   }}
-                  modalProps={{ destroyOnClose: true }}
+                  modalProps={{ destroyOnHidden: true }}
                   submitter={{
                     submitButtonProps: { loading: createMutation.isPending },
                   }}

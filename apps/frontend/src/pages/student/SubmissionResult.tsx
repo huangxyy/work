@@ -166,7 +166,7 @@ export const SubmissionResultPage = () => {
             renderItem={(item) => (
               <List.Item>
                 <Typography.Text>
-                  {localizeErrorType(item.type)}: {item.message} ({item.original} â†’ {item.suggestion})
+                  {localizeErrorType(item.type)}: {item.message} ({item.original} â†?{item.suggestion})
                 </Typography.Text>
               </List.Item>
             )}

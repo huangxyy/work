@@ -979,7 +979,7 @@ export const TeacherHomeworkDetailPage = () => {
                                   ? t('teacher.homeworkDetail.deletePreviewLoading')
                                   : deletePreviewQuery.isError
                                     ? t('teacher.homeworkDetail.deletePreviewFailed')
-                                    : `${t('teacher.homeworkDetail.deleteWillRemove')} ${deletePreviewQuery.data?.submissionCount || 0} ${t('teacher.homeworkDetail.deleteSubmissionsUnit')}，${deletePreviewQuery.data?.imageCount || 0} ${t('teacher.homeworkDetail.deleteImagesUnit')}`}
+                                    : `${t('teacher.homeworkDetail.deleteWillRemove')} ${deletePreviewQuery.data?.submissionCount || 0} ${t('teacher.homeworkDetail.deleteSubmissionsUnit')}�?{deletePreviewQuery.data?.imageCount || 0} ${t('teacher.homeworkDetail.deleteImagesUnit')}`}
                               </Typography.Text>
                             </Space>
                           }
@@ -1228,10 +1228,10 @@ export const TeacherHomeworkDetailPage = () => {
                       </Descriptions>
                       <Divider />
 
-                      {/* 三列布局：已匹配、未匹配-含姓名、无法处理 */}
+                      {/* 三列布局：已匹配、未匹配-含姓名、无法处�?*/}
                       {previewResult.matchResults ? (
                         <Row gutter={16}>
-                          {/* 已匹配 */}
+                          {/* 已匹�?*/}
                           <Col span={8}>
                             <ProCard
                               title={`${t('teacher.batchUpload.matched')} (${previewResult.matchResults.filter(r => r.matchedAccount).length})`}
@@ -1256,7 +1256,7 @@ export const TeacherHomeworkDetailPage = () => {
                             </ProCard>
                           </Col>
 
-                          {/* 未匹配 - 含姓名 */}
+                          {/* 未匹�?- 含姓�?*/}
                           <Col span={8}>
                             <ProCard
                               title={`${t('teacher.batchUpload.unmatchedWithName')} (${(previewResult.matchResults || []).filter((r) => !r.matchedAccount && r.extractedName).length})`}

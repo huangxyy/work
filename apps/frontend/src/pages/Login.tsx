@@ -91,7 +91,7 @@ export const LoginPage = () => {
             )}
           </section>
 
-          <Card className="apple-login-card" bordered={false}>
+          <Card className="apple-login-card" variant="borderless">
             <div className="apple-login-card-header">
               <Typography.Title level={3}>{t('login.title')}</Typography.Title>
             </div>
@@ -138,7 +138,7 @@ export const LoginPage = () => {
           </Form>
           <div className="apple-login-footer-links">
             <span className="apple-login-footer-hint">
-              {language.startsWith('zh') ? '登录即表示您同意我们的' : 'By signing in, you agree to our'}
+              {language.startsWith('zh') ? '登录即表示您同意我们�? : 'By signing in, you agree to our'}
             </span>
             <div className="apple-login-footer-actions">
               <Typography.Link onClick={() => navigate('/terms')}>
