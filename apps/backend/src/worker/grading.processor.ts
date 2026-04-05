@@ -44,7 +44,7 @@ type GradingJobData = {
   needRewrite?: boolean;
 };
 
-const DEFAULT_CONCURRENCY = Math.min(os.cpus().length * 2, 10);
+const DEFAULT_CONCURRENCY = Math.min((typeof os !== 'undefined' && os.cpus?.() ? os.cpus().length : 4) * 2, 10);
 
 @Processor('grading')
 export class GradingProcessor extends WorkerHost {
