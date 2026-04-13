@@ -249,7 +249,7 @@ export function ActionCard({
               marginBottom: description ? '4px' : 0,
             }}
           >
-            {loading ? '加载中...' : title}
+            {loading ? '...' : title}
           </div>
           {description && !loading && (
             <div

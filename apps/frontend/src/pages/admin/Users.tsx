@@ -340,8 +340,14 @@ export const AdminUsersPage = () => {
                 </Popconfirm>
                 <Popconfirm
                   title={t('admin.users.bulkResetConfirm')}
+                  description={t('admin.users.bulkResetDesc')}
                   onConfirm={async () => {
-                    await api.post('/admin/users/bulk-reset-password', { userIds: selectedUserIds, newPassword: 'Test1234' });
+                    const defaultPwd = window.prompt(t('admin.users.bulkResetPrompt'));
+                    if (!defaultPwd || defaultPwd.length < 6) {
+                      if (defaultPwd !== null) message.warning(t('admin.users.passwordTooShort'));
+                      return;
+                    }
+                    await api.post('/admin/users/bulk-reset-password', { userIds: selectedUserIds, newPassword: defaultPwd });
                     message.success(t('admin.users.bulkResetDone'));
                     setSelectedUserIds([]);
                   }}

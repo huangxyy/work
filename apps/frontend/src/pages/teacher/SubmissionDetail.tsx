@@ -1,7 +1,7 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { Alert, Button, Collapse, Descriptions, Image, Input, InputNumber, List, Progress, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchSubmission, regradeSubmission, addTeacherFeedback } from '../../api';
 import { ChartPanel } from '../../components/ChartPanel';
@@ -61,18 +61,30 @@ export const TeacherSubmissionDetailPage = () => {
     onError: () => message.error(t('teacher.submissionDetail.regradeFailed')),
   });
 
-  const [feedbackComment, setFeedbackComment] = useState(data?.teacherComment || '');
-  const [feedbackScore, setFeedbackScore] = useState<number | null>(data?.manualScore ?? null);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackScore, setFeedbackScore] = useState<number | null>(null);
+  const isEditedRef = useRef(false);
 
   const teacherComment = data?.teacherComment || '';
   const manualScore = data?.manualScore ?? null;
 
+  // Only sync server data when user hasn't made local edits
   useEffect(() => {
-    if (data) {
+    if (data && !isEditedRef.current) {
       setFeedbackComment(teacherComment);
       setFeedbackScore(manualScore);
     }
   }, [data, teacherComment, manualScore]);
+
+  const handleCommentChange = useCallback((value: string) => {
+    isEditedRef.current = true;
+    setFeedbackComment(value);
+  }, []);
+
+  const handleScoreChange = useCallback((value: number | null) => {
+    isEditedRef.current = true;
+    setFeedbackScore(value);
+  }, []);
 
   const feedbackMutation = useMutation({
     mutationFn: () => addTeacherFeedback(id || '', {
@@ -80,6 +92,7 @@ export const TeacherSubmissionDetailPage = () => {
       manualScore: feedbackScore,
     }),
     onSuccess: () => {
+      isEditedRef.current = false;
       message.success(t('teacher.submissionDetail.feedbackSaved'));
       refetch();
     },
@@ -161,7 +174,7 @@ export const TeacherSubmissionDetailPage = () => {
             renderItem={(item) => (
               <List.Item>
                 <Typography.Text>
-                  {localizeErrorType(item.type)}: {item.message} ({item.original} â†?{item.suggestion})
+                  {localizeErrorType(item.type)}: {item.message} ({item.original} ï¿½?{item.suggestion})
                 </Typography.Text>
               </List.Item>
             )}
@@ -443,7 +456,7 @@ export const TeacherSubmissionDetailPage = () => {
                   min={0}
                   max={100}
                   value={feedbackScore}
-                  onChange={(v) => setFeedbackScore(typeof v === 'number' ? v : null)}
+                  onChange={(v) => handleScoreChange(typeof v === 'number' ? v : null)}
                   style={{ marginLeft: 12, width: 120 }}
                   placeholder="0-100"
                 />
@@ -453,7 +466,7 @@ export const TeacherSubmissionDetailPage = () => {
                 <Input.TextArea
                   rows={4}
                   value={feedbackComment}
-                  onChange={(e) => setFeedbackComment(e.target.value)}
+                  onChange={(e) => handleCommentChange(e.target.value)}
                   placeholder={t('teacher.submissionDetail.commentPlaceholder')}
                   style={{ marginTop: 8 }}
                 />

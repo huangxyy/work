@@ -316,10 +316,10 @@ export const StudentReportPage = () => {
         {/* PDF Export Header - only visible when exporting */}
         <div style={{ display: 'none' }} data-pdf-header="true">
           <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', textAlign: 'center' }}>
-            <Title level={2} style={{ margin: '0 0 16px 0' }}>得满分学习报告</Title>
+            <Title level={2} style={{ margin: '0 0 16px 0' }}>{t('student.report.pdfTitle')}</Title>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '14px', color: '#666', textAlign: 'left' }}>
-              <div>学生：{report?.studentName || '-'}</div>
-              <div>ID：{report?.studentId || '-'}</div>
+              <div>{t('common.student')}{t('common.colon')}{report?.studentName || '-'}</div>
+              <div>ID{t('common.colon')}{report?.studentId || '-'}</div>
               <div>生成时间：{new Date().toLocaleString('zh-CN')}</div>
               <div>统计范围：近{rangeDays}天</div>
             </div>

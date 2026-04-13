@@ -1,5 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, Button, Segmented, Space, Spin, Tag, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,32 +12,33 @@ const { Text } = Typography;
 
 type FilterType = 'all' | 'ongoing' | 'late' | 'expired';
 
-const getStatus = (dueAt?: string | null, allowLateSubmission?: boolean): { key: FilterType; label: string; color: string } => {
+const getStatus = (dueAt?: string | null, allowLateSubmission?: boolean, t?: (key: string) => string): { key: FilterType; label: string; color: string } => {
+  const tr = t || ((k: string) => k);
   if (!dueAt) {
-    return { key: 'ongoing', label: '进行中', color: 'blue' };
+    return { key: 'ongoing', label: tr('student.homeworks.statusOngoing'), color: 'blue' };
   }
   const dueDate = new Date(dueAt);
   const now = Date.now();
   if (dueDate.getTime() < now) {
     if (allowLateSubmission) {
-      return { key: 'late', label: '逾期补交', color: 'orange' };
+      return { key: 'late', label: tr('student.homeworks.statusLate'), color: 'orange' };
     }
-    return { key: 'expired', label: '已截止', color: 'red' };
+    return { key: 'expired', label: tr('student.homeworks.statusExpired'), color: 'red' };
   }
-  return { key: 'ongoing', label: '进行中', color: 'blue' };
-};
-
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return '早上好';
-  if (hour < 18) return '下午好';
-  return '晚上好';
+  return { key: 'ongoing', label: tr('student.homeworks.statusOngoing'), color: 'blue' };
 };
 
 export const StudentHomeworksPage = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
   const [filter, setFilter] = useState<FilterType>('all');
+
+  const getGreeting = useCallback(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return t('student.homeworks.greetingMorning');
+    if (hour < 18) return t('student.homeworks.greetingAfternoon');
+    return t('student.homeworks.greetingEvening');
+  }, [t]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['student-homeworks'],
@@ -48,28 +49,28 @@ export const StudentHomeworksPage = () => {
   const filteredData = useMemo(() => {
     const list = data || [];
     return list.filter((item) => {
-      const status = getStatus(item.dueAt, item.allowLateSubmission);
+      const status = getStatus(item.dueAt, item.allowLateSubmission, t);
       if (filter === 'all') return true;
       return status.key === filter;
     });
-  }, [data, filter]);
+  }, [data, filter, t]);
 
   const pendingCount = useMemo(() => {
     if (!data) return 0;
     return data.filter(item => {
-      const status = getStatus(item.dueAt, item.allowLateSubmission);
+      const status = getStatus(item.dueAt, item.allowLateSubmission, t);
       return status.key === 'ongoing' || status.key === 'late';
     }).length;
-  }, [data]);
+  }, [data, t]);
 
   const handleSubmit = useCallback((id: string) => navigate(`/student/submit/${id}`), [navigate]);
 
-  const filters = [
-    { key: 'all' as FilterType, label: '全部' },
-    { key: 'ongoing' as FilterType, label: '进行中' },
-    { key: 'late' as FilterType, label: '逾期' },
-    { key: 'expired' as FilterType, label: '已截止' },
-  ];
+  const filterOptions = useMemo(() => [
+    { label: t('student.homeworks.filterAll'), value: 'all' as FilterType },
+    { label: t('student.homeworks.filterOngoing'), value: 'ongoing' as FilterType },
+    { label: t('student.homeworks.filterLate'), value: 'late' as FilterType },
+    { label: t('student.homeworks.filterExpired'), value: 'expired' as FilterType },
+  ], [t]);
 
   return (
     <PageContainer
@@ -85,11 +86,11 @@ export const StudentHomeworksPage = () => {
       {isError ? (
         <Alert
           type="error"
-          message="加载失败"
-          description={error instanceof Error ? error.message : '请重试'}
+          message={t('common.loadError')}
+          description={error instanceof Error ? error.message : t('common.tryAgain')}
           action={
             <Button size="small" onClick={() => refetch()}>
-              重试
+              {t('common.retry')}
             </Button>
           }
           className="apple-inline-alert"
@@ -99,41 +100,19 @@ export const StudentHomeworksPage = () => {
       {/* Welcome Hero */}
       <div style={{ marginBottom: '16px' }}>
         <Typography.Title level={3} style={{ marginBottom: '8px' }}>
-          {getGreeting()}，同学        </Typography.Title>
-        <Text type="secondary">你有 {pendingCount} 个作业待提交</Text>
+          {getGreeting()}
+        </Typography.Title>
+        <Text type="secondary">{t('student.homeworks.pendingPrefix')}{pendingCount}{t('student.homeworks.pendingSuffix')}</Text>
       </div>
 
       {/* Filter Chips */}
-      <Space size="middle" style={{ marginBottom: '16px' }}>
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            style={{
-              padding: '6px 16px',
-              borderRadius: '20px',
-              border: 'none',
-              background: filter === f.key ? '#1890ff' : '#f5f5f5',
-              color: filter === f.key ? '#fff' : '#666',
-              cursor: 'pointer',
-              fontSize: '14px',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              if (filter !== f.key) {
-                e.currentTarget.style.background = '#e6e6e6';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (filter !== f.key) {
-                e.currentTarget.style.background = '#f5f5f5';
-              }
-            }}
-          >
-            {f.label}
-          </button>
-        ))}
-      </Space>
+      <div style={{ marginBottom: '16px' }}>
+        <Segmented
+          value={filter}
+          onChange={(value) => setFilter(value as FilterType)}
+          options={filterOptions}
+        />
+      </div>
 
       {/* Loading State */}
       {isLoading ? (
@@ -145,9 +124,10 @@ export const StudentHomeworksPage = () => {
       {/* Empty State */}
       {!isLoading && filteredData.length === 0 ? (
         <ProCard bordered className="apple-soft-card">
-          <SoftEmpty description="暂无作业">
+          <SoftEmpty description={t('student.homeworks.empty')}>
             <Typography.Paragraph type="secondary" style={{ marginTop: '8px', marginBottom: 0 }}>
-              老师发布作业后会显示在这里            </Typography.Paragraph>
+              {t('student.homeworks.emptyHint')}
+            </Typography.Paragraph>
           </SoftEmpty>
         </ProCard>
       ) : null}
@@ -156,7 +136,7 @@ export const StudentHomeworksPage = () => {
       {!isLoading && filteredData.length > 0 && (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           {filteredData.map((item) => {
-            const status = getStatus(item.dueAt, item.allowLateSubmission);
+            const status = getStatus(item.dueAt, item.allowLateSubmission, t);
             const isUrgent = status.key === 'ongoing' && item.dueAt &&
               new Date(item.dueAt).getTime() - Date.now() < 24 * 60 * 60 * 1000;
 
@@ -179,11 +159,11 @@ export const StudentHomeworksPage = () => {
                     </Text>
                     <Tag color={status.color} className="apple-tag-pill">{status.label}</Tag>
                     {isUrgent && (
-                      <Tag color="red" className="apple-tag-pill">即将截止</Tag>
+                      <Tag color="red" className="apple-tag-pill">{t('student.homeworks.urgent')}</Tag>
                     )}
                   </div>
                   <Text type="secondary" style={{ fontSize: '14px' }}>
-                    {item.dueAt ? `截止时间：${formatDate(item.dueAt)}` : '弹性截止'} · {item.class.name}
+                    {item.dueAt ? `${t('student.homeworks.deadline')}${formatDate(item.dueAt)}` : t('student.homeworks.flexibleDeadline')} · {item.class.name}
                   </Text>
                 </div>
                 {status.key !== 'expired' && (
@@ -192,7 +172,7 @@ export const StudentHomeworksPage = () => {
                     onClick={() => handleSubmit(item.id)}
                     style={{ borderRadius: '8px' }}
                   >
-                    提交作业
+                    {t('student.homeworks.submitBtn')}
                   </Button>
                 )}
               </ProCard>
